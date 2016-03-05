@@ -2,6 +2,6 @@
 /cmd/in/in
 /cmd/out/out
 
-/cmd/out/fly
+fly-bin
 
 main
