@@ -22,17 +22,20 @@ type CheckCommand struct {
 	logger        logger.Logger
 	logFilePath   string
 	binaryVersion string
+	flyBinaryPath string
 }
 
 func NewCheckCommand(
 	binaryVersion string,
 	logger logger.Logger,
 	logFilePath string,
+	flyBinaryPath string,
 ) *CheckCommand {
 	return &CheckCommand{
 		logger:        logger,
 		logFilePath:   logFilePath,
 		binaryVersion: binaryVersion,
+		flyBinaryPath: flyBinaryPath,
 	}
 }
 
@@ -71,7 +74,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", c.logger)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", c.logger, c.flyBinaryPath)
 
 	loginOutput, err := flyConn.Run(
 		"login",

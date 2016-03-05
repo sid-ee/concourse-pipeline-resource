@@ -6,11 +6,16 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
+)
+
+const (
+	flyBinaryName = "fly"
 )
 
 var (
@@ -24,6 +29,13 @@ func main() {
 	if version == "" {
 		version = "dev"
 	}
+
+	outDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	flyBinaryPath := filepath.Join(outDir, flyBinaryName)
 
 	var input concourse.OutRequest
 
@@ -46,7 +58,7 @@ func main() {
 
 	l = logger.NewLogger(sanitizer)
 
-	_, err = out.NewOutCommand(version, l).Run(input)
+	_, err = out.NewOutCommand(version, l, flyBinaryPath).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

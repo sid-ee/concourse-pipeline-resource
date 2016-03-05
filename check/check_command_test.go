@@ -27,6 +27,8 @@ var _ = Describe("Check", func() {
 		username string
 		password string
 
+		flyBinaryPath string
+
 		checkRequest concourse.CheckRequest
 		checkCommand *check.CheckCommand
 	)
@@ -61,7 +63,8 @@ var _ = Describe("Check", func() {
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		checkCommand = check.NewCheckCommand(binaryVersion, ginkgoLogger, logFilePath)
+		flyBinaryPath = "fly"
+		checkCommand = check.NewCheckCommand(binaryVersion, ginkgoLogger, logFilePath, flyBinaryPath)
 	})
 
 	AfterEach(func() {

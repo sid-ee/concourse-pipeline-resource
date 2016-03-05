@@ -14,15 +14,18 @@ const (
 type InCommand struct {
 	logger        logger.Logger
 	binaryVersion string
+	flyBinaryPath string
 }
 
 func NewInCommand(
 	binaryVersion string,
 	logger logger.Logger,
+	flyBinaryPath string,
 ) *InCommand {
 	return &InCommand{
 		logger:        logger,
 		binaryVersion: binaryVersion,
+		flyBinaryPath: flyBinaryPath,
 	}
 }
 

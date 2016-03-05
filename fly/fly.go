@@ -11,14 +11,16 @@ type FlyConn interface {
 }
 
 type flyConn struct {
-	target string
-	logger logger.Logger
+	target        string
+	logger        logger.Logger
+	flyBinaryPath string
 }
 
-func NewFlyConn(target string, logger logger.Logger) FlyConn {
+func NewFlyConn(target string, logger logger.Logger, flyBinaryPath string) FlyConn {
 	return &flyConn{
-		target: target,
-		logger: logger,
+		target:        target,
+		logger:        logger,
+		flyBinaryPath: flyBinaryPath,
 	}
 }
 
@@ -27,7 +29,7 @@ func (f flyConn) Run(args ...string) ([]byte, error) {
 		"-t", f.target,
 	}
 	allArgs := append(defaultArgs, args...)
-	cmd := exec.Command("fly", allArgs...)
+	cmd := exec.Command(f.flyBinaryPath, allArgs...)
 
 	f.logger.Debugf("Running fly command: %v\n", allArgs)
 	return cmd.CombinedOutput()

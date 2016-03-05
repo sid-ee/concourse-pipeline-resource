@@ -25,6 +25,8 @@ var _ = Describe("Out", func() {
 		username string
 		password string
 
+		flyBinaryPath string
+
 		outRequest concourse.OutRequest
 		outCommand *out.OutCommand
 	)
@@ -55,7 +57,8 @@ var _ = Describe("Out", func() {
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		outCommand = out.NewOutCommand(binaryVersion, ginkgoLogger)
+		flyBinaryPath = "fly"
+		outCommand = out.NewOutCommand(binaryVersion, ginkgoLogger, flyBinaryPath)
 	})
 
 	AfterEach(func() {

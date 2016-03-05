@@ -25,6 +25,8 @@ var _ = Describe("In", func() {
 		username string
 		password string
 
+		flyBinaryPath string
+
 		inRequest concourse.InRequest
 		inCommand *in.InCommand
 	)
@@ -55,7 +57,8 @@ var _ = Describe("In", func() {
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		inCommand = in.NewInCommand(binaryVersion, ginkgoLogger)
+		flyBinaryPath = "fly"
+		inCommand = in.NewInCommand(binaryVersion, ginkgoLogger, flyBinaryPath)
 	})
 
 	AfterEach(func() {
