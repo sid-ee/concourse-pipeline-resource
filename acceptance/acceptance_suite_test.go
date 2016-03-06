@@ -60,15 +60,30 @@ var _ = BeforeSuite(func() {
 
 	By("Copying fly to compilation location")
 	originalFlyPathPath := os.Getenv("FLY_LOCATION")
-	Expect(originalFlyPathPath).ToNot(BeEmpty(), "$FLY_LOCATION must be provided")
+	Expect(originalFlyPathPath).NotTo(BeEmpty(), "$FLY_LOCATION must be provided")
 	_, err = os.Stat(originalFlyPathPath)
 	Expect(err).NotTo(HaveOccurred())
-	flyPath := filepath.Join(path.Dir(outPath), "fly")
-	copyFileContents(originalFlyPathPath, flyPath)
+
+	checkFlyPath := filepath.Join(path.Dir(checkPath), "fly")
+	copyFileContents(originalFlyPathPath, checkFlyPath)
 	Expect(err).NotTo(HaveOccurred())
 
-	By("Ensuring copy of fly is executable")
-	err = os.Chmod(flyPath, os.ModePerm)
+	inFlyPath := filepath.Join(path.Dir(inPath), "fly")
+	copyFileContents(originalFlyPathPath, inFlyPath)
+	Expect(err).NotTo(HaveOccurred())
+
+	outFlyPath := filepath.Join(path.Dir(outPath), "fly")
+	copyFileContents(originalFlyPathPath, outFlyPath)
+	Expect(err).NotTo(HaveOccurred())
+
+	By("Ensuring copies of fly is executable")
+	err = os.Chmod(checkFlyPath, os.ModePerm)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = os.Chmod(inFlyPath, os.ModePerm)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = os.Chmod(outFlyPath, os.ModePerm)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Sanitizing acceptance test output")

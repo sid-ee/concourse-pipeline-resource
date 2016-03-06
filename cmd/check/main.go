@@ -36,9 +36,6 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	flyBinaryPath := filepath.Join(checkDir, flyBinaryName)
-	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
-
 	var input concourse.CheckRequest
 
 	logFile, err := ioutil.TempFile("", "concourse-resource-check.log")
@@ -59,6 +56,9 @@ func main() {
 	sanitizer := sanitizer.NewSanitizer(sanitized, logFile)
 
 	l = logger.NewLogger(sanitizer)
+
+	flyBinaryPath := filepath.Join(checkDir, flyBinaryName)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
 
 	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn)
 	response, err := checkCommand.Run(input)

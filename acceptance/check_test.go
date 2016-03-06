@@ -44,6 +44,20 @@ var _ = Describe("Check", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
+	It("returns checksum without error", func() {
+		By("Running the command")
+		session := run(command, stdinContents)
+
+		By("Validating command exited with error")
+		Eventually(session, checkTimeout).Should(gexec.Exit(0))
+
+		var resp concourse.CheckResponse
+		err := json.Unmarshal(session.Out.Contents(), &resp)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(len(resp)).To(BeNumerically(">", 0))
+	})
+
 	Context("when validation fails", func() {
 		BeforeEach(func() {
 			checkRequest.Source.Username = ""
