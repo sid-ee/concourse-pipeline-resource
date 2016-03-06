@@ -37,7 +37,7 @@ func main() {
 	}
 
 	flyBinaryPath := filepath.Join(checkDir, flyBinaryName)
-	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", c.logger, c.flyBinaryPath)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
 
 	var input concourse.CheckRequest
 
