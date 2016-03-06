@@ -6,7 +6,10 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )
 
+//go:generate counterfeiter . FlyConn
+
 type FlyConn interface {
+	Login(target string, username string, password string) ([]byte, error)
 	Run(...string) ([]byte, error)
 }
 
@@ -22,6 +25,19 @@ func NewFlyConn(target string, logger logger.Logger, flyBinaryPath string) FlyCo
 		logger:        logger,
 		flyBinaryPath: flyBinaryPath,
 	}
+}
+
+func (f flyConn) Login(
+	target string,
+	username string,
+	password string,
+) ([]byte, error) {
+	return f.Run(
+		"login",
+		"-c", target,
+		"-u", username,
+		"-p", password,
+	)
 }
 
 func (f flyConn) Run(args ...string) ([]byte, error) {

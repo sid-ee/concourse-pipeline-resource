@@ -10,6 +10,7 @@ import (
 
 	"github.com/robdimsdale/concourse-pipeline-resource/check"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 )
@@ -36,6 +37,7 @@ func main() {
 	}
 
 	flyBinaryPath := filepath.Join(checkDir, flyBinaryName)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", c.logger, c.flyBinaryPath)
 
 	var input concourse.CheckRequest
 
@@ -58,7 +60,7 @@ func main() {
 
 	l = logger.NewLogger(sanitizer)
 
-	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyBinaryPath)
+	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn)
 	response, err := checkCommand.Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)

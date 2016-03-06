@@ -22,20 +22,20 @@ type CheckCommand struct {
 	logger        logger.Logger
 	logFilePath   string
 	binaryVersion string
-	flyBinaryPath string
+	flyConn       fly.FlyConn
 }
 
 func NewCheckCommand(
 	binaryVersion string,
 	logger logger.Logger,
 	logFilePath string,
-	flyBinaryPath string,
+	flyConn fly.FlyConn,
 ) *CheckCommand {
 	return &CheckCommand{
 		logger:        logger,
 		logFilePath:   logFilePath,
 		binaryVersion: binaryVersion,
-		flyBinaryPath: flyBinaryPath,
+		flyConn:       flyConn,
 	}
 }
 
@@ -74,17 +74,14 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", c.logger, c.flyBinaryPath)
-
-	loginOutput, err := flyConn.Run(
-		"login",
-		"-c", input.Source.Target,
-		"-u", input.Source.Username,
-		"-p", input.Source.Password,
+	loginOutput, err := c.flyConn.Login(
+		input.Source.Target,
+		input.Source.Username,
+		input.Source.Password,
 	)
 	if err != nil {
 		c.logger.Debugf("%s\n", string(loginOutput))
-		panic(err)
+		return nil, err
 	}
 
 	resp, err := http.Get(fmt.Sprintf(
@@ -93,27 +90,35 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 		apiPrefix,
 	))
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Unexpected response status code: %d, expected: %d",
+			resp.StatusCode,
+			http.StatusOK,
+		)
 	}
 
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		panic(err)
+		// Untested as it is too hard to force ReadAll to return an error
+		return nil, err
 	}
 
 	var pipelines []concourse.Pipeline
 	err = json.Unmarshal(b, &pipelines)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
 
 	var allPipelineContents []byte
 	for _, p := range pipelines {
-		pipelineContents, err := flyConn.Run("gp", "-p", p.Name)
+		pipelineContents, err := c.flyConn.Run("gp", "-p", p.Name)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		allPipelineContents = append(allPipelineContents, pipelineContents...)
@@ -131,7 +136,9 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 	}
 
 	out := concourse.CheckResponse{
-		{PipelinesChecksum: pipelinesChecksumString},
+		concourse.Version{
+			PipelinesChecksum: pipelinesChecksumString,
+		},
 	}
 
 	c.logger.Debugf("Returning output: %+v\n", out)
