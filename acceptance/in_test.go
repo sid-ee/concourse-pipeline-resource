@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"os/exec"
 	"time"
 
@@ -21,11 +22,18 @@ var _ = Describe("In", func() {
 		command       *exec.Cmd
 		inRequest     concourse.InRequest
 		stdinContents []byte
+		destDirectory string
 	)
 
 	BeforeEach(func() {
+		var err error
+
+		By("Creating temp directory")
+		destDirectory, err = ioutil.TempDir("", "pivnet-resource")
+		Expect(err).NotTo(HaveOccurred())
+
 		By("Creating command object")
-		command = exec.Command(inPath)
+		command = exec.Command(inPath, destDirectory)
 
 		By("Creating default request")
 		inRequest = concourse.InRequest{
@@ -39,9 +47,26 @@ var _ = Describe("In", func() {
 			},
 		}
 
-		var err error
 		stdinContents, err = json.Marshal(inRequest)
 		Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	It("downloads all pipeline configs to the target directory", func() {
+		By("Running the command")
+		session := run(command, stdinContents)
+
+		Eventually(session, inTimeout).Should(gexec.Exit(0))
+
+		files, err := ioutil.ReadDir(destDirectory)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(len(files)).To(BeNumerically(">", 0))
+		for _, file := range files {
+			Expect(file.Name()).To(MatchRegexp(".*\\.yml"))
+			Expect(file.Size()).To(BeNumerically(">", 0))
+		}
+
+		// Expect(files[1].Name()).To(MatchRegexp("%s.yml", pipelines[1].Name))
 	})
 
 	Context("when validation fails", func() {

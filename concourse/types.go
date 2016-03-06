@@ -32,6 +32,11 @@ type InParams struct {
 }
 
 type InResponse struct {
+	Version  Version  `json:"version"`
+	Metadata Metadata `json:"metadata"`
+}
+
+type Metadata struct {
 }
 
 type OutRequest struct {

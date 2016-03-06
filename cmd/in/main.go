@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/in"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
@@ -30,12 +31,17 @@ func main() {
 		version = "dev"
 	}
 
+	if len(os.Args) < 2 {
+		log.Fatalln(fmt.Sprintf(
+			"not enough args - usage: %s <sources directory>", os.Args[0]))
+	}
+
+	downloadDir := os.Args[1]
+
 	inDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	flyBinaryPath := filepath.Join(inDir, flyBinaryName)
 
 	var input concourse.InRequest
 
@@ -58,7 +64,10 @@ func main() {
 
 	l = logger.NewLogger(sanitizer)
 
-	_, err = in.NewInCommand(version, l, flyBinaryPath).Run(input)
+	flyBinaryPath := filepath.Join(inDir, flyBinaryName)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
+
+	_, err = in.NewInCommand(version, l, flyConn, downloadDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

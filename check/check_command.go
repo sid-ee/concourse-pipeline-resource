@@ -2,20 +2,14 @@ package check
 
 import (
 	"crypto/md5"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-)
-
-const (
-	apiPrefix = "/api/v1"
 )
 
 type CheckCommand struct {
@@ -84,30 +78,8 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 		return nil, err
 	}
 
-	resp, err := http.Get(fmt.Sprintf(
-		"%s%s/pipelines",
-		input.Source.Target,
-		apiPrefix,
-	))
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpected response status code: %d, expected: %d",
-			resp.StatusCode,
-			http.StatusOK,
-		)
-	}
-
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		// Untested as it is too hard to force ReadAll to return an error
-		return nil, err
-	}
-
-	var pipelines []concourse.Pipeline
-	err = json.Unmarshal(b, &pipelines)
+	apiClient := api.NewClient(input.Source.Target)
+	pipelines, err := apiClient.Pipelines()
 	if err != nil {
 		return nil, err
 	}
