@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	outTimeout = 5 * time.Second
+	outTimeout = 20 * time.Second
 )
 
 var _ = Describe("Out", func() {

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	checkTimeout = 5 * time.Second
+	checkTimeout = 20 * time.Second
 )
 
 var _ = Describe("Check", func() {
