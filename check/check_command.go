@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
@@ -86,14 +87,39 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
 
-	var allPipelineContents []byte
-	for _, p := range pipelines {
-		pipelineContents, err := c.flyConn.Run("gp", "-p", p.Name)
+	var wg sync.WaitGroup
+	wg.Add(len(pipelines))
+
+	errChan := make(chan error, len(pipelines))
+
+	pipelinesContents := make([][]byte, len(pipelines))
+	for i, p := range pipelines {
+		go func(i int, p concourse.Pipeline) {
+			defer wg.Done()
+
+			contents, err := c.flyConn.Run("gp", "-p", p.Name)
+			if err != nil {
+				errChan <- err
+			}
+
+			pipelinesContents[i] = contents
+		}(i, p)
+	}
+
+	c.logger.Debugf("Waiting for all pipelines\n")
+	wg.Wait()
+	c.logger.Debugf("Waiting for all pipelines complete\n")
+
+	close(errChan)
+	for err := range errChan {
 		if err != nil {
 			return nil, err
 		}
+	}
 
-		allPipelineContents = append(allPipelineContents, pipelineContents...)
+	var allPipelineContents []byte
+	for i, _ := range pipelinesContents {
+		allPipelineContents = append(allPipelineContents, pipelinesContents[i]...)
 	}
 
 	pipelinesChecksumString := fmt.Sprintf(
