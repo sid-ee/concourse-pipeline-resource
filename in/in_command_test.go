@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
@@ -154,8 +155,8 @@ pipeline2: foo
 	AfterEach(func() {
 		server.Close()
 
-		// err := os.RemoveAll(downloadDir)
-		// Expect(err).NotTo(HaveOccurred())
+		err := os.RemoveAll(downloadDir)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("downloads all pipeline configs to the target directory", func() {

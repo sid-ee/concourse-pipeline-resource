@@ -65,8 +65,6 @@ var _ = Describe("In", func() {
 			Expect(file.Name()).To(MatchRegexp(".*\\.yml"))
 			Expect(file.Size()).To(BeNumerically(">", 0))
 		}
-
-		// Expect(files[1].Name()).To(MatchRegexp("%s.yml", pipelines[1].Name))
 	})
 
 	Context("when validation fails", func() {
