@@ -71,6 +71,9 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 	}
 
 	apiClient := api.NewClient(input.Source.Target)
+
+	c.logger.Debugf("Getting pipelines\n")
+
 	pipelines, err := apiClient.Pipelines()
 	if err != nil {
 		return concourse.InResponse{}, err

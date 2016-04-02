@@ -17,7 +17,7 @@ pushd "${base_dir}" > /dev/null
   CGO_ENABLED=1 ginkgo \
     -r \
     -race \
-    -p \
+    -nodes 4 \ # do not be greepy; it is counterproductive
     -randomizeAllSpecs \
     -randomizeSuites \
     "$@"
