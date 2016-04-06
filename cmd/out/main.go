@@ -39,7 +39,7 @@ func main() {
 
 	var input concourse.OutRequest
 
-	logFile, err := ioutil.TempFile("", "concourse-resource-out.log")
+	logFile, err := ioutil.TempFile("", "concourse-pipeline-resource-out.log")
 	if err != nil {
 		log.Fatalln(err)
 	}
