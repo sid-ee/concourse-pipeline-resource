@@ -12,6 +12,7 @@ import (
 	"github.com/onsi/gomega/ghttp"
 	"github.com/robdimsdale/concourse-pipeline-resource/check"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
@@ -38,7 +39,7 @@ var _ = Describe("Check", func() {
 		checkCommand *check.CheckCommand
 
 		pipelinesResponseStatusCode *int
-		pipelinesResponseBody       *[]concourse.Pipeline
+		pipelinesResponseBody       *[]api.Pipeline
 		fakeFlyConn                 *flyfakes.FakeFlyConn
 		runCallCount                int
 	)
@@ -49,7 +50,7 @@ var _ = Describe("Check", func() {
 
 		server = ghttp.NewServer()
 
-		pipelinesResponseBody = &[]concourse.Pipeline{
+		pipelinesResponseBody = &[]api.Pipeline{
 			{
 				Name: "pipeline 1",
 				URL:  "pipeline URL 1",

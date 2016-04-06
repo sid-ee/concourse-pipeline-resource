@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 )
 
 const (
@@ -16,7 +14,7 @@ const (
 //go:generate counterfeiter . Client
 
 type Client interface {
-	Pipelines() ([]concourse.Pipeline, error)
+	Pipelines() ([]Pipeline, error)
 }
 
 type client struct {
@@ -29,7 +27,7 @@ func NewClient(target string) Client {
 	}
 }
 
-func (c client) Pipelines() ([]concourse.Pipeline, error) {
+func (c client) Pipelines() ([]Pipeline, error) {
 	resp, err := http.Get(fmt.Sprintf(
 		"%s%s/pipelines",
 		c.target,
@@ -52,7 +50,7 @@ func (c client) Pipelines() ([]concourse.Pipeline, error) {
 		return nil, err
 	}
 
-	var pipelines []concourse.Pipeline
+	var pipelines []Pipeline
 	err = json.Unmarshal(b, &pipelines)
 	if err != nil {
 		return nil, err

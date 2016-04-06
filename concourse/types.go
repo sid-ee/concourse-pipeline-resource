@@ -17,11 +17,6 @@ type Version struct {
 
 type CheckResponse []Version
 
-type Pipeline struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
-
 type InRequest struct {
 	Source  Source   `json:"source"`
 	Version Version  `json:"version"`

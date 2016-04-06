@@ -4,21 +4,20 @@ package apifakes
 import (
 	"sync"
 
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 )
 
 type FakeClient struct {
-	PipelinesStub        func() ([]concourse.Pipeline, error)
+	PipelinesStub        func() ([]api.Pipeline, error)
 	pipelinesMutex       sync.RWMutex
 	pipelinesArgsForCall []struct{}
 	pipelinesReturns     struct {
-		result1 []concourse.Pipeline
+		result1 []api.Pipeline
 		result2 error
 	}
 }
 
-func (fake *FakeClient) Pipelines() ([]concourse.Pipeline, error) {
+func (fake *FakeClient) Pipelines() ([]api.Pipeline, error) {
 	fake.pipelinesMutex.Lock()
 	fake.pipelinesArgsForCall = append(fake.pipelinesArgsForCall, struct{}{})
 	fake.pipelinesMutex.Unlock()
@@ -35,10 +34,10 @@ func (fake *FakeClient) PipelinesCallCount() int {
 	return len(fake.pipelinesArgsForCall)
 }
 
-func (fake *FakeClient) PipelinesReturns(result1 []concourse.Pipeline, result2 error) {
+func (fake *FakeClient) PipelinesReturns(result1 []api.Pipeline, result2 error) {
 	fake.PipelinesStub = nil
 	fake.pipelinesReturns = struct {
-		result1 []concourse.Pipeline
+		result1 []api.Pipeline
 		result2 error
 	}{result1, result2}
 }

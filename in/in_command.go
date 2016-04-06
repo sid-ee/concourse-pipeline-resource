@@ -88,7 +88,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 
 	pipelinesWithContents := make([]pipelineWithContent, len(pipelines))
 	for i, p := range pipelines {
-		go func(i int, p concourse.Pipeline) {
+		go func(i int, p api.Pipeline) {
 			defer wg.Done()
 
 			contents, err := c.flyConn.Run("gp", "-p", p.Name)

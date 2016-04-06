@@ -94,7 +94,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	pipelinesContents := make([][]byte, len(pipelines))
 	for i, p := range pipelines {
-		go func(i int, p concourse.Pipeline) {
+		go func(i int, p api.Pipeline) {
 			defer wg.Done()
 
 			contents, err := c.flyConn.Run("gp", "-p", p.Name)

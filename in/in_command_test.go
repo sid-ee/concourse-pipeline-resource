@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/in"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
@@ -38,7 +39,7 @@ var _ = Describe("In", func() {
 		flyRunCallCount int
 
 		pipelinesResponseStatusCode int
-		pipelines                   []concourse.Pipeline
+		pipelines                   []api.Pipeline
 
 		pipelineResponseStatusCode int
 
@@ -59,7 +60,7 @@ var _ = Describe("In", func() {
 		password = "some password"
 		flyBinaryPath = "fly"
 
-		pipelines = []concourse.Pipeline{
+		pipelines = []api.Pipeline{
 			{
 				Name: "pipeline-1",
 				URL:  "pipeline_URL_1",
