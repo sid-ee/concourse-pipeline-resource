@@ -43,7 +43,7 @@ var _ = Describe("In", func() {
 				Password: password,
 			},
 			Version: concourse.Version{
-				PipelinesChecksum: "",
+				PipelinesChecksum: "some-pipeline-checksum",
 			},
 		}
 
@@ -65,6 +65,20 @@ var _ = Describe("In", func() {
 			Expect(file.Name()).To(MatchRegexp(".*\\.yml"))
 			Expect(file.Size()).To(BeNumerically(">", 0))
 		}
+	})
+
+	It("returns valid json", func() {
+		By("Running the command")
+		session := run(command, stdinContents)
+		Eventually(session, inTimeout).Should(gexec.Exit(0))
+
+		By("Outputting a valid json response")
+		response := concourse.InResponse{}
+		err := json.Unmarshal(session.Out.Contents(), &response)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Validating output contains product version")
+		Expect(response.Version.PipelinesChecksum).To(Equal(inRequest.Version.PipelinesChecksum))
 	})
 
 	Context("when validation fails", func() {
