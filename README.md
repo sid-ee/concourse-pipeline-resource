@@ -54,11 +54,28 @@ resources:
     password: some-password
 ```
 
+#### In
+
+```yaml
+---
+jobs:
+- name: download-my-pipelines
+  plan:
+  - get: my-pipelines
+```
+
 ## Behavior
 
 ### `check`: Check for changes to the pipelines.
 
 Return a checksum of the concatenated contents of all pipelines.
+
+### `in`: Get the configuration of the pipelines
+
+Get the config for each pipeline; write it to the local working directory (e.g.
+`/tmp/build/get`) with the filename derived from the pipeline name.
+- For example, if there are two pipelines `foo` and `bar` the config for the
+first will be written to `foo.yml` and the second to `bar.yml`.
 
 ## Developing
 
