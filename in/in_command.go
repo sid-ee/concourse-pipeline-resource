@@ -123,7 +123,16 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		}
 	}
 
-	return concourse.InResponse{}, nil
+	metadata := make([]concourse.Metadata, len(pipelinesWithContents))
+
+	response := concourse.InResponse{
+		Version: concourse.Version{
+			PipelinesChecksum: input.Version.PipelinesChecksum,
+		},
+		Metadata: metadata,
+	}
+
+	return response, nil
 }
 
 type pipelineWithContent struct {

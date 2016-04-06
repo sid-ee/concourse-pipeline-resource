@@ -13,7 +13,7 @@ FLY_LOCATION="${FLY_LOCATION:?"FLY_LOCATION must be provided"}"
 my_dir="$( cd "$( dirname "${0}" )" && pwd )"
 base_dir="$( cd "${my_dir}/.." && pwd )"
 
-# use only 4 nodes as so not to be greepy; it is counterproductive
+# use only 4 nodes as so not to be greedy; it is counterproductive
 pushd "${base_dir}" > /dev/null
   CGO_ENABLED=1 ginkgo \
     -r \
