@@ -42,6 +42,10 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		return concourse.OutResponse{}, fmt.Errorf("%s must be provided", "password")
 	}
 
+	if input.Params.Pipelines == nil || len(input.Params.Pipelines) == 0 {
+		return concourse.OutResponse{}, fmt.Errorf("%s must be provided", "pipelines")
+	}
+
 	c.logger.Debugf("Received input: %+v\n", input)
 
 	return concourse.OutResponse{}, fmt.Errorf("out is not implemented yet")

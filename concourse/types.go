@@ -42,6 +42,13 @@ type OutRequest struct {
 }
 
 type OutParams struct {
+	Pipelines []Pipeline `json:"pipelines,omitempty"`
+}
+
+type Pipeline struct {
+	Name       string   `json:"name"`
+	ConfigFile string   `json:"config_file"`
+	VarsFiles  []string `json:"vars_files"`
 }
 
 type OutResponse struct {

@@ -21,9 +21,10 @@ var _ = Describe("Out", func() {
 
 		ginkgoLogger logger.Logger
 
-		target   string
-		username string
-		password string
+		target    string
+		username  string
+		password  string
+		pipelines []concourse.Pipeline
 
 		flyBinaryPath string
 
@@ -44,11 +45,21 @@ var _ = Describe("Out", func() {
 		username = "some user"
 		password = "some password"
 
+		pipelines = []concourse.Pipeline{
+			{
+				Name:       "pipeline-1",
+				ConfigFile: "pipeline_1.yml",
+			},
+		}
+
 		outRequest = concourse.OutRequest{
 			Source: concourse.Source{
 				Target:   target,
 				Username: username,
 				Password: password,
+			},
+			Params: concourse.OutParams{
+				Pipelines: pipelines,
 			},
 		}
 
@@ -104,6 +115,32 @@ var _ = Describe("Out", func() {
 			Expect(err).To(HaveOccurred())
 
 			Expect(err.Error()).To(MatchRegexp(".*password.*provided"))
+		})
+	})
+
+	Context("when pipelines param is nil", func() {
+		BeforeEach(func() {
+			outRequest.Params.Pipelines = nil
+		})
+
+		It("returns an error", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*pipelines.*provided"))
+		})
+	})
+
+	Context("when pipelines param is empty", func() {
+		BeforeEach(func() {
+			outRequest.Params.Pipelines = []concourse.Pipeline{}
+		})
+
+		It("returns an error", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*pipelines.*provided"))
 		})
 	})
 })
