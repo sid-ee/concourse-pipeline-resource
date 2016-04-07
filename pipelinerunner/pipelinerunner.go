@@ -3,6 +3,7 @@ package pipelinerunner
 import (
 	"sync"
 
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )

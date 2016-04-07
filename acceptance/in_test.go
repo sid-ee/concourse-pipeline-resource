@@ -77,7 +77,7 @@ var _ = Describe("In", func() {
 		err := json.Unmarshal(session.Out.Contents(), &response)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		By("Validating output contains product version")
+		By("Validating output contains checksum")
 		Expect(response.Version.PipelinesChecksum).To(Equal(inRequest.Version.PipelinesChecksum))
 	})
 

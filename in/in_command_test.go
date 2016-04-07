@@ -99,6 +99,7 @@ pipeline2: foo
 
 		fakeFlyConn.RunStub = func(args ...string) ([]byte, error) {
 			if args[0] == "gp" {
+				// args[1] will be "-p"
 				switch args[2] {
 				case pipelines[0].Name:
 					return []byte(pipelineContents[0]), nil
@@ -107,15 +108,7 @@ pipeline2: foo
 				}
 			}
 
-			flyRunCallCount += 1
-			switch flyRunCallCount {
-			case 1:
-				return []byte(pipelineContents[0]), nil
-			case 2:
-				return []byte(pipelineContents[1]), nil
-			default:
-				Fail("Unexpected invocation of flyConn.Run")
-			}
+			Fail("Unexpected invocation of flyConn.Run")
 			return nil, nil
 		}
 	})
@@ -133,22 +126,6 @@ pipeline2: foo
 				),
 			),
 		)
-
-		for i, p := range pipelines {
-			server.AppendHandlers(
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", fmt.Sprintf(
-						"%s/pipelines/%d",
-						apiPrefix,
-						p.URL,
-					)),
-					ghttp.RespondWithJSONEncoded(
-						pipelineResponseStatusCode,
-						pipelines[i],
-					),
-				),
-			)
-		}
 
 		sanitized := concourse.SanitizedSource(inRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)

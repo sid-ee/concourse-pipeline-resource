@@ -11,6 +11,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
+	"github.com/robdimsdale/concourse-pipeline-resource/fly"
+	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 
 	"testing"
@@ -24,6 +26,8 @@ var (
 	target   string
 	username string
 	password string
+
+	flyConn fly.FlyConn
 )
 
 func TestAcceptance(t *testing.T) {
@@ -92,6 +96,14 @@ var _ = BeforeSuite(func() {
 	}
 	sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 	GinkgoWriter = sanitizer
+
+	By("Creating fly connection")
+	l := logger.NewLogger(sanitizer)
+	flyConn = fly.NewFlyConn("concourse-pipeline-resource-target", l, inFlyPath)
+
+	By("Logging in with fly")
+	_, err = flyConn.Login(target, username, password)
+	Expect(err).NotTo(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {

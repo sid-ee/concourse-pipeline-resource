@@ -52,4 +52,6 @@ type Pipeline struct {
 }
 
 type OutResponse struct {
+	Version  Version    `json:"version"`
+	Metadata []Metadata `json:"metadata"`
 }
