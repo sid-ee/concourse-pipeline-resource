@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
+	"strings"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
+	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner"
 )
 
 type CheckCommand struct {
@@ -87,46 +88,23 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
 
-	var wg sync.WaitGroup
-	wg.Add(len(pipelines))
-
-	errChan := make(chan error, len(pipelines))
-
-	pipelinesContents := make([][]byte, len(pipelines))
-	for i, p := range pipelines {
-		go func(i int, p api.Pipeline) {
-			defer wg.Done()
-
-			contents, err := c.flyConn.Run("gp", "-p", p.Name)
-			if err != nil {
-				errChan <- err
-			}
-
-			pipelinesContents[i] = contents
-		}(i, p)
+	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
+		b, err := c.flyConn.Run("gp", "-p", pipeline.Name)
+		return string(b), err
 	}
 
-	c.logger.Debugf("Waiting for all pipelines\n")
-	wg.Wait()
-	c.logger.Debugf("Waiting for all pipelines complete\n")
-
-	close(errChan)
-	for err := range errChan {
-		if err != nil {
-			return nil, err
-		}
+	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, pipelines, c.logger)
+	if err != nil {
+		return nil, err
 	}
 
-	var allPipelineContents []byte
-	for i, _ := range pipelinesContents {
-		allPipelineContents = append(allPipelineContents, pipelinesContents[i]...)
-	}
+	allContent := strings.Join(pipelinesContents, "")
 
 	pipelinesChecksumString := fmt.Sprintf(
 		"%x",
-		md5.Sum(allPipelineContents),
+		md5.Sum([]byte(allContent)),
 	)
-	c.logger.Debugf("all pipeline contents:\n%s\n", string(allPipelineContents))
+	c.logger.Debugf("pipeline content checksum:\n%s\n", pipelinesChecksumString)
 
 	if input.Version.PipelinesChecksum == pipelinesChecksumString {
 		c.logger.Debugf("No new versions found\n")
