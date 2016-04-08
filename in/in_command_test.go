@@ -32,8 +32,9 @@ var _ = Describe("In", func() {
 
 		flyBinaryPath string
 
-		inRequest concourse.InRequest
-		inCommand *in.InCommand
+		inRequest         concourse.InRequest
+		pipelinesChecksum string
+		inCommand         *in.InCommand
 
 		fakeFlyConn     *flyfakes.FakeFlyConn
 		flyRunCallCount int
@@ -59,6 +60,8 @@ var _ = Describe("In", func() {
 		username = "some user"
 		password = "some password"
 		flyBinaryPath = "fly"
+
+		pipelinesChecksum = "some-checksum"
 
 		pipelines = []api.Pipeline{
 			{
@@ -88,6 +91,9 @@ pipeline2: foo
 				Target:   target,
 				Username: username,
 				Password: password,
+			},
+			Version: concourse.Version{
+				PipelinesChecksum: pipelinesChecksum,
 			},
 		}
 
@@ -180,6 +186,22 @@ pipeline2: foo
 		contents, err = ioutil.ReadFile(filepath.Join(downloadDir, files[1].Name()))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(contents)).To(Equal(pipelineContents[1]))
+	})
+
+	It("returns provided version", func() {
+		response, err := inCommand.Run(inRequest)
+
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(response.Version.PipelinesChecksum).To(Equal(pipelinesChecksum))
+	})
+
+	It("returns metadata", func() {
+		response, err := inCommand.Run(inRequest)
+
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(response.Metadata).NotTo(BeNil())
 	})
 
 	Context("when no target is provided", func() {
