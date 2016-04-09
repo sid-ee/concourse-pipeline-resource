@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
@@ -67,7 +68,8 @@ func main() {
 	flyBinaryPath := filepath.Join(outDir, flyBinaryName)
 	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
 
-	response, err := out.NewOutCommand(version, l, flyConn, sourcesDir).Run(input)
+	apiClient := api.NewClient(input.Source.Target)
+	response, err := out.NewOutCommand(version, l, flyConn, apiClient, sourcesDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

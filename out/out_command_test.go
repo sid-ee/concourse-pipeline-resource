@@ -3,15 +3,14 @@ package out_test
 import (
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/ghttp"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
@@ -20,8 +19,6 @@ import (
 
 var _ = Describe("Out", func() {
 	var (
-		server *ghttp.Server
-
 		sourcesDir string
 
 		ginkgoLogger logger.Logger
@@ -32,30 +29,28 @@ var _ = Describe("Out", func() {
 		pipelines       []concourse.Pipeline
 		flyRunCallCount int
 
-		apiPipelinesResponseStatusCode int
-		apiPipelines                   []api.Pipeline
-
-		pipelineResponseStatusCode int
+		apiPipelines []api.Pipeline
+		pipelinesErr error
 
 		pipelineContents []string
 
 		outRequest concourse.OutRequest
 		outCommand *out.OutCommand
 
-		fakeFlyConn *flyfakes.FakeFlyConn
+		fakeFlyConn   *flyfakes.FakeFlyConn
+		fakeAPIClient *apifakes.FakeClient
 	)
 
 	BeforeEach(func() {
-		server = ghttp.NewServer()
-
-		fakeFlyConn = &flyfakes.FakeFlyConn{}
 		flyRunCallCount = 0
+		fakeFlyConn = &flyfakes.FakeFlyConn{}
+		fakeAPIClient = &apifakes.FakeClient{}
 
 		var err error
 		sourcesDir, err = ioutil.TempDir("", "")
 		Expect(err).NotTo(HaveOccurred())
 
-		target = server.URL()
+		target = "some target"
 		username = "some user"
 		password = "some password"
 
@@ -73,9 +68,7 @@ var _ = Describe("Out", func() {
 				URL:  "pipeline_URL_3",
 			},
 		}
-
-		apiPipelinesResponseStatusCode = http.StatusOK
-		pipelineResponseStatusCode = http.StatusOK
+		pipelinesErr = nil
 
 		pipelineContents = make([]string, 3)
 
@@ -139,18 +132,7 @@ pipeline3: foo
 	})
 
 	JustBeforeEach(func() {
-		server.AppendHandlers(
-			ghttp.CombineHandlers(
-				ghttp.VerifyRequest("GET", fmt.Sprintf(
-					"%s/pipelines",
-					apiPrefix,
-				)),
-				ghttp.RespondWithJSONEncoded(
-					apiPipelinesResponseStatusCode,
-					apiPipelines,
-				),
-			),
-		)
+		fakeAPIClient.PipelinesReturns(apiPipelines, pipelinesErr)
 
 		sanitized := concourse.SanitizedSource(outRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
@@ -158,12 +140,10 @@ pipeline3: foo
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
 		binaryVersion := "v0.1.2-unit-tests"
-		outCommand = out.NewOutCommand(binaryVersion, ginkgoLogger, fakeFlyConn, sourcesDir)
+		outCommand = out.NewOutCommand(binaryVersion, ginkgoLogger, fakeFlyConn, fakeAPIClient, sourcesDir)
 	})
 
 	AfterEach(func() {
-		server.Close()
-
 		err := os.RemoveAll(sourcesDir)
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -281,6 +261,19 @@ pipeline3: foo
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(expectedErr))
+		})
+	})
+
+	Context("when getting pipelines returns an error", func() {
+		BeforeEach(func() {
+			pipelinesErr = fmt.Errorf("some error")
+		})
+
+		It("returns an error", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err).To(Equal(pipelinesErr))
 		})
 	})
 })

@@ -21,6 +21,7 @@ type OutCommand struct {
 	logger        logger.Logger
 	binaryVersion string
 	flyConn       fly.FlyConn
+	apiClient     api.Client
 	sourcesDir    string
 }
 
@@ -28,12 +29,14 @@ func NewOutCommand(
 	binaryVersion string,
 	logger logger.Logger,
 	flyConn fly.FlyConn,
+	apiClient api.Client,
 	sourcesDir string,
 ) *OutCommand {
 	return &OutCommand{
 		logger:        logger,
 		binaryVersion: binaryVersion,
 		flyConn:       flyConn,
+		apiClient:     apiClient,
 		sourcesDir:    sourcesDir,
 	}
 }
@@ -86,8 +89,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		}
 	}
 
-	apiClient := api.NewClient(input.Source.Target)
-	pipelines, err := apiClient.Pipelines()
+	pipelines, err := c.apiClient.Pipelines()
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}
