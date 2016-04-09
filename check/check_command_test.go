@@ -3,16 +3,15 @@ package check_test
 import (
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/ghttp"
 	"github.com/robdimsdale/concourse-pipeline-resource/check"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
@@ -20,8 +19,6 @@ import (
 
 var _ = Describe("Check", func() {
 	var (
-		server *ghttp.Server
-
 		tempDir     string
 		logFilePath string
 
@@ -38,19 +35,21 @@ var _ = Describe("Check", func() {
 		checkRequest concourse.CheckRequest
 		checkCommand *check.CheckCommand
 
-		pipelinesResponseStatusCode *int
-		pipelinesResponseBody       *[]api.Pipeline
-		fakeFlyConn                 *flyfakes.FakeFlyConn
-		runCallCount                int
+		pipelinesErr error
+		pipelines    []api.Pipeline
+		fakeFlyConn  *flyfakes.FakeFlyConn
+		runCallCount int
+
+		fakeAPIClient *apifakes.FakeClient
 	)
 
 	BeforeEach(func() {
 		runCallCount = 0
 		fakeFlyConn = &flyfakes.FakeFlyConn{}
+		fakeAPIClient = &apifakes.FakeClient{}
 
-		server = ghttp.NewServer()
-
-		pipelinesResponseBody = &[]api.Pipeline{
+		pipelinesErr = nil
+		pipelines = []api.Pipeline{
 			{
 				Name: "pipeline 1",
 				URL:  "pipeline URL 1",
@@ -84,21 +83,6 @@ pipeline2: foo
 			return nil, nil
 		}
 
-		pipelinesResponseStatusCode = new(int)
-		*pipelinesResponseStatusCode = http.StatusOK
-		server.AppendHandlers(
-			ghttp.CombineHandlers(
-				ghttp.VerifyRequest("GET", fmt.Sprintf(
-					"%s/pipelines",
-					apiPrefix,
-				)),
-				ghttp.RespondWithJSONEncodedPtr(
-					pipelinesResponseStatusCode,
-					pipelinesResponseBody,
-				),
-			),
-		)
-
 		var err error
 		tempDir, err = ioutil.TempDir("", "")
 		Expect(err).NotTo(HaveOccurred())
@@ -109,7 +93,7 @@ pipeline2: foo
 
 		binaryVersion := "v0.1.2-unit-tests"
 
-		target = server.URL()
+		target = "some target"
 		username = "some user"
 		password = "some password"
 
@@ -138,14 +122,17 @@ pipeline2: foo
 			ginkgoLogger,
 			logFilePath,
 			fakeFlyConn,
+			fakeAPIClient,
 		)
 	})
 
 	AfterEach(func() {
-		server.Close()
-
 		err := os.RemoveAll(tempDir)
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	JustBeforeEach(func() {
+		fakeAPIClient.PipelinesReturns(pipelines, pipelinesErr)
 	})
 
 	It("returns pipelines checksum without error", func() {
@@ -247,47 +234,14 @@ pipeline2: foo
 
 	Context("when getting pipelines returns an error", func() {
 		BeforeEach(func() {
-			checkRequest.Source.Target = "some-bad-target"
+			pipelinesErr = fmt.Errorf("some error")
 		})
 
-		It("returns an error", func() {
+		It("forwards the error", func() {
 			_, err := checkCommand.Run(checkRequest)
 			Expect(err).To(HaveOccurred())
-		})
-	})
 
-	Context("when getting pipelines returns a non-expected status code", func() {
-		BeforeEach(func() {
-			*pipelinesResponseStatusCode = http.StatusForbidden
-		})
-
-		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).To(HaveOccurred())
-		})
-	})
-
-	Context("when getting pipelines returns unmarshallable body", func() {
-		BeforeEach(func() {
-			server.Reset()
-
-			server.AppendHandlers(
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", fmt.Sprintf(
-						"%s/pipelines",
-						apiPrefix,
-					)),
-					ghttp.RespondWith(
-						http.StatusOK,
-						`$not%valid-#json`,
-					),
-				),
-			)
-		})
-
-		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(pipelinesErr))
 		})
 	})
 

@@ -19,6 +19,7 @@ type CheckCommand struct {
 	logFilePath   string
 	binaryVersion string
 	flyConn       fly.FlyConn
+	apiClient     api.Client
 }
 
 func NewCheckCommand(
@@ -26,12 +27,14 @@ func NewCheckCommand(
 	logger logger.Logger,
 	logFilePath string,
 	flyConn fly.FlyConn,
+	apiClient api.Client,
 ) *CheckCommand {
 	return &CheckCommand{
 		logger:        logger,
 		logFilePath:   logFilePath,
 		binaryVersion: binaryVersion,
 		flyConn:       flyConn,
+		apiClient:     apiClient,
 	}
 }
 
@@ -80,8 +83,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 		return nil, err
 	}
 
-	apiClient := api.NewClient(input.Source.Target)
-	pipelines, err := apiClient.Pipelines()
+	pipelines, err := c.apiClient.Pipelines()
 	if err != nil {
 		return nil, err
 	}
