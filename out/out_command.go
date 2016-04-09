@@ -83,7 +83,13 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 	for _, p := range input.Params.Pipelines {
 		configFilepath := filepath.Join(c.sourcesDir, p.ConfigFile)
 
-		_, err := c.flyConn.Run("set-pipeline", "-n", "-p", p.Name, "-c", configFilepath)
+		runArgs := []string{"set-pipeline", "-n", "-p", p.Name, "-c", configFilepath}
+		for _, v := range p.VarsFiles {
+			varFilepath := filepath.Join(c.sourcesDir, v)
+			runArgs = append(runArgs, "-l", varFilepath)
+		}
+
+		_, err := c.flyConn.Run(runArgs...)
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}

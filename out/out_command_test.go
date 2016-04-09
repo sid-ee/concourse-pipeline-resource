@@ -88,6 +88,10 @@ pipeline3: foo
 			{
 				Name:       apiPipelines[0].Name,
 				ConfigFile: "pipeline_1.yml",
+				VarsFiles: []string{
+					"vars_1.yml",
+					"vars_2.yml",
+				},
 			},
 			{
 				Name:       apiPipelines[1].Name,
@@ -162,6 +166,14 @@ pipeline3: foo
 			Expect(args[3]).To(Equal(p.Name))
 			Expect(args[4]).To(Equal("-c"))
 			Expect(args[5]).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
+
+			// the first pipeline has vars files
+			if i == 0 {
+				Expect(args[6]).To(Equal("-l"))
+				Expect(args[7]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[0])))
+				Expect(args[8]).To(Equal("-l"))
+				Expect(args[9]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[1])))
+			}
 		}
 	})
 

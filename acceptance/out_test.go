@@ -31,6 +31,10 @@ var _ = Describe("Out", func() {
 		pipelineConfig         string
 		pipelineConfigFilename string
 		pipelineConfigFilepath string
+
+		varsFileContents string
+		varsFileFilename string
+		varsFileFilepath string
 	)
 
 	BeforeEach(func() {
@@ -48,7 +52,7 @@ resources:
 - name: concourse-pipeline-resource-repo
   type: git
   uri: https://github.com/robdimsdale/concourse-pipeline-resource.git
-  branch: develop
+  branch: {{foo}}
 jobs:
 - name: get-concourse-pipeline-resource-repo
   plan:
@@ -58,6 +62,14 @@ jobs:
 		pipelineConfigFilename = fmt.Sprintf("%s.yml", pipelineName)
 		pipelineConfigFilepath = filepath.Join(sourcesDir, pipelineConfigFilename)
 		err = ioutil.WriteFile(pipelineConfigFilepath, []byte(pipelineConfig), os.ModePerm)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Writing vars file")
+		varsFileContents = "foo: bar"
+
+		varsFileFilename = fmt.Sprintf("%s_vars.yml", pipelineName)
+		varsFileFilepath = filepath.Join(sourcesDir, varsFileFilename)
+		err = ioutil.WriteFile(varsFileFilepath, []byte(varsFileContents), os.ModePerm)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Creating command object")
@@ -75,6 +87,9 @@ jobs:
 					{
 						Name:       pipelineName,
 						ConfigFile: pipelineConfigFilename,
+						VarsFiles: []string{
+							varsFileFilename,
+						},
 					},
 				},
 			},
