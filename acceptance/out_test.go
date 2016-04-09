@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	outTimeout = 30 * time.Second
+	outTimeout = 60 * time.Second
 )
 
 var _ = Describe("Out", func() {

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	inTimeout = 20 * time.Second
+	inTimeout = 40 * time.Second
 )
 
 var _ = Describe("In", func() {
