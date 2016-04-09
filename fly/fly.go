@@ -28,13 +28,13 @@ func NewFlyConn(target string, logger logger.Logger, flyBinaryPath string) FlyCo
 }
 
 func (f flyConn) Login(
-	target string,
+	url string,
 	username string,
 	password string,
 ) ([]byte, error) {
 	return f.Run(
 		"login",
-		"-c", target,
+		"-c", url,
 		"-u", username,
 		"-p", password,
 	)
