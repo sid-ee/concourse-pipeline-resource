@@ -22,6 +22,7 @@ type InCommand struct {
 	logger        logger.Logger
 	binaryVersion string
 	flyConn       fly.FlyConn
+	apiClient     api.Client
 	downloadDir   string
 }
 
@@ -29,12 +30,14 @@ func NewInCommand(
 	binaryVersion string,
 	logger logger.Logger,
 	flyConn fly.FlyConn,
+	apiClient api.Client,
 	downloadDir string,
 ) *InCommand {
 	return &InCommand{
 		logger:        logger,
 		binaryVersion: binaryVersion,
 		flyConn:       flyConn,
+		apiClient:     apiClient,
 		downloadDir:   downloadDir,
 	}
 }
@@ -70,11 +73,9 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		log.Fatalf("Failed to create download directory: %s\n", err.Error())
 	}
 
-	apiClient := api.NewClient(input.Source.Target)
-
 	c.logger.Debugf("Getting pipelines\n")
 
-	pipelines, err := apiClient.Pipelines()
+	pipelines, err := c.apiClient.Pipelines()
 	if err != nil {
 		return concourse.InResponse{}, err
 	}
