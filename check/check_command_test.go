@@ -299,9 +299,7 @@ pipeline2: foo
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("error executing fly")
 
-			fakeFlyConn.RunStub = func(...string) ([]byte, error) {
-				return nil, expectedErr
-			}
+			fakeFlyConn.RunReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -311,5 +309,4 @@ pipeline2: foo
 			Expect(err).To(Equal(expectedErr))
 		})
 	})
-
 })

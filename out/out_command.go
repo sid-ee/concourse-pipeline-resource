@@ -112,12 +112,6 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 	)
 	c.logger.Debugf("pipeline content checksum: %s\n", pipelinesChecksumString)
 
-	if pipelinesChecksumString == "" {
-		panic("no versions found")
-		// c.logger.Debugf("No versions found\n")
-		// return concourse.CheckResponse{}, fmt.Errorf("no versions found")
-	}
-
 	metadata := []concourse.Metadata{}
 
 	response := concourse.OutResponse{
