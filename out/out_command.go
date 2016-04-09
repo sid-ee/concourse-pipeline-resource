@@ -77,16 +77,14 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		return concourse.OutResponse{}, err
 	}
 
-	spFunc := func(index int, p concourse.Pipeline) (string, error) {
+	for _, p := range input.Params.Pipelines {
 		configFilepath := filepath.Join(c.sourcesDir, p.ConfigFile)
+
 		out, err := c.flyConn.Run("set-pipeline", "-n", "-p", p.Name, "-c", configFilepath)
 		c.logger.Debugf("fly output for pipeline '%s': %s\n", p.Name, out)
-		return string(out), err
-	}
-
-	_, err = pipelinerunner.RunForAllConcoursePipelines(spFunc, input.Params.Pipelines, c.logger)
-	if err != nil {
-		return concourse.OutResponse{}, err
+		if err != nil {
+			return concourse.OutResponse{}, err
+		}
 	}
 
 	apiClient := api.NewClient(input.Source.Target)
@@ -102,7 +100,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		return string(b), err
 	}
 
-	pipelinesContents, err := pipelinerunner.RunForAllAPIPipelines(gpFunc, pipelines, c.logger)
+	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, pipelines, c.logger)
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}
