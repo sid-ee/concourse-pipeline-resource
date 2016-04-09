@@ -276,4 +276,37 @@ pipeline3: foo
 			Expect(err).To(Equal(pipelinesErr))
 		})
 	})
+
+	Context("when getting pipeline returns an error", func() {
+		var (
+			expectedErr error
+		)
+
+		BeforeEach(func() {
+			expectedErr = fmt.Errorf("some error")
+
+			fakeFlyConn.RunStub = func(args ...string) ([]byte, error) {
+				defer GinkgoRecover()
+
+				switch args[0] {
+				case "get-pipeline":
+					return nil, expectedErr
+
+				case "set-pipeline":
+					return nil, nil
+
+				default:
+					Fail(fmt.Sprintf("Unexpected invocation of flyConn.Run: %+v", args))
+				}
+				return nil, nil
+			}
+		})
+
+		It("returns an error", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err).To(Equal(expectedErr))
+		})
+	})
 })
