@@ -163,45 +163,6 @@ pipeline2: foo
 		Expect(response.Metadata).NotTo(BeNil())
 	})
 
-	Context("when no target is provided", func() {
-		BeforeEach(func() {
-			inRequest.Source.Target = ""
-		})
-
-		It("returns an error", func() {
-			_, err := inCommand.Run(inRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*target.*provided"))
-		})
-	})
-
-	Context("when no username is provided", func() {
-		BeforeEach(func() {
-			inRequest.Source.Username = ""
-		})
-
-		It("returns an error", func() {
-			_, err := inCommand.Run(inRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*username.*provided"))
-		})
-	})
-
-	Context("when no password is provided", func() {
-		BeforeEach(func() {
-			inRequest.Source.Password = ""
-		})
-
-		It("returns an error", func() {
-			_, err := inCommand.Run(inRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*password.*provided"))
-		})
-	})
-
 	Context("when login returns an error", func() {
 		var (
 			expectedErr error
