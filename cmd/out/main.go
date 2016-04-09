@@ -14,6 +14,7 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
+	"github.com/robdimsdale/concourse-pipeline-resource/validator"
 )
 
 const (
@@ -67,6 +68,12 @@ func main() {
 
 	flyBinaryPath := filepath.Join(outDir, flyBinaryName)
 	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
+
+	err = validator.ValidateOut(input)
+	if err != nil {
+		l.Debugf("Exiting with error: %v\n", err)
+		log.Fatalln(err)
+	}
 
 	apiClient := api.NewClient(input.Source.Target)
 	response, err := out.NewOutCommand(version, l, flyConn, apiClient, sourcesDir).Run(input)
