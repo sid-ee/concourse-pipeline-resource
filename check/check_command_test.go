@@ -142,45 +142,6 @@ pipeline2: foo
 		Expect(response).To(Equal(expectedResponse))
 	})
 
-	Context("when no target is provided", func() {
-		BeforeEach(func() {
-			checkRequest.Source.Target = ""
-		})
-
-		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*target.*provided"))
-		})
-	})
-
-	Context("when no username is provided", func() {
-		BeforeEach(func() {
-			checkRequest.Source.Username = ""
-		})
-
-		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*username.*provided"))
-		})
-	})
-
-	Context("when no password is provided", func() {
-		BeforeEach(func() {
-			checkRequest.Source.Password = ""
-		})
-
-		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*password.*provided"))
-		})
-	})
-
 	Context("when log files already exist", func() {
 		var (
 			otherFilePath1 string

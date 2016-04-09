@@ -59,18 +59,6 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 		}
 	}
 
-	if input.Source.Target == "" {
-		return nil, fmt.Errorf("%s must be provided", "target")
-	}
-
-	if input.Source.Username == "" {
-		return nil, fmt.Errorf("%s must be provided", "username")
-	}
-
-	if input.Source.Password == "" {
-		return nil, fmt.Errorf("%s must be provided", "password")
-	}
-
 	c.logger.Debugf("Received input: %+v\n", input)
 
 	loginOutput, err := c.flyConn.Login(
