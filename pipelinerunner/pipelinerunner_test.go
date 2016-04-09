@@ -6,8 +6,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pivotal-cf-experimental/pivnet-resource/logger/loggerfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
+	"github.com/robdimsdale/concourse-pipeline-resource/logger/loggerfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner"
 )
 

@@ -29,7 +29,7 @@ var _ = Describe("In", func() {
 		var err error
 
 		By("Creating temp directory")
-		destDirectory, err = ioutil.TempDir("", "pivnet-resource")
+		destDirectory, err = ioutil.TempDir("", "concourse-pipeline-resource")
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Creating command object")
