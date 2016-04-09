@@ -258,6 +258,32 @@ pipeline3: foo
 		})
 	})
 
+	Context("when vars files is present but empty", func() {
+		BeforeEach(func() {
+			outRequest.Params.Pipelines[0].VarsFiles = []string{}
+		})
+
+		It("returns an error", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*vars_files.*provided"))
+		})
+	})
+
+	Context("when vars files contains an empty string", func() {
+		BeforeEach(func() {
+			outRequest.Params.Pipelines[0].VarsFiles[1] = ""
+		})
+
+		It("returns an error", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*vars file.*non-empty"))
+		})
+	})
+
 	Context("when login returns an error", func() {
 		var (
 			expectedErr error

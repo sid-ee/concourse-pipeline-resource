@@ -66,6 +66,25 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		if p.ConfigFile == "" {
 			return concourse.OutResponse{}, fmt.Errorf("%s must be provided for pipeline[%d]", "config_file", i)
 		}
+
+		// vars files can be nil as it is optional.
+		if p.VarsFiles != nil {
+			// However, if it is provided it must be non-empty
+			if len(p.VarsFiles) == 0 {
+				return concourse.OutResponse{}, fmt.Errorf("%s must be non-empty if provided for pipeline[%d]", "vars_files", i)
+			}
+
+			for j, v := range p.VarsFiles {
+				if len(v) == 0 {
+					return concourse.OutResponse{}, fmt.Errorf(
+						"%s must be non-empty for pipeline[%d].vars_files[%d]",
+						"vars file",
+						i,
+						j,
+					)
+				}
+			}
+		}
 	}
 
 	c.logger.Debugf("Received input: %+v\n", input)
