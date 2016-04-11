@@ -56,12 +56,32 @@ resources:
 
 #### In
 
+Resource configuration as above for Check, with the following job configuration:
+
 ```yaml
 ---
 jobs:
 - name: download-my-pipelines
   plan:
   - get: my-pipelines
+```
+
+#### Out
+
+Resource configuration as above for Check, with the following job configuration:
+
+```yaml
+---
+jobs:
+- name: set-my-pipelines
+  plan:
+  - put: my-pipelines
+    params:
+      pipelines:
+      - config_file: path/to/config/file
+        vars_files:
+        - path/to/optional/vars/file/1
+        - path/to/optional/vars/file/2
 ```
 
 ## Behavior
@@ -74,8 +94,28 @@ Return a checksum of the concatenated contents of all pipelines.
 
 Get the config for each pipeline; write it to the local working directory (e.g.
 `/tmp/build/get`) with the filename derived from the pipeline name.
-- For example, if there are two pipelines `foo` and `bar` the config for the
+
+For example, if there are two pipelines `foo` and `bar` the config for the
 first will be written to `foo.yml` and the second to `bar.yml`.
+
+### `out`: Set the configuration of the pipelines
+
+Set the configuration for each pipeline provided in the `params` section.
+
+#### Parameters
+
+* `pipelines`: *Required.* Array of pipelines to configure.
+Must be non-nil and non-empty. The structure of the `pipeline` object is as follows:
+
+ - `name`: *Required.* Name of pipeline to be configured.
+ Maps to `-p my-pipeline-name` in `fly set-pipeline` command.
+
+ - `config_file`: *Required.* Location of config file.
+ Maps to `-c some-config-file.yml` in `fly set-pipeline` command.
+
+ - `vars_files`: *Optional.* Array of strings corresponding to files
+ containing variables to be interpolated via `{{ }}` in `config_file`.
+ Maps to `-l some-vars-file.yml` in `fly set-pipeline` command.
 
 ## Developing
 
@@ -107,8 +147,8 @@ go get -u github.com/onsi/ginkgo/ginkgo
 The tests require a concourse API server to test against, and a valid
 basic auth username/password for that concourse deployment.
 
-The tests also require that you build the fly CLI as a binary.
-This CLI must be compatible with the chosen concourse deployment.
+The tests also require that you provide the fly CLI as a binary.
+This CLI must be compatible with the chosen concourse deployment - check version with `fly --version`.
 The source for the fly CLI can be found [here](https://github.com/concourse/fly).
 `FLY_LOCATION` should be set to the location of the compiled binary.
 
