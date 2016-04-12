@@ -2,6 +2,9 @@ package fly_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -9,23 +12,52 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 )
 
+const (
+	errScript = `#!/bin/sh
+>&1 echo "some std output"
+>&2 echo "some err output"
+exit 1
+`
+)
+
 var _ = Describe("FlyConn", func() {
 	var (
 		flyConn fly.FlyConn
 
-		target        string
-		flyBinaryPath string
+		target string
+
+		tempDir         string
+		flyBinaryPath   string
+		fakeFlyContents string
 
 		fakeLogger *loggerfakes.FakeLogger
 	)
 
 	BeforeEach(func() {
 		target = "some-target"
-		flyBinaryPath = "echo"
+
+		var err error
+		tempDir, err = ioutil.TempDir("", "")
+		Expect(err).NotTo(HaveOccurred())
+
+		flyBinaryPath = filepath.Join(tempDir, "fake_fly")
+
+		fakeFlyContents = `#!/bin/sh
+		echo $@`
 
 		fakeLogger = &loggerfakes.FakeLogger{}
+	})
+
+	JustBeforeEach(func() {
+		err := ioutil.WriteFile(flyBinaryPath, []byte(fakeFlyContents), os.ModePerm)
+		Expect(err).NotTo(HaveOccurred())
 
 		flyConn = fly.NewFlyConn(target, fakeLogger, flyBinaryPath)
+	})
+
+	AfterEach(func() {
+		err := os.RemoveAll(tempDir)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	Describe("Login", func() {
@@ -55,6 +87,30 @@ var _ = Describe("FlyConn", func() {
 			)
 
 			Expect(string(output)).To(Equal(expectedOutput))
+		})
+
+		Context("when there is an error starting the commmand", func() {
+			BeforeEach(func() {
+				fakeFlyContents = ""
+			})
+
+			It("returns an error", func() {
+				_, _, err := flyConn.Login(url, username, password)
+				Expect(err).To(HaveOccurred())
+			})
+		})
+
+		Context("when the command returns an error", func() {
+			BeforeEach(func() {
+				fakeFlyContents = errScript
+			})
+
+			It("appends stderr to the error", func() {
+				_, _, err := flyConn.Login(url, username, password)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).To(MatchRegexp(".*some err output.*"))
+			})
 		})
 	})
 
@@ -139,6 +195,33 @@ var _ = Describe("FlyConn", func() {
 
 				Expect(string(output)).To(Equal(expectedOutput))
 			})
+		})
+	})
+
+	Describe("DestroyPipeline", func() {
+		var (
+			pipelineName   string
+			configFilepath string
+		)
+
+		BeforeEach(func() {
+			pipelineName = "some-pipeline"
+			configFilepath = "some-config-file"
+		})
+
+		It("returns output without error", func() {
+			output, _, err := flyConn.DestroyPipeline(pipelineName)
+			Expect(err).NotTo(HaveOccurred())
+
+			expectedOutput := fmt.Sprintf(
+				"%s %s %s %s %s %s\n",
+				"-t", target,
+				"destroy-pipeline",
+				"-n",
+				"-p", pipelineName,
+			)
+
+			Expect(string(output)).To(Equal(expectedOutput))
 		})
 	})
 })

@@ -53,16 +53,15 @@ func (f flyConn) run(args ...string) ([]byte, []byte, error) {
 
 	outbuf := bytes.NewBuffer(nil)
 	errbuf := bytes.NewBuffer(nil)
+
 	cmd.Stdout = outbuf
 	cmd.Stderr = errbuf
 
 	f.logger.Debugf("Starting fly command: %v\n", allArgs)
 	err := cmd.Start()
 	if err != nil {
-		if len(errbuf.Bytes()) > 0 {
-			err = fmt.Errorf("%v - %s", err, string(errbuf.Bytes()))
-		}
-		return outbuf.Bytes(), errbuf.Bytes(), err
+		// If the command was never started, there will be nothing in the buffers
+		return nil, nil, err
 	}
 
 	f.logger.Debugf("Waiting for fly command: %v\n", allArgs)
