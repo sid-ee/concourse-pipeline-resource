@@ -8,8 +8,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pivotal-cf-experimental/pivnet-resource/logger/loggerfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly"
+	"github.com/robdimsdale/concourse-pipeline-resource/logger/loggerfakes"
 )
 
 const (
