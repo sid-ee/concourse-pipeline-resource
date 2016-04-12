@@ -100,9 +100,9 @@ jobs:
 	})
 
 	AfterEach(func() {
-		response, err := flyConn.Run("destroy-pipeline", "-n", "-p", pipelineName)
+		response, errResponse, err := flyConn.DestroyPipeline(pipelineName)
 		if err != nil {
-			fmt.Fprintf(GinkgoWriter, "destroy-pipeline failed", string(response))
+			fmt.Fprintf(GinkgoWriter, "destroy-pipeline failed", string(response), string(errResponse))
 		}
 		Expect(err).NotTo(HaveOccurred())
 	})

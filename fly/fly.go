@@ -13,7 +13,8 @@ import (
 type FlyConn interface {
 	Login(target string, username string, password string) ([]byte, []byte, error)
 	GetPipeline(pipelineName string) ([]byte, []byte, error)
-	Run(...string) ([]byte, error)
+	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, []byte, error)
+	DestroyPipeline(pipelineName string) ([]byte, []byte, error)
 }
 
 type flyConn struct {
@@ -41,17 +42,6 @@ func (f flyConn) Login(
 		"-u", username,
 		"-p", password,
 	)
-}
-
-func (f flyConn) Run(args ...string) ([]byte, error) {
-	defaultArgs := []string{
-		"-t", f.target,
-	}
-	allArgs := append(defaultArgs, args...)
-	cmd := exec.Command(f.flyBinaryPath, allArgs...)
-
-	f.logger.Debugf("Running fly command: %v\n", allArgs)
-	return cmd.CombinedOutput()
 }
 
 func (f flyConn) run(args ...string) ([]byte, []byte, error) {
@@ -90,6 +80,33 @@ func (f flyConn) run(args ...string) ([]byte, []byte, error) {
 func (f flyConn) GetPipeline(pipelineName string) ([]byte, []byte, error) {
 	return f.run(
 		"get-pipeline",
+		"-p", pipelineName,
+	)
+}
+
+func (f flyConn) SetPipeline(
+	pipelineName string,
+	configFilepath string,
+	varsFilepaths []string,
+) ([]byte, []byte, error) {
+	allArgs := []string{
+		"set-pipeline",
+		"-n",
+		"-p", pipelineName,
+		"-c", configFilepath,
+	}
+
+	for _, vf := range varsFilepaths {
+		allArgs = append(allArgs, "-l", vf)
+	}
+
+	return f.run(allArgs...)
+}
+
+func (f flyConn) DestroyPipeline(pipelineName string) ([]byte, []byte, error) {
+	return f.run(
+		"destroy-pipeline",
+		"-n",
 		"-p", pipelineName,
 	)
 }

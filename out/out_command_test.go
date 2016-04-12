@@ -29,8 +29,9 @@ var _ = Describe("Out", func() {
 		pipelines       []concourse.Pipeline
 		flyRunCallCount int
 
-		apiPipelines []api.Pipeline
-		pipelinesErr error
+		apiPipelines    []api.Pipeline
+		getPipelinesErr error
+		setPipelinesErr error
 
 		pipelineContents []string
 
@@ -68,7 +69,8 @@ var _ = Describe("Out", func() {
 				URL:  "pipeline_URL_3",
 			},
 		}
-		pipelinesErr = nil
+		getPipelinesErr = nil
+		setPipelinesErr = nil
 
 		pipelineContents = make([]string, 3)
 
@@ -129,7 +131,8 @@ pipeline3: foo
 	})
 
 	JustBeforeEach(func() {
-		fakeAPIClient.PipelinesReturns(apiPipelines, pipelinesErr)
+		fakeAPIClient.PipelinesReturns(apiPipelines, getPipelinesErr)
+		fakeFlyConn.SetPipelineReturns(nil, nil, setPipelinesErr)
 
 		sanitized := concourse.SanitizedSource(outRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
@@ -149,22 +152,16 @@ pipeline3: foo
 		_, err := outCommand.Run(outRequest)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(fakeFlyConn.RunCallCount()).To(Equal(len(pipelines)))
+		Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(pipelines)))
 		for i, p := range pipelines {
-			args := fakeFlyConn.RunArgsForCall(i)
-			Expect(args[0]).To(Equal("set-pipeline"))
-			Expect(args[1]).To(Equal("-n"))
-			Expect(args[2]).To(Equal("-p"))
-			Expect(args[3]).To(Equal(p.Name))
-			Expect(args[4]).To(Equal("-c"))
-			Expect(args[5]).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
+			name, configFilepath, varsFilepaths := fakeFlyConn.SetPipelineArgsForCall(i)
+			Expect(name).To(Equal(p.Name))
+			Expect(configFilepath).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
 
 			// the first pipeline has vars files
 			if i == 0 {
-				Expect(args[6]).To(Equal("-l"))
-				Expect(args[7]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[0])))
-				Expect(args[8]).To(Equal("-l"))
-				Expect(args[9]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[1])))
+				Expect(varsFilepaths[0]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[0])))
+				Expect(varsFilepaths[1]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[1])))
 			}
 		}
 	})
@@ -203,16 +200,29 @@ pipeline3: foo
 		})
 	})
 
-	Context("when getting pipelines returns an error", func() {
+	Context("when setting pipelines returns an error", func() {
 		BeforeEach(func() {
-			pipelinesErr = fmt.Errorf("some error")
+			setPipelinesErr = fmt.Errorf("some error")
 		})
 
 		It("returns an error", func() {
 			_, err := outCommand.Run(outRequest)
 			Expect(err).To(HaveOccurred())
 
-			Expect(err).To(Equal(pipelinesErr))
+			Expect(err).To(Equal(setPipelinesErr))
+		})
+	})
+
+	Context("when getting pipelines returns an error", func() {
+		BeforeEach(func() {
+			getPipelinesErr = fmt.Errorf("some error")
+		})
+
+		It("returns an error", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err).To(Equal(getPipelinesErr))
 		})
 	})
 
