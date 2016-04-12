@@ -44,7 +44,7 @@ func NewOutCommand(
 func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Logging in\n", input)
+	c.logger.Debugf("Performing login\n")
 
 	_, err := c.flyConn.Login(
 		input.Source.Target,
@@ -55,7 +55,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		return concourse.OutResponse{}, err
 	}
 
-	c.logger.Debugf("Logging in successful\n", input)
+	c.logger.Debugf("Login successful\n")
 
 	c.logger.Debugf("Getting pipelines\n")
 	for _, p := range input.Params.Pipelines {

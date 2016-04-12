@@ -45,7 +45,7 @@ func NewInCommand(
 func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Logging in\n", input)
+	c.logger.Debugf("Performing login\n")
 
 	_, err := c.flyConn.Login(
 		input.Source.Target,
@@ -56,7 +56,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		return concourse.InResponse{}, err
 	}
 
-	c.logger.Debugf("Logging in successful\n", input)
+	c.logger.Debugf("Login successful\n")
 
 	c.logger.Debugf("Creating download directory: %s\n", c.downloadDir)
 	err = os.MkdirAll(c.downloadDir, os.ModePerm)

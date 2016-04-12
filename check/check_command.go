@@ -61,7 +61,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Logging in\n", input)
+	c.logger.Debugf("Performing login\n")
 
 	_, err = c.flyConn.Login(
 		input.Source.Target,
@@ -72,7 +72,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 		return concourse.CheckResponse{}, err
 	}
 
-	c.logger.Debugf("Logging in successful\n", input)
+	c.logger.Debugf("Login successful\n")
 
 	pipelines, err := c.apiClient.Pipelines()
 	if err != nil {
