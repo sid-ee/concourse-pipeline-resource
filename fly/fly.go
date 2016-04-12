@@ -11,7 +11,7 @@ import (
 //go:generate counterfeiter . FlyConn
 
 type FlyConn interface {
-	Login(target string, username string, password string) ([]byte, []byte, error)
+	Login(url string, username string, password string) ([]byte, []byte, error)
 	GetPipeline(pipelineName string) ([]byte, []byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, []byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, []byte, error)
