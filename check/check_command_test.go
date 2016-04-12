@@ -70,17 +70,17 @@ pipeline1: foo
 pipeline2: foo
 `
 
-		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, []byte, error) {
+		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, error) {
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			switch name {
 			case pipelines[0].Name:
-				return []byte(pipelineContents[0]), nil, nil
+				return []byte(pipelineContents[0]), nil
 			case pipelines[1].Name:
-				return []byte(pipelineContents[1]), nil, nil
+				return []byte(pipelineContents[1]), nil
 			default:
 				Fail("Unexpected invocation of flyConn.GetPipeline")
-				return nil, nil, nil
+				return nil, nil
 			}
 		}
 
@@ -183,7 +183,7 @@ pipeline2: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, nil, expectedErr)
+			fakeFlyConn.LoginReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -215,7 +215,7 @@ pipeline2: foo
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("error executing fly")
 
-			fakeFlyConn.GetPipelineReturns(nil, nil, expectedErr)
+			fakeFlyConn.GetPipelineReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {

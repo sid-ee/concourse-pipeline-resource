@@ -61,16 +61,18 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	loginOutput, loginErr, err := c.flyConn.Login(
+	c.logger.Debugf("Logging in\n", input)
+
+	_, err = c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
 	)
 	if err != nil {
-		c.logger.Debugf("Login stdout: %s\n", string(loginOutput))
-		c.logger.Debugf("Login stderr: %s\n", string(loginErr))
-		return nil, err
+		return concourse.CheckResponse{}, err
 	}
+
+	c.logger.Debugf("Logging in successful\n", input)
 
 	pipelines, err := c.apiClient.Pipelines()
 	if err != nil {
@@ -81,20 +83,15 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		outBytes, errBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+		outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
 
 		c.logger.Debugf("%s stdout: %s\n",
 			pipeline.Name,
 			string(outBytes),
 		)
 
-		c.logger.Debugf("%s stderr: %s\n",
-			pipeline.Name,
-			string(errBytes),
-		)
-
 		if err != nil {
-			return string(outBytes) + "\n" + string(errBytes), err
+			return "", err
 		}
 
 		return string(outBytes), nil

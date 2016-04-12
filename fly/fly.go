@@ -11,10 +11,10 @@ import (
 //go:generate counterfeiter . FlyConn
 
 type FlyConn interface {
-	Login(url string, username string, password string) ([]byte, []byte, error)
-	GetPipeline(pipelineName string) ([]byte, []byte, error)
-	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, []byte, error)
-	DestroyPipeline(pipelineName string) ([]byte, []byte, error)
+	Login(url string, username string, password string) ([]byte, error)
+	GetPipeline(pipelineName string) ([]byte, error)
+	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
+	DestroyPipeline(pipelineName string) ([]byte, error)
 }
 
 type flyConn struct {
@@ -35,7 +35,7 @@ func (f flyConn) Login(
 	url string,
 	username string,
 	password string,
-) ([]byte, []byte, error) {
+) ([]byte, error) {
 	return f.run(
 		"login",
 		"-c", url,
@@ -44,7 +44,7 @@ func (f flyConn) Login(
 	)
 }
 
-func (f flyConn) run(args ...string) ([]byte, []byte, error) {
+func (f flyConn) run(args ...string) ([]byte, error) {
 	defaultArgs := []string{
 		"-t", f.target,
 	}
@@ -61,7 +61,7 @@ func (f flyConn) run(args ...string) ([]byte, []byte, error) {
 	err := cmd.Start()
 	if err != nil {
 		// If the command was never started, there will be nothing in the buffers
-		return nil, nil, err
+		return nil, err
 	}
 
 	f.logger.Debugf("Waiting for fly command: %v\n", allArgs)
@@ -70,13 +70,13 @@ func (f flyConn) run(args ...string) ([]byte, []byte, error) {
 		if len(errbuf.Bytes()) > 0 {
 			err = fmt.Errorf("%v - %s", err, string(errbuf.Bytes()))
 		}
-		return outbuf.Bytes(), errbuf.Bytes(), err
+		return outbuf.Bytes(), err
 	}
 
-	return outbuf.Bytes(), errbuf.Bytes(), nil
+	return outbuf.Bytes(), nil
 }
 
-func (f flyConn) GetPipeline(pipelineName string) ([]byte, []byte, error) {
+func (f flyConn) GetPipeline(pipelineName string) ([]byte, error) {
 	return f.run(
 		"get-pipeline",
 		"-p", pipelineName,
@@ -87,7 +87,7 @@ func (f flyConn) SetPipeline(
 	pipelineName string,
 	configFilepath string,
 	varsFilepaths []string,
-) ([]byte, []byte, error) {
+) ([]byte, error) {
 	allArgs := []string{
 		"set-pipeline",
 		"-n",
@@ -102,7 +102,7 @@ func (f flyConn) SetPipeline(
 	return f.run(allArgs...)
 }
 
-func (f flyConn) DestroyPipeline(pipelineName string) ([]byte, []byte, error) {
+func (f flyConn) DestroyPipeline(pipelineName string) ([]byte, error) {
 	return f.run(
 		"destroy-pipeline",
 		"-n",

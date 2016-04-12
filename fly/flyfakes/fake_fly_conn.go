@@ -8,29 +8,27 @@ import (
 )
 
 type FakeFlyConn struct {
-	LoginStub        func(target string, username string, password string) ([]byte, []byte, error)
+	LoginStub        func(url string, username string, password string) ([]byte, error)
 	loginMutex       sync.RWMutex
 	loginArgsForCall []struct {
-		target   string
+		url      string
 		username string
 		password string
 	}
 	loginReturns struct {
 		result1 []byte
-		result2 []byte
-		result3 error
+		result2 error
 	}
-	GetPipelineStub        func(pipelineName string) ([]byte, []byte, error)
+	GetPipelineStub        func(pipelineName string) ([]byte, error)
 	getPipelineMutex       sync.RWMutex
 	getPipelineArgsForCall []struct {
 		pipelineName string
 	}
 	getPipelineReturns struct {
 		result1 []byte
-		result2 []byte
-		result3 error
+		result2 error
 	}
-	SetPipelineStub        func(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, []byte, error)
+	SetPipelineStub        func(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
 	setPipelineMutex       sync.RWMutex
 	setPipelineArgsForCall []struct {
 		pipelineName   string
@@ -39,33 +37,31 @@ type FakeFlyConn struct {
 	}
 	setPipelineReturns struct {
 		result1 []byte
-		result2 []byte
-		result3 error
+		result2 error
 	}
-	DestroyPipelineStub        func(pipelineName string) ([]byte, []byte, error)
+	DestroyPipelineStub        func(pipelineName string) ([]byte, error)
 	destroyPipelineMutex       sync.RWMutex
 	destroyPipelineArgsForCall []struct {
 		pipelineName string
 	}
 	destroyPipelineReturns struct {
 		result1 []byte
-		result2 []byte
-		result3 error
+		result2 error
 	}
 }
 
-func (fake *FakeFlyConn) Login(target string, username string, password string) ([]byte, []byte, error) {
+func (fake *FakeFlyConn) Login(url string, username string, password string) ([]byte, error) {
 	fake.loginMutex.Lock()
 	fake.loginArgsForCall = append(fake.loginArgsForCall, struct {
-		target   string
+		url      string
 		username string
 		password string
-	}{target, username, password})
+	}{url, username, password})
 	fake.loginMutex.Unlock()
 	if fake.LoginStub != nil {
-		return fake.LoginStub(target, username, password)
+		return fake.LoginStub(url, username, password)
 	} else {
-		return fake.loginReturns.result1, fake.loginReturns.result2, fake.loginReturns.result3
+		return fake.loginReturns.result1, fake.loginReturns.result2
 	}
 }
 
@@ -78,19 +74,18 @@ func (fake *FakeFlyConn) LoginCallCount() int {
 func (fake *FakeFlyConn) LoginArgsForCall(i int) (string, string, string) {
 	fake.loginMutex.RLock()
 	defer fake.loginMutex.RUnlock()
-	return fake.loginArgsForCall[i].target, fake.loginArgsForCall[i].username, fake.loginArgsForCall[i].password
+	return fake.loginArgsForCall[i].url, fake.loginArgsForCall[i].username, fake.loginArgsForCall[i].password
 }
 
-func (fake *FakeFlyConn) LoginReturns(result1 []byte, result2 []byte, result3 error) {
+func (fake *FakeFlyConn) LoginReturns(result1 []byte, result2 error) {
 	fake.LoginStub = nil
 	fake.loginReturns = struct {
 		result1 []byte
-		result2 []byte
-		result3 error
-	}{result1, result2, result3}
+		result2 error
+	}{result1, result2}
 }
 
-func (fake *FakeFlyConn) GetPipeline(pipelineName string) ([]byte, []byte, error) {
+func (fake *FakeFlyConn) GetPipeline(pipelineName string) ([]byte, error) {
 	fake.getPipelineMutex.Lock()
 	fake.getPipelineArgsForCall = append(fake.getPipelineArgsForCall, struct {
 		pipelineName string
@@ -99,7 +94,7 @@ func (fake *FakeFlyConn) GetPipeline(pipelineName string) ([]byte, []byte, error
 	if fake.GetPipelineStub != nil {
 		return fake.GetPipelineStub(pipelineName)
 	} else {
-		return fake.getPipelineReturns.result1, fake.getPipelineReturns.result2, fake.getPipelineReturns.result3
+		return fake.getPipelineReturns.result1, fake.getPipelineReturns.result2
 	}
 }
 
@@ -115,16 +110,15 @@ func (fake *FakeFlyConn) GetPipelineArgsForCall(i int) string {
 	return fake.getPipelineArgsForCall[i].pipelineName
 }
 
-func (fake *FakeFlyConn) GetPipelineReturns(result1 []byte, result2 []byte, result3 error) {
+func (fake *FakeFlyConn) GetPipelineReturns(result1 []byte, result2 error) {
 	fake.GetPipelineStub = nil
 	fake.getPipelineReturns = struct {
 		result1 []byte
-		result2 []byte
-		result3 error
-	}{result1, result2, result3}
+		result2 error
+	}{result1, result2}
 }
 
-func (fake *FakeFlyConn) SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, []byte, error) {
+func (fake *FakeFlyConn) SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error) {
 	fake.setPipelineMutex.Lock()
 	fake.setPipelineArgsForCall = append(fake.setPipelineArgsForCall, struct {
 		pipelineName   string
@@ -135,7 +129,7 @@ func (fake *FakeFlyConn) SetPipeline(pipelineName string, configFilepath string,
 	if fake.SetPipelineStub != nil {
 		return fake.SetPipelineStub(pipelineName, configFilepath, varsFilepaths)
 	} else {
-		return fake.setPipelineReturns.result1, fake.setPipelineReturns.result2, fake.setPipelineReturns.result3
+		return fake.setPipelineReturns.result1, fake.setPipelineReturns.result2
 	}
 }
 
@@ -151,16 +145,15 @@ func (fake *FakeFlyConn) SetPipelineArgsForCall(i int) (string, string, []string
 	return fake.setPipelineArgsForCall[i].pipelineName, fake.setPipelineArgsForCall[i].configFilepath, fake.setPipelineArgsForCall[i].varsFilepaths
 }
 
-func (fake *FakeFlyConn) SetPipelineReturns(result1 []byte, result2 []byte, result3 error) {
+func (fake *FakeFlyConn) SetPipelineReturns(result1 []byte, result2 error) {
 	fake.SetPipelineStub = nil
 	fake.setPipelineReturns = struct {
 		result1 []byte
-		result2 []byte
-		result3 error
-	}{result1, result2, result3}
+		result2 error
+	}{result1, result2}
 }
 
-func (fake *FakeFlyConn) DestroyPipeline(pipelineName string) ([]byte, []byte, error) {
+func (fake *FakeFlyConn) DestroyPipeline(pipelineName string) ([]byte, error) {
 	fake.destroyPipelineMutex.Lock()
 	fake.destroyPipelineArgsForCall = append(fake.destroyPipelineArgsForCall, struct {
 		pipelineName string
@@ -169,7 +162,7 @@ func (fake *FakeFlyConn) DestroyPipeline(pipelineName string) ([]byte, []byte, e
 	if fake.DestroyPipelineStub != nil {
 		return fake.DestroyPipelineStub(pipelineName)
 	} else {
-		return fake.destroyPipelineReturns.result1, fake.destroyPipelineReturns.result2, fake.destroyPipelineReturns.result3
+		return fake.destroyPipelineReturns.result1, fake.destroyPipelineReturns.result2
 	}
 }
 
@@ -185,13 +178,12 @@ func (fake *FakeFlyConn) DestroyPipelineArgsForCall(i int) string {
 	return fake.destroyPipelineArgsForCall[i].pipelineName
 }
 
-func (fake *FakeFlyConn) DestroyPipelineReturns(result1 []byte, result2 []byte, result3 error) {
+func (fake *FakeFlyConn) DestroyPipelineReturns(result1 []byte, result2 error) {
 	fake.DestroyPipelineStub = nil
 	fake.destroyPipelineReturns = struct {
 		result1 []byte
-		result2 []byte
-		result3 error
-	}{result1, result2, result3}
+		result2 error
+	}{result1, result2}
 }
 
 var _ fly.FlyConn = new(FakeFlyConn)

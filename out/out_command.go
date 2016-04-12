@@ -44,17 +44,20 @@ func NewOutCommand(
 func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	loginOut, loginErr, err := c.flyConn.Login(
+	c.logger.Debugf("Logging in\n", input)
+
+	_, err := c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
 	)
 	if err != nil {
-		c.logger.Debugf("%s\n", string(loginOut))
-		c.logger.Debugf("%s\n", string(loginErr))
 		return concourse.OutResponse{}, err
 	}
 
+	c.logger.Debugf("Logging in successful\n", input)
+
+	c.logger.Debugf("Getting pipelines\n")
 	for _, p := range input.Params.Pipelines {
 		configFilepath := filepath.Join(c.sourcesDir, p.ConfigFile)
 
@@ -64,7 +67,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 			varsFilepaths = append(varsFilepaths, varFilepath)
 		}
 
-		_, _, err := c.flyConn.SetPipeline(p.Name, configFilepath, varsFilepaths)
+		_, err := c.flyConn.SetPipeline(p.Name, configFilepath, varsFilepaths)
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}
@@ -79,20 +82,15 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		outBytes, errBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+		outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
 
 		c.logger.Debugf("%s stdout: %s\n",
 			pipeline.Name,
 			string(outBytes),
 		)
 
-		c.logger.Debugf("%s stderr: %s\n",
-			pipeline.Name,
-			string(errBytes),
-		)
-
 		if err != nil {
-			return string(outBytes) + "\n" + string(errBytes), err
+			return "", err
 		}
 
 		return string(outBytes), nil

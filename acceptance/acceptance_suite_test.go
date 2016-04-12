@@ -102,7 +102,7 @@ var _ = BeforeSuite(func() {
 	flyConn = fly.NewFlyConn("concourse-pipeline-resource-target", l, inFlyPath)
 
 	By("Logging in with fly")
-	_, _, err = flyConn.Login(target, username, password)
+	_, err = flyConn.Login(target, username, password)
 	Expect(err).NotTo(HaveOccurred())
 })
 

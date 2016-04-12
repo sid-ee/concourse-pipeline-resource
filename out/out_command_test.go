@@ -101,20 +101,20 @@ pipeline3: foo
 			},
 		}
 
-		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, []byte, error) {
+		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, error) {
 			defer GinkgoRecover()
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			switch name {
 			case apiPipelines[0].Name:
-				return []byte(pipelineContents[0]), nil, nil
+				return []byte(pipelineContents[0]), nil
 			case apiPipelines[1].Name:
-				return []byte(pipelineContents[1]), nil, nil
+				return []byte(pipelineContents[1]), nil
 			case apiPipelines[2].Name:
-				return []byte(pipelineContents[2]), nil, nil
+				return []byte(pipelineContents[2]), nil
 			default:
 				Fail("Unexpected invocation of flyConn.GetPipeline")
-				return nil, nil, nil
+				return nil, nil
 			}
 		}
 
@@ -132,7 +132,7 @@ pipeline3: foo
 
 	JustBeforeEach(func() {
 		fakeAPIClient.PipelinesReturns(apiPipelines, getPipelinesErr)
-		fakeFlyConn.SetPipelineReturns(nil, nil, setPipelinesErr)
+		fakeFlyConn.SetPipelineReturns(nil, setPipelinesErr)
 
 		sanitized := concourse.SanitizedSource(outRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
@@ -189,7 +189,7 @@ pipeline3: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, nil, expectedErr)
+			fakeFlyConn.LoginReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -234,7 +234,7 @@ pipeline3: foo
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("some error")
 
-			fakeFlyConn.GetPipelineReturns(nil, nil, expectedErr)
+			fakeFlyConn.GetPipelineReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {

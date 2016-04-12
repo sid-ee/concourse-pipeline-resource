@@ -74,7 +74,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, _, err := flyConn.Login(url, username, password)
+			output, err := flyConn.Login(url, username, password)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -95,7 +95,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("returns an error", func() {
-				_, _, err := flyConn.Login(url, username, password)
+				_, err := flyConn.Login(url, username, password)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -106,7 +106,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("appends stderr to the error", func() {
-				_, _, err := flyConn.Login(url, username, password)
+				_, err := flyConn.Login(url, username, password)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).To(MatchRegexp(".*some err output.*"))
@@ -124,7 +124,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, _, err := flyConn.GetPipeline(pipelineName)
+			output, err := flyConn.GetPipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -150,7 +150,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, _, err := flyConn.SetPipeline(pipelineName, configFilepath, nil)
+			output, err := flyConn.SetPipeline(pipelineName, configFilepath, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -179,7 +179,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("returns output without error", func() {
-				output, _, err := flyConn.SetPipeline(pipelineName, configFilepath, varsFiles)
+				output, err := flyConn.SetPipeline(pipelineName, configFilepath, varsFiles)
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(
@@ -210,7 +210,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, _, err := flyConn.DestroyPipeline(pipelineName)
+			output, err := flyConn.DestroyPipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(

@@ -45,16 +45,18 @@ func NewInCommand(
 func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	loginOutput, loginErr, err := c.flyConn.Login(
+	c.logger.Debugf("Logging in\n", input)
+
+	_, err := c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
 	)
 	if err != nil {
-		c.logger.Debugf("%s\n", string(loginOutput))
-		c.logger.Debugf("%s\n", string(loginErr))
 		return concourse.InResponse{}, err
 	}
+
+	c.logger.Debugf("Logging in successful\n", input)
 
 	c.logger.Debugf("Creating download directory: %s\n", c.downloadDir)
 	err = os.MkdirAll(c.downloadDir, os.ModePerm)
@@ -81,7 +83,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		go func(i int, p api.Pipeline) {
 			defer wg.Done()
 
-			outContents, _, err := c.flyConn.GetPipeline(p.Name)
+			outContents, err := c.flyConn.GetPipeline(p.Name)
 			if err != nil {
 				errChan <- err
 			}
