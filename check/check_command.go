@@ -61,13 +61,14 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	loginOutput, err := c.flyConn.Login(
+	loginOutput, loginErr, err := c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
 	)
 	if err != nil {
-		c.logger.Debugf("%s\n", string(loginOutput))
+		c.logger.Debugf("Login stdout: %s\n", string(loginOutput))
+		c.logger.Debugf("Login stderr: %s\n", string(loginErr))
 		return nil, err
 	}
 
@@ -79,8 +80,24 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
-		b, err := c.flyConn.Run("gp", "-p", pipeline.Name)
-		return string(b), err
+		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
+		outBytes, errBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+
+		c.logger.Debugf("%s stdout: %s\n",
+			pipeline.Name,
+			string(outBytes),
+		)
+
+		c.logger.Debugf("%s stderr: %s\n",
+			pipeline.Name,
+			string(errBytes),
+		)
+
+		if err != nil {
+			return string(outBytes) + "\n" + string(errBytes), err
+		}
+
+		return string(outBytes), nil
 	}
 
 	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, pipelines, c.logger)

@@ -99,28 +99,21 @@ pipeline3: foo
 			},
 		}
 
-		fakeFlyConn.RunStub = func(args ...string) ([]byte, error) {
+		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, []byte, error) {
 			defer GinkgoRecover()
+			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
-			switch args[0] {
-			case "get-pipeline":
-				// args[1] will be "-p"
-				switch args[2] {
-				case apiPipelines[0].Name:
-					return []byte(pipelineContents[0]), nil
-				case apiPipelines[1].Name:
-					return []byte(pipelineContents[1]), nil
-				case apiPipelines[2].Name:
-					return []byte(pipelineContents[2]), nil
-				}
-
-			case "set-pipeline":
-				return nil, nil
-
+			switch name {
+			case apiPipelines[0].Name:
+				return []byte(pipelineContents[0]), nil, nil
+			case apiPipelines[1].Name:
+				return []byte(pipelineContents[1]), nil, nil
+			case apiPipelines[2].Name:
+				return []byte(pipelineContents[2]), nil, nil
 			default:
-				Fail(fmt.Sprintf("Unexpected invocation of flyConn.Run: %+v", args))
+				Fail("Unexpected invocation of flyConn.GetPipeline")
+				return nil, nil, nil
 			}
-			return nil, nil
 		}
 
 		outRequest = concourse.OutRequest{
@@ -156,8 +149,7 @@ pipeline3: foo
 		_, err := outCommand.Run(outRequest)
 		Expect(err).NotTo(HaveOccurred())
 
-		// There may be some later calls to fly (e.g. getting the pipeline)
-		Expect(fakeFlyConn.RunCallCount()).To(BeNumerically(">", len(pipelines)))
+		Expect(fakeFlyConn.RunCallCount()).To(Equal(len(pipelines)))
 		for i, p := range pipelines {
 			args := fakeFlyConn.RunArgsForCall(i)
 			Expect(args[0]).To(Equal("set-pipeline"))
@@ -200,7 +192,7 @@ pipeline3: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
+			fakeFlyConn.LoginReturns(nil, nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -232,21 +224,7 @@ pipeline3: foo
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("some error")
 
-			fakeFlyConn.RunStub = func(args ...string) ([]byte, error) {
-				defer GinkgoRecover()
-
-				switch args[0] {
-				case "get-pipeline":
-					return nil, expectedErr
-
-				case "set-pipeline":
-					return nil, nil
-
-				default:
-					Fail(fmt.Sprintf("Unexpected invocation of flyConn.Run: %+v", args))
-				}
-				return nil, nil
-			}
+			fakeFlyConn.GetPipelineReturns(nil, nil, expectedErr)
 		})
 
 		It("returns an error", func() {

@@ -45,13 +45,14 @@ func NewInCommand(
 func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	loginOutput, err := c.flyConn.Login(
+	loginOutput, loginErr, err := c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
 	)
 	if err != nil {
 		c.logger.Debugf("%s\n", string(loginOutput))
+		c.logger.Debugf("%s\n", string(loginErr))
 		return concourse.InResponse{}, err
 	}
 
@@ -80,13 +81,13 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		go func(i int, p api.Pipeline) {
 			defer wg.Done()
 
-			contents, err := c.flyConn.Run("gp", "-p", p.Name)
+			outContents, _, err := c.flyConn.GetPipeline(p.Name)
 			if err != nil {
 				errChan <- err
 			}
 			pipelinesWithContents[i] = pipelineWithContent{
 				name:     p.Name,
-				contents: contents,
+				contents: outContents,
 			}
 		}(i, p)
 	}

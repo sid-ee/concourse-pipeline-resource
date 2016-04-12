@@ -70,17 +70,18 @@ pipeline1: foo
 pipeline2: foo
 `
 
-		fakeFlyConn.RunStub = func(...string) ([]byte, error) {
-			switch runCallCount {
-			case 0:
-				return []byte(pipelineContents[0]), nil
-			case 1:
-				return []byte(pipelineContents[1]), nil
+		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, []byte, error) {
+			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
+
+			switch name {
+			case pipelines[0].Name:
+				return []byte(pipelineContents[0]), nil, nil
+			case pipelines[1].Name:
+				return []byte(pipelineContents[1]), nil, nil
 			default:
-				Fail("Unexpected invocation of flyConn.Run")
+				Fail("Unexpected invocation of flyConn.GetPipeline")
+				return nil, nil, nil
 			}
-			runCallCount += 1
-			return nil, nil
 		}
 
 		var err error
@@ -110,7 +111,7 @@ pipeline2: foo
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		pipelinesChecksum = "2e28dea4f7ce0c811f3035cdb831d74b"
+		pipelinesChecksum = "15c2eae5189cedf18c1d7e278b14342a"
 		expectedResponse = []concourse.Version{
 			{
 				PipelinesChecksum: pipelinesChecksum,
@@ -182,7 +183,7 @@ pipeline2: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
+			fakeFlyConn.LoginReturns(nil, nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -214,7 +215,7 @@ pipeline2: foo
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("error executing fly")
 
-			fakeFlyConn.RunReturns(nil, expectedErr)
+			fakeFlyConn.GetPipelineReturns(nil, nil, expectedErr)
 		})
 
 		It("returns an error", func() {

@@ -92,19 +92,18 @@ pipeline2: foo
 			},
 		}
 
-		fakeFlyConn.RunStub = func(args ...string) ([]byte, error) {
-			if args[0] == "gp" {
-				// args[1] will be "-p"
-				switch args[2] {
-				case pipelines[0].Name:
-					return []byte(pipelineContents[0]), nil
-				case pipelines[1].Name:
-					return []byte(pipelineContents[1]), nil
-				}
-			}
+		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, []byte, error) {
+			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
-			Fail("Unexpected invocation of flyConn.Run")
-			return nil, nil
+			switch name {
+			case pipelines[0].Name:
+				return []byte(pipelineContents[0]), nil, nil
+			case pipelines[1].Name:
+				return []byte(pipelineContents[1]), nil, nil
+			default:
+				Fail("Unexpected invocation of flyConn.GetPipeline")
+				return nil, nil, nil
+			}
 		}
 	})
 
@@ -170,7 +169,7 @@ pipeline2: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
+			fakeFlyConn.LoginReturns(nil, nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -201,7 +200,7 @@ pipeline2: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("some error")
-			fakeFlyConn.RunReturns(nil, expectedErr)
+			fakeFlyConn.GetPipelineReturns(nil, nil, expectedErr)
 		})
 
 		It("returns an error", func() {
