@@ -17,7 +17,8 @@ resource_types:
     tag: v0.6.3
 ```
 
-The value for `tag` should be the latest tag in this repository.
+**The value for `tag` above is an example - the latest value can be found on
+the [releases page](https://github.com/robdimsdale/concourse-pipeline-resource/releases)**
 
 The docker image is `robdimsdale/concourse-pipeline-resource`; the images are
 available on
