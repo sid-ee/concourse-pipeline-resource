@@ -47,9 +47,9 @@ type OutParams struct {
 }
 
 type Pipeline struct {
-	Name       string   `json:"name"`
-	ConfigFile string   `json:"config_file"`
-	VarsFiles  []string `json:"vars_files"`
+	Name       string   `json:"name" yaml:"name"`
+	ConfigFile string   `json:"config_file" yaml:"config_file"`
+	VarsFiles  []string `json:"vars_files" yaml:"vars_files"`
 }
 
 type OutResponse struct {

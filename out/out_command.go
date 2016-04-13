@@ -79,7 +79,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		pipelines = input.Params.Pipelines
 	}
 
-	c.logger.Debugf("Parsing pipelines complete - pipelines: %v\n", pipelines)
+	c.logger.Debugf("Parsing pipelines complete - pipelines: %+v\n", pipelines)
 
 	c.logger.Debugf("Setting pipelines\n")
 	for _, p := range pipelines {
