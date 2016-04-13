@@ -60,7 +60,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	c.logger.Debugf("Login successful\n")
 
-	c.logger.Debugf("Getting pipelines\n")
+	c.logger.Debugf("Parsing pipelines\n")
 	var pipelines []concourse.Pipeline
 	if input.Params.PipelinesFile != "" {
 		b, err := ioutil.ReadFile(filepath.Join(c.sourcesDir, input.Params.PipelinesFile))
@@ -79,6 +79,9 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		pipelines = input.Params.Pipelines
 	}
 
+	c.logger.Debugf("Parsing pipelines complete - pipelines: %v\n", pipelines)
+
+	c.logger.Debugf("Setting pipelines\n")
 	for _, p := range pipelines {
 		configFilepath := filepath.Join(c.sourcesDir, p.ConfigFile)
 
@@ -93,11 +96,14 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 			return concourse.OutResponse{}, err
 		}
 	}
+	c.logger.Debugf("Setting pipelines complete\n")
 
+	c.logger.Debugf("Getting pipelines\n")
 	apiPipelines, err := c.apiClient.Pipelines()
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}
+	c.logger.Debugf("Getting pipelines complete\n")
 
 	c.logger.Debugf("Found pipelines: %+v\n", apiPipelines)
 
