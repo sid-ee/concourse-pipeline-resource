@@ -43,7 +43,7 @@ in this repository.
 
 #### Check
 
-``` yaml
+```yaml
 ---
 resources:
 - name: my-pipelines
@@ -66,7 +66,7 @@ jobs:
   - get: my-pipelines
 ```
 
-#### Out
+#### Out - static
 
 Resource configuration as above for Check, with the following job configuration:
 
@@ -78,10 +78,26 @@ jobs:
   - put: my-pipelines
     params:
       pipelines:
-      - config_file: path/to/config/file
+      - name: my-pipeline
+        config_file: path/to/config/file
         vars_files:
         - path/to/optional/vars/file/1
         - path/to/optional/vars/file/2
+```
+
+
+#### Out - dynamic
+
+Resource configuration as above for Check, with the following job configuration:
+
+```yaml
+---
+jobs:
+- name: set-my-pipelines
+  plan:
+  - put: my-pipelines
+    params:
+      pipelines_file: path/to/pipelines/file
 ```
 
 ## Behavior
@@ -102,7 +118,11 @@ first will be written to `foo.yml` and the second to `bar.yml`.
 
 Set the configuration for each pipeline provided in the `params` section.
 
-#### Parameters
+Configuration can be either static or dynamic. Static configuration has the configuration fixed in the pipeline config file, whereas dynamic configuration reads the pipeline configuration from the provided file.
+
+Either static or dynamic configuration must be selected; using both is not allowed.
+
+#### Parameters - static
 
 * `pipelines`: *Required.* Array of pipelines to configure.
 Must be non-nil and non-empty. The structure of the `pipeline` object is as follows:
@@ -116,6 +136,22 @@ Must be non-nil and non-empty. The structure of the `pipeline` object is as foll
  - `vars_files`: *Optional.* Array of strings corresponding to files
  containing variables to be interpolated via `{{ }}` in `config_file`.
  Maps to `-l some-vars-file.yml` in `fly set-pipeline` command.
+
+#### Parameters - dynamic
+
+* `pipelines_file`: *Required.* Path to dynamic configuration file. The contents of this file should look as follows:
+
+  ```yaml
+  ---
+  pipelines:
+  - name: my-pipeline
+    config_file: path/to/config/file
+    vars_files:
+    - path/to/optional/vars/file/1
+    - path/to/optional/vars/file/2
+  ```
+
+This is the same structure as Static configuration above, but in a file. See that section to determine which fields are optional and which are required.
 
 ## Developing
 
