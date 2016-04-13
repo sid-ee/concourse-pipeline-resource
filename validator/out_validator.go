@@ -19,8 +19,31 @@ func ValidateOut(input concourse.OutRequest) error {
 		return fmt.Errorf("%s must be provided", "password")
 	}
 
-	if input.Params.Pipelines == nil || len(input.Params.Pipelines) == 0 {
-		return fmt.Errorf("%s must be provided", "pipelines")
+	var pipelinesFilePresent bool
+	var pipelinesPresent bool
+
+	if input.Params.PipelinesFile != "" {
+		pipelinesFilePresent = true
+	}
+
+	if input.Params.Pipelines != nil && len(input.Params.Pipelines) > 0 {
+		pipelinesPresent = true
+	}
+
+	if !(pipelinesPresent || pipelinesFilePresent) {
+		return fmt.Errorf(
+			"pipelines must be provided via either %s or %s",
+			"pipelines",
+			"pipelines_file",
+		)
+	}
+
+	if pipelinesPresent && pipelinesFilePresent {
+		return fmt.Errorf(
+			"pipelines must be provided via one of either %s or %s",
+			"pipelines",
+			"pipelines_file",
+		)
 	}
 
 	for i, p := range input.Params.Pipelines {

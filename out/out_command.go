@@ -3,8 +3,11 @@ package out
 import (
 	"crypto/md5"
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
@@ -58,7 +61,25 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 	c.logger.Debugf("Login successful\n")
 
 	c.logger.Debugf("Getting pipelines\n")
-	for _, p := range input.Params.Pipelines {
+	var pipelines []concourse.Pipeline
+	if input.Params.PipelinesFile != "" {
+		b, err := ioutil.ReadFile(filepath.Join(c.sourcesDir, input.Params.PipelinesFile))
+		if err != nil {
+			return concourse.OutResponse{}, err
+		}
+
+		var fileContents concourse.OutParams
+		err = yaml.Unmarshal(b, &fileContents)
+		if err != nil {
+			return concourse.OutResponse{}, err
+		}
+
+		pipelines = fileContents.Pipelines
+	} else {
+		pipelines = input.Params.Pipelines
+	}
+
+	for _, p := range pipelines {
 		configFilepath := filepath.Join(c.sourcesDir, p.ConfigFile)
 
 		var varsFilepaths []string
@@ -73,12 +94,12 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		}
 	}
 
-	pipelines, err := c.apiClient.Pipelines()
+	apiPipelines, err := c.apiClient.Pipelines()
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}
 
-	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
+	c.logger.Debugf("Found pipelines: %+v\n", apiPipelines)
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
@@ -96,7 +117,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		return string(outBytes), nil
 	}
 
-	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, pipelines, c.logger)
+	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, apiPipelines, c.logger)
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}

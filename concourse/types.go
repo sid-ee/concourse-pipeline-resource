@@ -42,7 +42,8 @@ type OutRequest struct {
 }
 
 type OutParams struct {
-	Pipelines []Pipeline `json:"pipelines,omitempty"`
+	Pipelines     []Pipeline `json:"pipelines,omitempty"`
+	PipelinesFile string     `json:"pipelines_file,omitempty"`
 }
 
 type Pipeline struct {

@@ -102,6 +102,19 @@ var _ = Describe("ValidateOut", func() {
 		})
 	})
 
+	Context("when pipelines_file param is also provided", func() {
+		BeforeEach(func() {
+			outRequest.Params.PipelinesFile = "some-file"
+		})
+
+		It("returns an error", func() {
+			err := validator.ValidateOut(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*pipelines.*provided.*one of"))
+		})
+	})
+
 	Context("when vars files is present but empty", func() {
 		BeforeEach(func() {
 			outRequest.Params.Pipelines[0].VarsFiles = []string{}

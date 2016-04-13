@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"gopkg.in/yaml.v2"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
@@ -180,6 +182,59 @@ pipeline3: foo
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(response.Metadata).NotTo(BeNil())
+	})
+
+	Context("when pipelines file is provided", func() {
+		BeforeEach(func() {
+			pipelinesFile := "pipelines.yml"
+			outRequest.Params.PipelinesFile = pipelinesFile
+
+			pipelinesFileContents := concourse.OutParams{
+				Pipelines: pipelines,
+			}
+
+			pipelinesFileContentsBytes, err := yaml.Marshal(pipelinesFileContents)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = ioutil.WriteFile(filepath.Join(sourcesDir, pipelinesFile), pipelinesFileContentsBytes, os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("uses config from the file", func() {
+			_, err := outCommand.Run(outRequest)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(pipelines)))
+		})
+
+		Context("when the pipelines file cannot be read", func() {
+			BeforeEach(func() {
+				pipelinesFile := "pipelines-never-written.yml"
+				outRequest.Params.PipelinesFile = pipelinesFile
+			})
+
+			It("returns error", func() {
+				_, err := outCommand.Run(outRequest)
+				Expect(err).To(HaveOccurred())
+			})
+		})
+
+		Context("when the pipelines file fails to parse", func() {
+			BeforeEach(func() {
+				pipelinesFile := "pipelines.yml"
+				outRequest.Params.PipelinesFile = pipelinesFile
+
+				pipelinesFileContentsBytes := []byte(`{{`)
+
+				err := ioutil.WriteFile(filepath.Join(sourcesDir, pipelinesFile), pipelinesFileContentsBytes, os.ModePerm)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("returns error", func() {
+				_, err := outCommand.Run(outRequest)
+				Expect(err).To(HaveOccurred())
+			})
+		})
 	})
 
 	Context("when login returns an error", func() {
