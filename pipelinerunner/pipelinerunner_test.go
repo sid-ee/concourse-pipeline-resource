@@ -13,7 +13,7 @@ import (
 
 var _ = Describe("PipelineRunner", func() {
 	const (
-		funcSleep = 10 * time.Millisecond
+		funcSleep = 50 * time.Millisecond
 	)
 
 	var (

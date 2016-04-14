@@ -85,11 +85,6 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
 		outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
 
-		c.logger.Debugf("%s stdout: %s\n",
-			pipeline.Name,
-			string(outBytes),
-		)
-
 		if err != nil {
 			return "", err
 		}

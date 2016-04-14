@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/robdimsdale/concourse-pipeline-resource/cmd/out/filereader"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/fly"
@@ -69,6 +70,24 @@ func main() {
 	flyBinaryPath := filepath.Join(outDir, flyBinaryName)
 	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
 
+	err = validator.ValidateOut(input)
+	if err != nil {
+		l.Debugf("Exiting with error: %v\n", err)
+		log.Fatalln(err)
+	}
+
+	if input.Params.PipelinesFile != "" {
+		pipelinesFromFile, err := filereader.PipelinesFromFile(input.Params.PipelinesFile, sourcesDir)
+		if err != nil {
+			l.Debugf("Exiting with error: %v\n", err)
+			log.Fatalln(err)
+		}
+
+		input.Params.PipelinesFile = ""
+		input.Params.Pipelines = pipelinesFromFile
+	}
+
+	// Validate contents of pipelines file
 	err = validator.ValidateOut(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)

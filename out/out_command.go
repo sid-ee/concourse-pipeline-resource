@@ -3,11 +3,8 @@ package out
 import (
 	"crypto/md5"
 	"fmt"
-	"io/ioutil"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v2"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
@@ -60,26 +57,9 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	c.logger.Debugf("Login successful\n")
 
-	c.logger.Debugf("Parsing pipelines\n")
-	var pipelines []concourse.Pipeline
-	if input.Params.PipelinesFile != "" {
-		b, err := ioutil.ReadFile(filepath.Join(c.sourcesDir, input.Params.PipelinesFile))
-		if err != nil {
-			return concourse.OutResponse{}, err
-		}
+	pipelines := input.Params.Pipelines
 
-		var fileContents concourse.OutParams
-		err = yaml.Unmarshal(b, &fileContents)
-		if err != nil {
-			return concourse.OutResponse{}, err
-		}
-
-		pipelines = fileContents.Pipelines
-	} else {
-		pipelines = input.Params.Pipelines
-	}
-
-	c.logger.Debugf("Parsing pipelines complete - pipelines: %+v\n", pipelines)
+	c.logger.Debugf("Input pipelines: %+v\n", pipelines)
 
 	c.logger.Debugf("Setting pipelines\n")
 	for _, p := range pipelines {
@@ -110,11 +90,6 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
 		outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
-
-		c.logger.Debugf("%s stdout: %s\n",
-			pipeline.Name,
-			string(outBytes),
-		)
 
 		if err != nil {
 			return "", err
