@@ -143,6 +143,33 @@ pipeline2: foo
 		Expect(response).To(Equal(expectedResponse))
 	})
 
+	Context("when the most recent version is provided", func() {
+		BeforeEach(func() {
+			checkRequest.Version = concourse.Version{
+				PipelinesChecksum: expectedResponse[0].PipelinesChecksum,
+			}
+		})
+
+		It("returns the most recent version", func() {
+			response, err := checkCommand.Run(checkRequest)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(response).To(Equal(expectedResponse))
+		})
+	})
+
+	Context("when some other version is provided", func() {
+		BeforeEach(func() {
+			checkRequest.Version = concourse.Version{
+				PipelinesChecksum: "foo",
+			}
+		})
+
+		It("returns the most recent version", func() {
+
+		})
+	})
+
 	Context("when log files already exist", func() {
 		var (
 			otherFilePath1 string

@@ -105,11 +105,6 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 	)
 	c.logger.Debugf("pipeline content checksum: %s\n", pipelinesChecksumString)
 
-	if input.Version.PipelinesChecksum == pipelinesChecksumString {
-		c.logger.Debugf("No new versions found\n")
-		return concourse.CheckResponse{}, nil
-	}
-
 	out := concourse.CheckResponse{
 		concourse.Version{
 			PipelinesChecksum: pipelinesChecksumString,
