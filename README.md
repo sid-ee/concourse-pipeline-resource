@@ -14,11 +14,13 @@ resource_types:
   type: docker-image
   source:
     repository: robdimsdale/concourse-pipeline-resource
-    tag: v0.6.3
+    tag: latest-final
 ```
 
-**The value for `tag` above is an example - the latest value can be found on
-the [releases page](https://github.com/robdimsdale/concourse-pipeline-resource/releases)**
+**The value for `tag` above will pull the latest final release, found on the
+[releases page](https://github.com/robdimsdale/concourse-pipeline-resource/releases)**
+
+**To avoid automatically upgrading, use a fixed tag instead e.g. `tag: v0.6.3`**
 
 The docker image is `robdimsdale/concourse-pipeline-resource`; the images are
 available on
