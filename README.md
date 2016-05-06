@@ -9,6 +9,7 @@ as no BOSH release is provided. Use this resource by adding the following to
 the `resource_types` section of a pipeline config:
 
 ```yaml
+---
 resource_types:
 - name: concourse-pipeline
   type: docker-image
@@ -17,7 +18,11 @@ resource_types:
     tag: latest-final
 ```
 
-**The value for `tag` above will pull the latest final release, found on the
+See [concourse docs](http://concourse.ci/configuring-resource-types.html) for more details
+on adding `resource_types` to a pipeline config.
+
+**Using `tag: latest-final` will pull the latest final release, which can be
+found on the
 [releases page](https://github.com/robdimsdale/concourse-pipeline-resource/releases)**
 
 **To avoid automatically upgrading, use a fixed tag instead e.g. `tag: v0.6.3`**
