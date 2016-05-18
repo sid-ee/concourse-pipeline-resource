@@ -51,6 +51,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
+		input.Source.Insecure,
 	)
 	if err != nil {
 		return concourse.InResponse{}, err

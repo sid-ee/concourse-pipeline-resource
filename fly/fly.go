@@ -6,12 +6,15 @@ import (
 	"os/exec"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
+	"strconv"
+	"net/http"
+	"crypto/tls"
 )
 
 //go:generate counterfeiter . FlyConn
 
 type FlyConn interface {
-	Login(url string, username string, password string) ([]byte, error)
+	Login(url string, username string, password string, insecure string) ([]byte, error)
 	GetPipeline(pipelineName string) ([]byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
@@ -35,12 +38,27 @@ func (f flyConn) Login(
 	url string,
 	username string,
 	password string,
+	insecure string,
 ) ([]byte, error) {
+	extraArgs := ""
+	isInsecure, err := strconv.ParseBool(insecure)
+	if err != nil {
+		return nil, err
+	}
+	if isInsecure {
+		extraArgs="-k"
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			Proxy: http.ProxyFromEnvironment,
+		}
+		http.DefaultClient.Transport = tr
+	}
 	return f.run(
 		"login",
 		"-c", url,
 		"-u", username,
 		"-p", password,
+		extraArgs,
 	)
 }
 

@@ -50,6 +50,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
+		input.Source.Insecure,
 	)
 	if err != nil {
 		return concourse.OutResponse{}, err

@@ -121,6 +121,7 @@ jobs:
 				Target:   target,
 				Username: username,
 				Password: password,
+				Insecure: insecure,
 			},
 			Params: concourse.OutParams{
 				Pipelines:     pipelines,
@@ -136,7 +137,7 @@ jobs:
 	AfterEach(func() {
 		response, err := flyConn.DestroyPipeline(pipelineName)
 		if err != nil {
-			fmt.Fprintf(GinkgoWriter, "destroy-pipeline failed", string(response))
+			fmt.Fprintf(GinkgoWriter, "destroy-pipeline failed %s", string(response))
 		}
 		Expect(err).NotTo(HaveOccurred())
 	})

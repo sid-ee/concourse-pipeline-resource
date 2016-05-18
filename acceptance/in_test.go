@@ -41,6 +41,7 @@ var _ = Describe("In", func() {
 				Target:   target,
 				Username: username,
 				Password: password,
+				Insecure: insecure,
 			},
 			Version: concourse.Version{
 				PipelinesChecksum: "some-pipeline-checksum",

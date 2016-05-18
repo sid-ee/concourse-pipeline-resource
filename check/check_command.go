@@ -67,6 +67,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
+		input.Source.Insecure,
 	)
 	if err != nil {
 		return concourse.CheckResponse{}, err

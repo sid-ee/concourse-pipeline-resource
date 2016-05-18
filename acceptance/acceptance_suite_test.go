@@ -26,6 +26,7 @@ var (
 	target   string
 	username string
 	password string
+	insecure string
 
 	flyConn fly.FlyConn
 )
@@ -49,6 +50,13 @@ var _ = BeforeSuite(func() {
 	By("Getting password from environment variables")
 	password = os.Getenv("PASSWORD")
 	Expect(password).NotTo(BeEmpty(), "$PASSWORD must be provided")
+
+	By("Getting insecure from environment variables")
+	insecure = os.Getenv("INSECURE")
+	if insecure == "" {
+		By("Insecure not found, using default value: false")
+		insecure = "false"
+	}
 
 	By("Compiling check binary")
 	checkPath, err = gexec.Build("github.com/robdimsdale/concourse-pipeline-resource/cmd/check", "-race")
@@ -102,7 +110,7 @@ var _ = BeforeSuite(func() {
 	flyConn = fly.NewFlyConn("concourse-pipeline-resource-target", l, inFlyPath)
 
 	By("Logging in with fly")
-	_, err = flyConn.Login(target, username, password)
+	_, err = flyConn.Login(target, username, password, insecure)
 	Expect(err).NotTo(HaveOccurred())
 })
 

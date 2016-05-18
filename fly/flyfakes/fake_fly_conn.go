@@ -8,12 +8,13 @@ import (
 )
 
 type FakeFlyConn struct {
-	LoginStub        func(url string, username string, password string) ([]byte, error)
+	LoginStub        func(url string, username string, password string, insecure string) ([]byte, error)
 	loginMutex       sync.RWMutex
 	loginArgsForCall []struct {
 		url      string
 		username string
 		password string
+		insecure string
 	}
 	loginReturns struct {
 		result1 []byte
@@ -50,16 +51,17 @@ type FakeFlyConn struct {
 	}
 }
 
-func (fake *FakeFlyConn) Login(url string, username string, password string) ([]byte, error) {
+func (fake *FakeFlyConn) Login(url string, username string, password string, insecure string) ([]byte, error) {
 	fake.loginMutex.Lock()
 	fake.loginArgsForCall = append(fake.loginArgsForCall, struct {
 		url      string
 		username string
 		password string
-	}{url, username, password})
+		insecure string
+	}{url, username, password, insecure})
 	fake.loginMutex.Unlock()
 	if fake.LoginStub != nil {
-		return fake.LoginStub(url, username, password)
+		return fake.LoginStub(url, username, password,insecure)
 	} else {
 		return fake.loginReturns.result1, fake.loginReturns.result2
 	}

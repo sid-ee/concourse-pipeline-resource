@@ -65,16 +65,18 @@ var _ = Describe("FlyConn", func() {
 			url      string
 			username string
 			password string
+			insecure string
 		)
 
 		BeforeEach(func() {
 			url = "some-url"
 			username = "some-username"
 			password = "some-password"
+			insecure = "false"
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.Login(url, username, password)
+			output, err := flyConn.Login(url, username, password,insecure)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -88,6 +90,28 @@ var _ = Describe("FlyConn", func() {
 
 			Expect(string(output)).To(Equal(expectedOutput))
 		})
+		Context("when insecure login is enabled", func() {
+			BeforeEach(func() {
+				insecure="true"
+			})
+			It("returns output without error", func() {
+				output, err := flyConn.Login(url, username, password,insecure)
+				Expect(err).NotTo(HaveOccurred())
+
+				expectedOutput := fmt.Sprintf(
+					"%s %s %s %s %s %s %s %s %s %s\n",
+					"-t", target,
+					"login",
+					"-c", url,
+					"-u", username,
+					"-p", password,
+					"-k",
+				)
+
+				Expect(string(output)).To(Equal(expectedOutput))
+			})
+
+		})
 
 		Context("when there is an error starting the commmand", func() {
 			BeforeEach(func() {
@@ -95,7 +119,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("returns an error", func() {
-				_, err := flyConn.Login(url, username, password)
+				_, err := flyConn.Login(url, username, password, insecure)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -106,7 +130,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("appends stderr to the error", func() {
-				_, err := flyConn.Login(url, username, password)
+				_, err := flyConn.Login(url, username, password, insecure)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).To(MatchRegexp(".*some err output.*"))

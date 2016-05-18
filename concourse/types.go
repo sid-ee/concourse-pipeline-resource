@@ -4,6 +4,7 @@ type Source struct {
 	Target   string `json:"target"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Insecure string `json:"insecure"`
 }
 
 type CheckRequest struct {
