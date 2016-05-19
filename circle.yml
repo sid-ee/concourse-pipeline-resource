@@ -25,7 +25,7 @@ test:
     - go version
     - CGO_ENABLED=1 ginkgo -r -race -nodes 4 -randomizeAllSpecs -randomizeSuites -slowSpecThreshold=${SLOW_SPEC_THRESHOLD}
     #bin/test
-    - docker build -t $DOCKER_ORG/$DOCKER_IMAGE .
+    - docker build --rm=false -t $DOCKER_ORG/$DOCKER_IMAGE .
 
 deployment:
   hub-master:
