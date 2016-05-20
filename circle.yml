@@ -1,0 +1,41 @@
+machine:
+  environment:
+    PROJECT_DIR: ${HOME}/${CIRCLE_PROJECT_REPONAME}
+    FLY_LOCATION: ${HOME}/${CIRCLE_PROJECT_REPONAME}/fly-bin
+    GO_WORKSPACE: ${HOME}/.go_workspace
+    SLOW_SPEC_THRESHOLD: 20
+  services:
+    - docker
+
+dependencies:
+  pre:
+    #rm -rf ${GO_WORKSPACE}/src/github.com/
+    - mkdir -p ${GO_WORKSPACE}/src/github.com/robdimsdale/
+    - if [ ! -e ${GO_WORKSPACE}/src/github.com/robdimsdale/concourse-pipeline-resource ];then ln -s ${PROJECT_DIR} ${GO_WORKSPACE}/src/github.com/robdimsdale/;fi
+
+    - wget -O ${FLY_LOCATION} ${TARGET}"/api/v1/cli?arch=amd64&platform=linux" --no-check-certificate --quiet
+  override:
+    - go get -u github.com/onsi/ginkgo/ginkgo
+    - go get -u github.com/onsi/gomega
+    - go get -u github.com/golang/protobuf/proto
+    - CGO_ENABLED=0 scripts/build
+
+test:
+  override:
+    - go version
+    - CGO_ENABLED=1 ginkgo -r -race -nodes 4 -randomizeAllSpecs -randomizeSuites -slowSpecThreshold=${SLOW_SPEC_THRESHOLD}
+    #bin/test
+    - docker build --rm=false -t $DOCKER_ORG/$DOCKER_IMAGE .
+
+deployment:
+  hub-master:
+    branch: master
+    commands:
+      - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+      - docker push $DOCKER_ORG/$DOCKER_IMAGE
+  hub-branch:
+    branch: /^(?master)$/
+    commands:
+      - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+      - docker push $DOCKER_ORG/$DOCKER_IMAGE:$CIRCLE_BRANCH
+
