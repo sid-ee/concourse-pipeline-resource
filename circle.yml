@@ -18,7 +18,7 @@ dependencies:
     - go get -u github.com/onsi/ginkgo/ginkgo
     - go get -u github.com/onsi/gomega
     - go get -u github.com/golang/protobuf/proto
-    - scripts/build
+    - CGO_ENABLED=0 scripts/build
 
 test:
   override:
