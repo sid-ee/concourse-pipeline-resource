@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"time"
 
@@ -37,6 +38,7 @@ var _ = Describe("In", func() {
 		command = exec.Command(inPath, destDirectory)
 
 		By("Creating default request")
+
 		inRequest = concourse.InRequest{
 			Source: concourse.Source{
 				Target:   target,
@@ -101,4 +103,30 @@ var _ = Describe("In", func() {
 			Expect(session.Err).Should(gbytes.Say(".*username.*provided"))
 		})
 	})
+
+	Context("target not provided", func() {
+		BeforeEach(func() {
+			os.Setenv("ATC_EXTERNAL_URL", inRequest.Source.Target)
+			inRequest.Source.Target = ""
+
+			var err error
+			stdinContents, err = json.Marshal(inRequest)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("returns valid json", func() {
+			By("Running the command")
+			session := run(command, stdinContents)
+			Eventually(session, inTimeout).Should(gexec.Exit(0))
+
+			By("Outputting a valid json response")
+			response := concourse.InResponse{}
+			err := json.Unmarshal(session.Out.Contents(), &response)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Validating output contains checksum")
+			Expect(response.Version.PipelinesChecksum).To(Equal(inRequest.Version.PipelinesChecksum))
+		})
+	})
+
 })

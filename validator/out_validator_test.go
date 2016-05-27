@@ -37,19 +37,6 @@ var _ = Describe("ValidateOut", func() {
 		Expect(validator.ValidateOut(outRequest)).Should(Succeed())
 	})
 
-	Context("when no target is provided", func() {
-		BeforeEach(func() {
-			outRequest.Source.Target = ""
-		})
-
-		It("returns an error", func() {
-			err := validator.ValidateOut(outRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*target.*provided"))
-		})
-	})
-
 	Context("when no username is provided", func() {
 		BeforeEach(func() {
 			outRequest.Source.Username = ""

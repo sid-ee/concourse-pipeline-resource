@@ -39,7 +39,8 @@ in this repository.
 
 ## Source Configuration
 
-* `target`: *Required.*  URL of your concourse instance e.g. `https://my-concourse.com`.
+* `target`: URL of your concourse instance e.g. `https://my-concourse.com`.
+  If not specified, the resource defaults to the `ATC_EXTERNAL_URL` environment variable.
 
 * `username`: *Required.*  Basic auth username for logging in to Concourse.
   Basic Auth must be enabled on the Concourse installation.

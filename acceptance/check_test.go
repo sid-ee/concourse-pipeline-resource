@@ -3,6 +3,7 @@ package acceptance
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -76,6 +77,31 @@ var _ = Describe("Check", func() {
 			By("Validating command exited with error")
 			Eventually(session, checkTimeout).Should(gexec.Exit(1))
 			Expect(session.Err).Should(gbytes.Say(".*username.*provided"))
+		})
+	})
+
+	Context("target not provided", func() {
+		BeforeEach(func() {
+			os.Setenv("ATC_EXTERNAL_URL", checkRequest.Source.Target)
+			checkRequest.Source.Target = ""
+
+			var err error
+			stdinContents, err = json.Marshal(checkRequest)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("returns checksum without error", func() {
+			By("Running the command")
+			session := run(command, stdinContents)
+
+			By("Validating command exited with error")
+			Eventually(session, checkTimeout).Should(gexec.Exit(0))
+
+			var resp concourse.CheckResponse
+			err := json.Unmarshal(session.Out.Contents(), &resp)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(len(resp)).To(BeNumerically(">", 0))
 		})
 	})
 })

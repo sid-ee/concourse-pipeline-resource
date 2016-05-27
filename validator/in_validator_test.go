@@ -22,19 +22,6 @@ var _ = Describe("ValidateIn", func() {
 		}
 	})
 
-	Context("when no target is provided", func() {
-		BeforeEach(func() {
-			inRequest.Source.Target = ""
-		})
-
-		It("returns an error", func() {
-			err := validator.ValidateIn(inRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err.Error()).To(MatchRegexp(".*target.*provided"))
-		})
-	})
-
 	Context("when no username is provided", func() {
 		BeforeEach(func() {
 			inRequest.Source.Username = ""

@@ -68,6 +68,10 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	if input.Source.Target == "" {
+		input.Source.Target = os.Getenv("ATC_EXTERNAL_URL")
+	}
+
 	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password)
 	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn, apiClient)
 	response, err := checkCommand.Run(input)
