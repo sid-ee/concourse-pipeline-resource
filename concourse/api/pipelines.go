@@ -19,20 +19,28 @@ type Client interface {
 
 type client struct {
 	target string
+	username string
+	password string
 }
 
-func NewClient(target string) Client {
-	return &client{
-		target: target,
-	}
+func NewClient(target string, username string, password string) Client {
+	return &client{target: target, username: username, password: password}
 }
 
 func (c client) Pipelines() ([]Pipeline, error) {
-	resp, err := http.Get(fmt.Sprintf(
-		"%s%s/pipelines",
-		c.target,
-		apiPrefix,
-	))
+	client := &http.Client{}
+	req, err := http.NewRequest(
+		"GET",
+		fmt.Sprintf(
+			"%s%s/pipelines",
+			c.target,
+			apiPrefix,
+		),
+		nil)
+
+	req.SetBasicAuth(c.username, c.password)
+	resp, err := client.Do(req)
+
 	if err != nil {
 		return nil, err
 	}
