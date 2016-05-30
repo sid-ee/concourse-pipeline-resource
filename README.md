@@ -47,6 +47,9 @@ in this repository.
 * `password`: *Required.*  Basic auth password for logging in to Concourse.
   Basic Auth must be enabled on the Concourse installation.
 
+* `insecure`: *Optional.* Connect to Concourse insecurely - i.e. skip SSL validation.
+  Defaults to false if not provided.
+
 ### Example Pipeline Configuration
 
 #### Check
