@@ -39,7 +39,7 @@ func (c client) Pipelines() ([]Pipeline, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpected response from  - status code: %d, expected: %d",
+		return nil, fmt.Errorf("Unexpected response from %s - status code: %d, expected: %d",
 			targetUrl,
 			resp.StatusCode,
 			http.StatusOK,
