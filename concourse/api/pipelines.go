@@ -28,17 +28,19 @@ func NewClient(target string) Client {
 }
 
 func (c client) Pipelines() ([]Pipeline, error) {
-	resp, err := http.Get(fmt.Sprintf(
+	targetUrl := fmt.Sprintf(
 		"%s%s/pipelines",
 		c.target,
 		apiPrefix,
-	))
+	)
+	resp, err := http.Get(targetUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpected response status code: %d, expected: %d",
+		return nil, fmt.Errorf("Unexpected response from  - status code: %d, expected: %d",
+			targetUrl,
 			resp.StatusCode,
 			http.StatusOK,
 		)

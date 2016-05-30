@@ -86,5 +86,29 @@ var _ = Describe("Check", func() {
 				Expect(err).To(HaveOccurred())
 			})
 		})
+		Context("when getting pipelines on invalid target", func() {
+			BeforeEach(func() {
+				server.Reset()
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", fmt.Sprintf(
+							"%s/pipelines",
+							apiPrefix,
+						)),
+						ghttp.RespondWith(
+							http.StatusNotFound,
+							"",
+						),
+					),
+				)
+			})
+
+			It("returns error including target url", func() {
+				_, err := client.Pipelines()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring(target))
+			})
+		})
+
 	})
 })
