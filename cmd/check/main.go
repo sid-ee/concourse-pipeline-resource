@@ -68,7 +68,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	apiClient := api.NewClient(input.Source.Target)
+	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password)
 	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn, apiClient)
 	response, err := checkCommand.Run(input)
 	if err != nil {

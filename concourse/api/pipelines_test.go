@@ -25,7 +25,7 @@ var _ = Describe("Check", func() {
 		target = server.URL()
 
 		fakeLogger = &loggerfakes.FakeLogger{}
-		client = api.NewClient(target)
+		client = api.NewClient(target, "", "")
 	})
 
 	AfterEach(func() {
