@@ -206,6 +206,11 @@ PASSWORD=my-basic-auth-password \
 ./bin/test
 ```
 
+### Contributing
+
+Please make all pull requests to the `develop` branch, and
+[ensure the tests pass locally](https://github.com/robdimsdale/concourse-pipeline-resource#running-the-tests).
+
 ### Project management
 
 The CI for this project can be found at https://concourse.robdimsdale.com/pipelines/concourse-pipeline-resource
