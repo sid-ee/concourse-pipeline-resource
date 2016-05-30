@@ -65,18 +65,17 @@ var _ = Describe("FlyConn", func() {
 			url      string
 			username string
 			password string
-			insecure string
+			insecure bool
 		)
 
 		BeforeEach(func() {
 			url = "some-url"
 			username = "some-username"
 			password = "some-password"
-			insecure = "false"
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.Login(url, username, password,insecure)
+			output, err := flyConn.Login(url, username, password, insecure)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -90,12 +89,14 @@ var _ = Describe("FlyConn", func() {
 
 			Expect(string(output)).To(Equal(expectedOutput))
 		})
-		Context("when insecure login is enabled", func() {
+
+		Context("when insecure is true", func() {
 			BeforeEach(func() {
-				insecure="true"
+				insecure = true
 			})
-			It("returns output without error", func() {
-				output, err := flyConn.Login(url, username, password,insecure)
+
+			It("adds -k flag to command", func() {
+				output, err := flyConn.Login(url, username, password, insecure)
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(
@@ -110,7 +111,6 @@ var _ = Describe("FlyConn", func() {
 
 				Expect(string(output)).To(Equal(expectedOutput))
 			})
-
 		})
 
 		Context("when there is an error starting the commmand", func() {

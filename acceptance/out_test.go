@@ -121,7 +121,7 @@ jobs:
 				Target:   target,
 				Username: username,
 				Password: password,
-				Insecure: insecure,
+				Insecure: fmt.Sprintf("%t", insecure),
 			},
 			Params: concourse.OutParams{
 				Pipelines:     pipelines,

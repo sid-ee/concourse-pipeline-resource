@@ -8,13 +8,13 @@ import (
 )
 
 type FakeFlyConn struct {
-	LoginStub        func(url string, username string, password string, insecure string) ([]byte, error)
+	LoginStub        func(url string, username string, password string, insecure bool) ([]byte, error)
 	loginMutex       sync.RWMutex
 	loginArgsForCall []struct {
 		url      string
 		username string
 		password string
-		insecure string
+		insecure bool
 	}
 	loginReturns struct {
 		result1 []byte
@@ -49,19 +49,22 @@ type FakeFlyConn struct {
 		result1 []byte
 		result2 error
 	}
+	invocations map[string][][]interface{}
 }
 
-func (fake *FakeFlyConn) Login(url string, username string, password string, insecure string) ([]byte, error) {
+func (fake *FakeFlyConn) Login(url string, username string, password string, insecure bool) ([]byte, error) {
 	fake.loginMutex.Lock()
 	fake.loginArgsForCall = append(fake.loginArgsForCall, struct {
 		url      string
 		username string
 		password string
-		insecure string
+		insecure bool
 	}{url, username, password, insecure})
+	fake.guard("Login")
+	fake.invocations["Login"] = append(fake.invocations["Login"], []interface{}{url, username, password, insecure})
 	fake.loginMutex.Unlock()
 	if fake.LoginStub != nil {
-		return fake.LoginStub(url, username, password,insecure)
+		return fake.LoginStub(url, username, password, insecure)
 	} else {
 		return fake.loginReturns.result1, fake.loginReturns.result2
 	}
@@ -73,10 +76,10 @@ func (fake *FakeFlyConn) LoginCallCount() int {
 	return len(fake.loginArgsForCall)
 }
 
-func (fake *FakeFlyConn) LoginArgsForCall(i int) (string, string, string) {
+func (fake *FakeFlyConn) LoginArgsForCall(i int) (string, string, string, bool) {
 	fake.loginMutex.RLock()
 	defer fake.loginMutex.RUnlock()
-	return fake.loginArgsForCall[i].url, fake.loginArgsForCall[i].username, fake.loginArgsForCall[i].password
+	return fake.loginArgsForCall[i].url, fake.loginArgsForCall[i].username, fake.loginArgsForCall[i].password, fake.loginArgsForCall[i].insecure
 }
 
 func (fake *FakeFlyConn) LoginReturns(result1 []byte, result2 error) {
@@ -92,6 +95,8 @@ func (fake *FakeFlyConn) GetPipeline(pipelineName string) ([]byte, error) {
 	fake.getPipelineArgsForCall = append(fake.getPipelineArgsForCall, struct {
 		pipelineName string
 	}{pipelineName})
+	fake.guard("GetPipeline")
+	fake.invocations["GetPipeline"] = append(fake.invocations["GetPipeline"], []interface{}{pipelineName})
 	fake.getPipelineMutex.Unlock()
 	if fake.GetPipelineStub != nil {
 		return fake.GetPipelineStub(pipelineName)
@@ -121,12 +126,19 @@ func (fake *FakeFlyConn) GetPipelineReturns(result1 []byte, result2 error) {
 }
 
 func (fake *FakeFlyConn) SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error) {
+	var varsFilepathsCopy []string
+	if varsFilepaths != nil {
+		varsFilepathsCopy = make([]string, len(varsFilepaths))
+		copy(varsFilepathsCopy, varsFilepaths)
+	}
 	fake.setPipelineMutex.Lock()
 	fake.setPipelineArgsForCall = append(fake.setPipelineArgsForCall, struct {
 		pipelineName   string
 		configFilepath string
 		varsFilepaths  []string
-	}{pipelineName, configFilepath, varsFilepaths})
+	}{pipelineName, configFilepath, varsFilepathsCopy})
+	fake.guard("SetPipeline")
+	fake.invocations["SetPipeline"] = append(fake.invocations["SetPipeline"], []interface{}{pipelineName, configFilepath, varsFilepathsCopy})
 	fake.setPipelineMutex.Unlock()
 	if fake.SetPipelineStub != nil {
 		return fake.SetPipelineStub(pipelineName, configFilepath, varsFilepaths)
@@ -160,6 +172,8 @@ func (fake *FakeFlyConn) DestroyPipeline(pipelineName string) ([]byte, error) {
 	fake.destroyPipelineArgsForCall = append(fake.destroyPipelineArgsForCall, struct {
 		pipelineName string
 	}{pipelineName})
+	fake.guard("DestroyPipeline")
+	fake.invocations["DestroyPipeline"] = append(fake.invocations["DestroyPipeline"], []interface{}{pipelineName})
 	fake.destroyPipelineMutex.Unlock()
 	if fake.DestroyPipelineStub != nil {
 		return fake.DestroyPipelineStub(pipelineName)
@@ -186,6 +200,19 @@ func (fake *FakeFlyConn) DestroyPipelineReturns(result1 []byte, result2 error) {
 		result1 []byte
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeFlyConn) Invocations() map[string][][]interface{} {
+	return fake.invocations
+}
+
+func (fake *FakeFlyConn) guard(key string) {
+	if fake.invocations == nil {
+		fake.invocations = map[string][][]interface{}{}
+	}
+	if fake.invocations[key] == nil {
+		fake.invocations[key] = [][]interface{}{}
+	}
 }
 
 var _ fly.FlyConn = new(FakeFlyConn)

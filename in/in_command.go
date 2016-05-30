@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
@@ -47,11 +48,20 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 
 	c.logger.Debugf("Performing login\n")
 
+	insecure := false
+	if input.Source.Insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(input.Source.Insecure)
+		if err != nil {
+			return concourse.InResponse{}, err
+		}
+	}
+
 	_, err := c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
-		input.Source.Insecure,
+		insecure,
 	)
 	if err != nil {
 		return concourse.InResponse{}, err

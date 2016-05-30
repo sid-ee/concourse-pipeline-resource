@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
@@ -63,11 +64,20 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Performing login\n")
 
+	insecure := false
+	if input.Source.Insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(input.Source.Insecure)
+		if err != nil {
+			return concourse.CheckResponse{}, err
+		}
+	}
+
 	_, err = c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
-		input.Source.Insecure,
+		insecure,
 	)
 	if err != nil {
 		return concourse.CheckResponse{}, err

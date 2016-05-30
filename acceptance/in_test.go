@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os/exec"
 	"time"
@@ -41,7 +42,7 @@ var _ = Describe("In", func() {
 				Target:   target,
 				Username: username,
 				Password: password,
-				Insecure: insecure,
+				Insecure: fmt.Sprintf("%t", insecure),
 			},
 			Version: concourse.Version{
 				PipelinesChecksum: "some-pipeline-checksum",

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -26,7 +27,7 @@ var (
 	target   string
 	username string
 	password string
-	insecure string
+	insecure bool
 
 	flyConn fly.FlyConn
 )
@@ -51,11 +52,11 @@ var _ = BeforeSuite(func() {
 	password = os.Getenv("PASSWORD")
 	Expect(password).NotTo(BeEmpty(), "$PASSWORD must be provided")
 
-	By("Getting insecure from environment variables")
-	insecure = os.Getenv("INSECURE")
-	if insecure == "" {
-		By("Insecure not found, using default value: false")
-		insecure = "false"
+	insecureFlag := os.Getenv("INSECURE")
+	if insecureFlag != "" {
+		By("Getting insecure from environment variables")
+		insecure, err = strconv.ParseBool(insecureFlag)
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	By("Compiling check binary")

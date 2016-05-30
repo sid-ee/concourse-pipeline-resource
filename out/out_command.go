@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
@@ -46,11 +47,20 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	c.logger.Debugf("Performing login\n")
 
+	insecure := false
+	if input.Source.Insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(input.Source.Insecure)
+		if err != nil {
+			return concourse.OutResponse{}, err
+		}
+	}
+
 	_, err := c.flyConn.Login(
 		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
-		input.Source.Insecure,
+		insecure,
 	)
 	if err != nil {
 		return concourse.OutResponse{}, err

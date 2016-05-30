@@ -162,6 +162,33 @@ pipeline2: foo
 		Expect(response.Metadata).NotTo(BeNil())
 	})
 
+	Context("when insecure parses as true", func() {
+		BeforeEach(func() {
+			inRequest.Source.Insecure = "true"
+		})
+
+		It("invokes the login with insecure: true, without error", func() {
+			_, err := inCommand.Run(inRequest)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
+			_, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
+
+			Expect(insecure).To(BeTrue())
+		})
+	})
+
+	Context("when insecure fails to parse into a boolean", func() {
+		BeforeEach(func() {
+			inRequest.Source.Insecure = "unparsable"
+		})
+
+		It("returns an error", func() {
+			_, err := inCommand.Run(inRequest)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
 	Context("when login returns an error", func() {
 		var (
 			expectedErr error

@@ -15,11 +15,14 @@ type FakeClient struct {
 		result1 []api.Pipeline
 		result2 error
 	}
+	invocations map[string][][]interface{}
 }
 
 func (fake *FakeClient) Pipelines() ([]api.Pipeline, error) {
 	fake.pipelinesMutex.Lock()
 	fake.pipelinesArgsForCall = append(fake.pipelinesArgsForCall, struct{}{})
+	fake.guard("Pipelines")
+	fake.invocations["Pipelines"] = append(fake.invocations["Pipelines"], []interface{}{})
 	fake.pipelinesMutex.Unlock()
 	if fake.PipelinesStub != nil {
 		return fake.PipelinesStub()
@@ -40,6 +43,19 @@ func (fake *FakeClient) PipelinesReturns(result1 []api.Pipeline, result2 error) 
 		result1 []api.Pipeline
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeClient) Invocations() map[string][][]interface{} {
+	return fake.invocations
+}
+
+func (fake *FakeClient) guard(key string) {
+	if fake.invocations == nil {
+		fake.invocations = map[string][][]interface{}{}
+	}
+	if fake.invocations[key] == nil {
+		fake.invocations[key] = [][]interface{}{}
+	}
 }
 
 var _ api.Client = new(FakeClient)
