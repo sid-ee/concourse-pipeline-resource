@@ -73,7 +73,7 @@ func main() {
 		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
 	}
 
-	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password)
+	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password, input.Source.Insecure)
 	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn, apiClient)
 	response, err := checkCommand.Run(input)
 	if err != nil {

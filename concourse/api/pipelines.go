@@ -1,10 +1,13 @@
 package api
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"strconv"
 )
 
 const (
@@ -21,10 +24,11 @@ type client struct {
 	target   string
 	username string
 	password string
+	insecure string
 }
 
-func NewClient(target string, username string, password string) Client {
-	return &client{target: target, username: username, password: password}
+func NewClient(target string, username string, password string, insecure string) Client {
+	return &client{target: target, username: username, password: password, insecure: insecure}
 }
 
 func (c client) Pipelines() ([]Pipeline, error) {
@@ -34,7 +38,25 @@ func (c client) Pipelines() ([]Pipeline, error) {
 		apiPrefix,
 	)
 
+	insecure := false
+	if c.insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(c.insecure)
+		if err != nil {
+			log.Fatalln("Invalid value for insecure: %v", c.insecure)
+		}
+	}
+
 	client := &http.Client{}
+
+	if insecure {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			Proxy:           http.ProxyFromEnvironment,
+		}
+		client.Transport = tr
+	}
+
 	req, err := http.NewRequest(
 		"GET",
 		targetUrl,

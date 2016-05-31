@@ -80,7 +80,7 @@ func main() {
 		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
 	}
 
-	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password)
+	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password, input.Source.Insecure)
 	response, err := in.NewInCommand(version, l, flyConn, apiClient, downloadDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
