@@ -195,10 +195,12 @@ jobs:
 
 	Context("target not provided", func() {
 		BeforeEach(func() {
-			os.Setenv("ATC_EXTERNAL_URL", outRequest.Source.Target)
+			var err error
+			err = os.Setenv("ATC_EXTERNAL_URL", outRequest.Source.Target)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			outRequest.Source.Target = ""
 
-			var err error
 			stdinContents, err = json.Marshal(outRequest)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -217,6 +219,4 @@ jobs:
 			Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
 		})
 	})
-
-
 })

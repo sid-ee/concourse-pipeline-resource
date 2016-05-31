@@ -82,10 +82,12 @@ var _ = Describe("Check", func() {
 
 	Context("target not provided", func() {
 		BeforeEach(func() {
-			os.Setenv("ATC_EXTERNAL_URL", checkRequest.Source.Target)
+			var err error
+			err = os.Setenv("ATC_EXTERNAL_URL", checkRequest.Source.Target)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			checkRequest.Source.Target = ""
 
-			var err error
 			stdinContents, err = json.Marshal(checkRequest)
 			Expect(err).ShouldNot(HaveOccurred())
 		})

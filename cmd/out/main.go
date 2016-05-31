@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	flyBinaryName = "fly"
+	flyBinaryName        = "fly"
+	atcExternalURLEnvKey = "ATC_EXTERNAL_URL"
 )
 
 var (
@@ -95,7 +96,7 @@ func main() {
 	}
 
 	if input.Source.Target == "" {
-		input.Source.Target = os.Getenv("ATC_EXTERNAL_URL")
+		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
 	}
 
 	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password)

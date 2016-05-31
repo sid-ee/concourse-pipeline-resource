@@ -106,10 +106,12 @@ var _ = Describe("In", func() {
 
 	Context("target not provided", func() {
 		BeforeEach(func() {
-			os.Setenv("ATC_EXTERNAL_URL", inRequest.Source.Target)
+			var err error
+			err = os.Setenv("ATC_EXTERNAL_URL", inRequest.Source.Target)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			inRequest.Source.Target = ""
 
-			var err error
 			stdinContents, err = json.Marshal(inRequest)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -128,5 +130,4 @@ var _ = Describe("In", func() {
 			Expect(response.Version.PipelinesChecksum).To(Equal(inRequest.Version.PipelinesChecksum))
 		})
 	})
-
 })
