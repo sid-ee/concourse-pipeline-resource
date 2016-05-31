@@ -72,6 +72,7 @@ var _ = Describe("FlyConn", func() {
 			url = "some-url"
 			username = "some-username"
 			password = "some-password"
+			insecure = false
 		})
 
 		It("returns output without error", func() {
