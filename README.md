@@ -185,6 +185,27 @@ If using golang 1.5 run the following command:
 export GO15VENDOREXPERIMENT=1
 ```
 
+#### Updating dependencies
+
+Install [gvt](https://github.com/FiloSottile/gvt) and make sure it is available
+in your $PATH, e.g.:
+
+```
+go get -u github.com/FiloSottile/gvt
+```
+
+To add a new dependency:
+```
+gvt fetch
+```
+
+To update an existing dependency to a specific version:
+
+```
+gvt delete <import_path>
+gvt fetch -revision <revision_number> <import_path>
+```
+
 ### Running the tests
 
 Install the ginkgo executable with:
