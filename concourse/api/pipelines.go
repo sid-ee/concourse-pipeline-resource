@@ -2,14 +2,10 @@ package api
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-)
 
-const (
-	apiPrefix = "/api/v1"
+	gc "github.com/concourse/go-concourse/concourse"
 )
 
 //go:generate counterfeiter . Client
@@ -19,64 +15,39 @@ type Client interface {
 }
 
 type client struct {
+	gcClient gc.Client
 	target   string
-	username string
-	password string
-	insecure bool
 }
 
 func NewClient(target string, username string, password string, insecure bool) Client {
-	return &client{target: target, username: username, password: password, insecure: insecure}
-}
+	httpClient := &http.Client{}
 
-func (c client) Pipelines() ([]Pipeline, error) {
-	targetUrl := fmt.Sprintf(
-		"%s%s/pipelines",
-		c.target,
-		apiPrefix,
-	)
-
-	client := &http.Client{}
-
-	if c.insecure {
+	if insecure {
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			Proxy:           http.ProxyFromEnvironment,
 		}
-		client.Transport = tr
+		httpClient.Transport = tr
 	}
 
-	req, err := http.NewRequest(
-		"GET",
-		targetUrl,
-		nil)
+	gcClient := gc.NewClient(target, httpClient)
 
-	req.SetBasicAuth(c.username, c.password)
-	resp, err := client.Do(req)
+	return &client{gcClient: gcClient, target: target}
+}
 
+func (c client) Pipelines() ([]Pipeline, error) {
+	atcPipelines, err := c.gcClient.ListPipelines()
 	if err != nil {
-		return nil, err
+		return nil, c.wrapErr(err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpected response from %s - status code: %d, expected: %d",
-			targetUrl,
-			resp.StatusCode,
-			http.StatusOK,
-		)
-	}
+	return pipelinesFromATCPipelines(atcPipelines), nil
+}
 
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		// Untested as it is too hard to force ReadAll to return an error
-		return nil, err
-	}
-
-	var pipelines []Pipeline
-	err = json.Unmarshal(b, &pipelines)
-	if err != nil {
-		return nil, err
-	}
-
-	return pipelines, nil
+func (c client) wrapErr(err error) error {
+	return fmt.Errorf(
+		"error from target: %s - %s",
+		c.target,
+		err.Error(),
+	)
 }

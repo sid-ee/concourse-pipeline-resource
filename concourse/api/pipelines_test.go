@@ -86,6 +86,7 @@ var _ = Describe("Check", func() {
 				Expect(err).To(HaveOccurred())
 			})
 		})
+
 		Context("when getting pipelines on invalid target", func() {
 			BeforeEach(func() {
 				server.Reset()
@@ -109,6 +110,5 @@ var _ = Describe("Check", func() {
 				Expect(err.Error()).Should(ContainSubstring(target))
 			})
 		})
-
 	})
 })
