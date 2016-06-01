@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
@@ -80,7 +81,16 @@ func main() {
 		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
 	}
 
-	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password, input.Source.Insecure)
+	insecure := false
+	if input.Source.Insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(input.Source.Insecure)
+		if err != nil {
+			log.Fatalln("Invalid value for insecure: %v", input.Source.Insecure)
+		}
+	}
+
+	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password, insecure)
 	response, err := in.NewInCommand(version, l, flyConn, apiClient, downloadDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
