@@ -12,7 +12,6 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 )
@@ -35,17 +34,14 @@ var _ = Describe("Check", func() {
 		checkRequest concourse.CheckRequest
 		checkCommand *check.CheckCommand
 
-		pipelinesErr error
-		pipelines    []api.Pipeline
-		fakeFlyConn  *flyfakes.FakeFlyConn
-		runCallCount int
+		pipelinesErr      error
+		pipelineConfigErr error
+		pipelines         []api.Pipeline
 
 		fakeAPIClient *apifakes.FakeClient
 	)
 
 	BeforeEach(func() {
-		runCallCount = 0
-		fakeFlyConn = &flyfakes.FakeFlyConn{}
 		fakeAPIClient = &apifakes.FakeClient{}
 
 		pipelinesErr = nil
@@ -70,19 +66,7 @@ pipeline1: foo
 pipeline2: foo
 `
 
-		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, error) {
-			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
-
-			switch name {
-			case pipelines[0].Name:
-				return []byte(pipelineContents[0]), nil
-			case pipelines[1].Name:
-				return []byte(pipelineContents[1]), nil
-			default:
-				Fail("Unexpected invocation of flyConn.GetPipeline")
-				return nil, nil
-			}
-		}
+		pipelineConfigErr = nil
 
 		var err error
 		tempDir, err = ioutil.TempDir("", "")
@@ -122,7 +106,6 @@ pipeline2: foo
 			binaryVersion,
 			ginkgoLogger,
 			logFilePath,
-			fakeFlyConn,
 			fakeAPIClient,
 		)
 	})
@@ -134,6 +117,24 @@ pipeline2: foo
 
 	JustBeforeEach(func() {
 		fakeAPIClient.PipelinesReturns(pipelines, pipelinesErr)
+
+		fakeAPIClient.PipelineConfigStub = func(name string) (string, error) {
+			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
+
+			if pipelineConfigErr != nil {
+				return "", pipelineConfigErr
+			}
+
+			switch name {
+			case pipelines[0].Name:
+				return pipelineContents[0], nil
+			case pipelines[1].Name:
+				return pipelineContents[1], nil
+			default:
+				Fail("Unexpected invocation of flyConn.GetPipeline")
+				return "", nil
+			}
+		}
 	})
 
 	It("returns pipelines checksum without error", func() {
@@ -166,7 +167,10 @@ pipeline2: foo
 		})
 
 		It("returns the most recent version", func() {
+			response, err := checkCommand.Run(checkRequest)
+			Expect(err).NotTo(HaveOccurred())
 
+			Expect(response).To(Equal(expectedResponse))
 		})
 	})
 
@@ -203,51 +207,6 @@ pipeline2: foo
 		})
 	})
 
-	Context("when insecure parses as true", func() {
-		BeforeEach(func() {
-			checkRequest.Source.Insecure = "true"
-		})
-
-		It("invokes the login with insecure: true, without error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
-			_, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
-
-			Expect(insecure).To(BeTrue())
-		})
-	})
-
-	Context("when insecure fails to parse into a boolean", func() {
-		BeforeEach(func() {
-			checkRequest.Source.Insecure = "unparsable"
-		})
-
-		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).To(HaveOccurred())
-		})
-	})
-
-	Context("when login returns an error", func() {
-		var (
-			expectedErr error
-		)
-
-		BeforeEach(func() {
-			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
-		})
-
-		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err).To(Equal(expectedErr))
-		})
-	})
-
 	Context("when getting pipelines returns an error", func() {
 		BeforeEach(func() {
 			pipelinesErr = fmt.Errorf("some error")
@@ -261,22 +220,16 @@ pipeline2: foo
 		})
 	})
 
-	Context("when calling fly to get pipeline config returns an error", func() {
-		var (
-			expectedErr error
-		)
-
+	Context("when getting pipeline config returns an error", func() {
 		BeforeEach(func() {
-			expectedErr = fmt.Errorf("error executing fly")
-
-			fakeFlyConn.GetPipelineReturns(nil, expectedErr)
+			pipelineConfigErr = fmt.Errorf("error getting pipelineConfig")
 		})
 
 		It("returns an error", func() {
 			_, err := checkCommand.Run(checkRequest)
 			Expect(err).To(HaveOccurred())
 
-			Expect(err).To(Equal(expectedErr))
+			Expect(err).To(Equal(pipelineConfigErr))
 		})
 	})
 })

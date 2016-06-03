@@ -90,7 +90,13 @@ func main() {
 		}
 	}
 
-	apiClient := api.NewClient(input.Source.Target, input.Source.Username, input.Source.Password, insecure)
+	httpClient := api.HTTPClient(
+		input.Source.Username,
+		input.Source.Password,
+		insecure,
+	)
+
+	apiClient := api.NewClient(input.Source.Target, httpClient)
 	response, err := in.NewInCommand(version, l, flyConn, apiClient, downloadDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)

@@ -6,54 +6,57 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/ghttp"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger/loggerfakes"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/gcfakes"
+
+	"github.com/concourse/atc"
+	gc "github.com/concourse/go-concourse/concourse"
 )
 
-var _ = Describe("Check", func() {
+var _ = Describe("Pipeline methods", func() {
 	var (
-		server *ghttp.Server
+		originalNewGCClientFunc func(target string, httpClient *http.Client) gc.Client
+		fakeGCClient            *gcfakes.FakeClient
+
 		client api.Client
 		target string
-
-		fakeLogger *loggerfakes.FakeLogger
 	)
 
 	BeforeEach(func() {
-		server = ghttp.NewServer()
-		target = server.URL()
+		originalNewGCClientFunc = api.NewGCClientFunc
 
-		fakeLogger = &loggerfakes.FakeLogger{}
-		client = api.NewClient(target, "", "", false)
+		fakeGCClient = &gcfakes.FakeClient{}
+
+		api.NewGCClientFunc = func(target string, httpClient *http.Client) gc.Client {
+			return fakeGCClient
+		}
+
+		target = "some target"
+
+		client = api.NewClient(target, &http.Client{})
 	})
 
 	AfterEach(func() {
-		server.Close()
+		api.NewGCClientFunc = originalNewGCClientFunc
 	})
 
 	Describe("Pipelines", func() {
 		var (
-			response           []api.Pipeline
-			responseStatusCode int
+			atcPipelines []atc.Pipeline
+			pipelinesErr error
 		)
 
 		BeforeEach(func() {
-			response = []api.Pipeline{
+			pipelinesErr = nil
+
+			atcPipelines = []atc.Pipeline{
 				{Name: "p1", URL: "url_p2"},
 				{Name: "p2", URL: "url_p1"},
 			}
-
-			responseStatusCode = http.StatusOK
 		})
 
 		JustBeforeEach(func() {
-			server.AppendHandlers(
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", apiPrefix+"/pipelines"),
-					ghttp.RespondWithJSONEncoded(responseStatusCode, response),
-				),
-			)
+			fakeGCClient.ListPipelinesReturns(atcPipelines, pipelinesErr)
 		})
 
 		It("returns successfully", func() {
@@ -63,51 +66,76 @@ var _ = Describe("Check", func() {
 			Expect(returnedPipelines).To(HaveLen(2))
 		})
 
-		Context("when getting pipelines returns unmarshallable body", func() {
+		Context("when getting pipelines returns an error", func() {
 			BeforeEach(func() {
-				server.Reset()
-
-				server.AppendHandlers(
-					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", fmt.Sprintf(
-							"%s/pipelines",
-							apiPrefix,
-						)),
-						ghttp.RespondWith(
-							http.StatusOK,
-							`$not%valid-#json`,
-						),
-					),
-				)
-			})
-
-			It("returns error", func() {
-				_, err := client.Pipelines()
-				Expect(err).To(HaveOccurred())
-			})
-		})
-
-		Context("when getting pipelines on invalid target", func() {
-			BeforeEach(func() {
-				server.Reset()
-				server.AppendHandlers(
-					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", fmt.Sprintf(
-							"%s/pipelines",
-							apiPrefix,
-						)),
-						ghttp.RespondWith(
-							http.StatusNotFound,
-							"",
-						),
-					),
-				)
+				pipelinesErr = fmt.Errorf("some error")
 			})
 
 			It("returns error including target url", func() {
 				_, err := client.Pipelines()
 				Expect(err).To(HaveOccurred())
+
 				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring("some error"))
+			})
+		})
+	})
+
+	Describe("PipelineConfig", func() {
+		var (
+			atcRawConfig      atc.RawConfig
+			pipelineExists    bool
+			pipelineConfigErr error
+
+			pipelineName string
+		)
+
+		BeforeEach(func() {
+			pipelineExists = true
+			pipelineConfigErr = nil
+
+			atcRawConfig = atc.RawConfig("some raw config")
+
+			pipelineName = "some pipeline"
+		})
+
+		JustBeforeEach(func() {
+			fakeGCClient.PipelineConfigReturns(atc.Config{}, atcRawConfig, "", pipelineExists, pipelineConfigErr)
+		})
+
+		It("returns successfully", func() {
+			returnedConfig, err := client.PipelineConfig(pipelineName)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(returnedConfig).To(Equal(atcRawConfig.String()))
+		})
+
+		Context("when getting pipelines returns an error", func() {
+			BeforeEach(func() {
+				pipelineConfigErr = fmt.Errorf("some error")
+			})
+
+			It("returns error including target url", func() {
+				_, err := client.PipelineConfig(pipelineName)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring("some error"))
+			})
+		})
+
+		Context("when pipeline does not exist", func() {
+			BeforeEach(func() {
+				pipelineExists = false
+			})
+
+			It("returns error including target url", func() {
+				_, err := client.PipelineConfig(pipelineName)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring(pipelineName))
+				Expect(err.Error()).Should(ContainSubstring("not found"))
 			})
 		})
 	})

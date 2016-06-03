@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner"
 )
@@ -19,7 +17,6 @@ type CheckCommand struct {
 	logger        logger.Logger
 	logFilePath   string
 	binaryVersion string
-	flyConn       fly.FlyConn
 	apiClient     api.Client
 }
 
@@ -27,14 +24,12 @@ func NewCheckCommand(
 	binaryVersion string,
 	logger logger.Logger,
 	logFilePath string,
-	flyConn fly.FlyConn,
 	apiClient api.Client,
 ) *CheckCommand {
 	return &CheckCommand{
 		logger:        logger,
 		logFilePath:   logFilePath,
 		binaryVersion: binaryVersion,
-		flyConn:       flyConn,
 		apiClient:     apiClient,
 	}
 }
@@ -62,28 +57,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Performing login\n")
-
-	insecure := false
-	if input.Source.Insecure != "" {
-		var err error
-		insecure, err = strconv.ParseBool(input.Source.Insecure)
-		if err != nil {
-			return concourse.CheckResponse{}, err
-		}
-	}
-
-	_, err = c.flyConn.Login(
-		input.Source.Target,
-		input.Source.Username,
-		input.Source.Password,
-		insecure,
-	)
-	if err != nil {
-		return concourse.CheckResponse{}, err
-	}
-
-	c.logger.Debugf("Login successful\n")
+	c.logger.Debugf("Getting pipelines\n")
 
 	pipelines, err := c.apiClient.Pipelines()
 	if err != nil {
@@ -94,13 +68,13 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+		config, err := c.apiClient.PipelineConfig(pipeline.Name)
 
 		if err != nil {
 			return "", err
 		}
 
-		return string(outBytes), nil
+		return config, nil
 	}
 
 	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, pipelines, c.logger)

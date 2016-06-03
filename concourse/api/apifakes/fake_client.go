@@ -15,6 +15,15 @@ type FakeClient struct {
 		result1 []api.Pipeline
 		result2 error
 	}
+	PipelineConfigStub        func(pipelineName string) (string, error)
+	pipelineConfigMutex       sync.RWMutex
+	pipelineConfigArgsForCall []struct {
+		pipelineName string
+	}
+	pipelineConfigReturns struct {
+		result1 string
+		result2 error
+	}
 	invocations map[string][][]interface{}
 }
 
@@ -41,6 +50,41 @@ func (fake *FakeClient) PipelinesReturns(result1 []api.Pipeline, result2 error) 
 	fake.PipelinesStub = nil
 	fake.pipelinesReturns = struct {
 		result1 []api.Pipeline
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) PipelineConfig(pipelineName string) (string, error) {
+	fake.pipelineConfigMutex.Lock()
+	fake.pipelineConfigArgsForCall = append(fake.pipelineConfigArgsForCall, struct {
+		pipelineName string
+	}{pipelineName})
+	fake.guard("PipelineConfig")
+	fake.invocations["PipelineConfig"] = append(fake.invocations["PipelineConfig"], []interface{}{pipelineName})
+	fake.pipelineConfigMutex.Unlock()
+	if fake.PipelineConfigStub != nil {
+		return fake.PipelineConfigStub(pipelineName)
+	} else {
+		return fake.pipelineConfigReturns.result1, fake.pipelineConfigReturns.result2
+	}
+}
+
+func (fake *FakeClient) PipelineConfigCallCount() int {
+	fake.pipelineConfigMutex.RLock()
+	defer fake.pipelineConfigMutex.RUnlock()
+	return len(fake.pipelineConfigArgsForCall)
+}
+
+func (fake *FakeClient) PipelineConfigArgsForCall(i int) string {
+	fake.pipelineConfigMutex.RLock()
+	defer fake.pipelineConfigMutex.RUnlock()
+	return fake.pipelineConfigArgsForCall[i].pipelineName
+}
+
+func (fake *FakeClient) PipelineConfigReturns(result1 string, result2 error) {
+	fake.PipelineConfigStub = nil
+	fake.pipelineConfigReturns = struct {
+		result1 string
 		result2 error
 	}{result1, result2}
 }
