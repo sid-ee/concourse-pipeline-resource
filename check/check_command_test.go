@@ -131,7 +131,7 @@ pipeline2: foo
 			case pipelines[1].Name:
 				return pipelineContents[1], nil
 			default:
-				Fail("Unexpected invocation of flyConn.GetPipeline")
+				Fail("Unexpected invocation of PipelineConfig")
 				return "", nil
 			}
 		}
