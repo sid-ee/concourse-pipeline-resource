@@ -99,14 +99,14 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 	c.logger.Debugf("Found pipelines: %+v\n", apiPipelines)
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
-		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+		c.logger.Debugf("Getting pipeline config: %s\n", pipeline.Name)
+		config, err := c.apiClient.PipelineConfig(pipeline.Name)
 
 		if err != nil {
 			return "", err
 		}
 
-		return string(outBytes), nil
+		return config, nil
 	}
 
 	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, apiPipelines, c.logger)

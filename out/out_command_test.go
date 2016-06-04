@@ -23,17 +23,18 @@ var _ = Describe("Out", func() {
 
 		ginkgoLogger logger.Logger
 
-		target          string
-		username        string
-		password        string
-		pipelines       []concourse.Pipeline
-		flyRunCallCount int
+		target             string
+		username           string
+		password           string
+		concoursePipelines []concourse.Pipeline
+		flyRunCallCount    int
 
-		apiPipelines    []api.Pipeline
+		pipelines       []api.Pipeline
 		getPipelinesErr error
 		setPipelinesErr error
 
-		pipelineContents []string
+		pipelineConfigErr error
+		pipelineContents  []string
 
 		outRequest concourse.OutRequest
 		outCommand *out.OutCommand
@@ -55,7 +56,7 @@ var _ = Describe("Out", func() {
 		username = "some user"
 		password = "some password"
 
-		apiPipelines = []api.Pipeline{
+		pipelines = []api.Pipeline{
 			{
 				Name: "pipeline-1",
 				URL:  "pipeline_URL_1",
@@ -86,9 +87,9 @@ pipeline2: foo
 pipeline3: foo
 `
 
-		pipelines = []concourse.Pipeline{
+		concoursePipelines = []concourse.Pipeline{
 			{
-				Name:       apiPipelines[0].Name,
+				Name:       pipelines[0].Name,
 				ConfigFile: "pipeline_1.yml",
 				VarsFiles: []string{
 					"vars_1.yml",
@@ -96,27 +97,12 @@ pipeline3: foo
 				},
 			},
 			{
-				Name:       apiPipelines[1].Name,
+				Name:       pipelines[1].Name,
 				ConfigFile: "pipeline_2.yml",
 			},
 		}
 
-		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, error) {
-			defer GinkgoRecover()
-			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
-
-			switch name {
-			case apiPipelines[0].Name:
-				return []byte(pipelineContents[0]), nil
-			case apiPipelines[1].Name:
-				return []byte(pipelineContents[1]), nil
-			case apiPipelines[2].Name:
-				return []byte(pipelineContents[2]), nil
-			default:
-				Fail("Unexpected invocation of flyConn.GetPipeline")
-				return nil, nil
-			}
-		}
+		pipelineConfigErr = nil
 
 		outRequest = concourse.OutRequest{
 			Source: concourse.Source{
@@ -125,13 +111,35 @@ pipeline3: foo
 				Password: password,
 			},
 			Params: concourse.OutParams{
-				Pipelines: pipelines,
+				Pipelines: concoursePipelines,
 			},
 		}
 	})
 
 	JustBeforeEach(func() {
-		fakeAPIClient.PipelinesReturns(apiPipelines, getPipelinesErr)
+		fakeAPIClient.PipelinesReturns(pipelines, getPipelinesErr)
+
+		fakeAPIClient.PipelineConfigStub = func(name string) (string, error) {
+			defer GinkgoRecover()
+			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
+
+			if pipelineConfigErr != nil {
+				return "", pipelineConfigErr
+			}
+
+			switch name {
+			case pipelines[0].Name:
+				return pipelineContents[0], nil
+			case pipelines[1].Name:
+				return pipelineContents[1], nil
+			case pipelines[2].Name:
+				return pipelineContents[2], nil
+			default:
+				Fail("Unexpected invocation of PipelineConfig")
+				return "", nil
+			}
+		}
+
 		fakeFlyConn.SetPipelineReturns(nil, setPipelinesErr)
 
 		sanitized := concourse.SanitizedSource(outRequest.Source)
@@ -152,8 +160,8 @@ pipeline3: foo
 		_, err := outCommand.Run(outRequest)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(pipelines)))
-		for i, p := range pipelines {
+		Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(concoursePipelines)))
+		for i, p := range concoursePipelines {
 			name, configFilepath, varsFilepaths := fakeFlyConn.SetPipelineArgsForCall(i)
 			Expect(name).To(Equal(p.Name))
 			Expect(configFilepath).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
@@ -254,21 +262,15 @@ pipeline3: foo
 	})
 
 	Context("when getting pipeline returns an error", func() {
-		var (
-			expectedErr error
-		)
-
 		BeforeEach(func() {
-			expectedErr = fmt.Errorf("some error")
-
-			fakeFlyConn.GetPipelineReturns(nil, expectedErr)
+			pipelineConfigErr = fmt.Errorf("some error")
 		})
 
 		It("returns an error", func() {
 			_, err := outCommand.Run(outRequest)
 			Expect(err).To(HaveOccurred())
 
-			Expect(err).To(Equal(expectedErr))
+			Expect(err).To(Equal(pipelineConfigErr))
 		})
 	})
 })
