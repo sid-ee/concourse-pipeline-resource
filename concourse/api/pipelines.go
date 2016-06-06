@@ -24,3 +24,17 @@ func (c client) PipelineConfig(pipelineName string) (string, error) {
 
 	return atcRawConfig.String(), nil
 }
+
+func (c client) DeletePipeline(pipelineName string) error {
+	exists, err := c.gcClient.DeletePipeline(pipelineName)
+	if err != nil {
+		return c.wrapErr(err)
+	}
+
+	if !exists {
+		err := fmt.Errorf("Pipeline not found: %s", pipelineName)
+		return c.wrapErr(err)
+	}
+
+	return nil
+}

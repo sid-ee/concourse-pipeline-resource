@@ -12,8 +12,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 
 	"testing"
@@ -29,7 +28,7 @@ var (
 	password string
 	insecure bool
 
-	flyConn fly.FlyConn
+	apiClient api.Client
 )
 
 func TestAcceptance(t *testing.T) {
@@ -106,13 +105,14 @@ var _ = BeforeSuite(func() {
 	sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 	GinkgoWriter = sanitizer
 
-	By("Creating fly connection")
-	l := logger.NewLogger(sanitizer)
-	flyConn = fly.NewFlyConn("concourse-pipeline-resource-target", l, inFlyPath)
+	By("Creating API Client")
+	httpClient := api.HTTPClient(
+		username,
+		password,
+		insecure,
+	)
 
-	By("Logging in with fly")
-	_, err = flyConn.Login(target, username, password, insecure)
-	Expect(err).NotTo(HaveOccurred())
+	apiClient = api.NewClient(target, httpClient)
 })
 
 var _ = AfterSuite(func() {

@@ -16,6 +16,7 @@ var NewGCClientFunc func(target string, httpClient *http.Client) gc.Client = gc.
 type Client interface {
 	Pipelines() ([]Pipeline, error)
 	PipelineConfig(pipelineName string) (string, error)
+	DeletePipeline(pipelineName string) error
 }
 
 type client struct {

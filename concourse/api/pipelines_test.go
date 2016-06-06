@@ -139,4 +139,61 @@ var _ = Describe("Pipeline methods", func() {
 			})
 		})
 	})
+
+	Describe("DeletePipeline", func() {
+		var (
+			pipelineExists    bool
+			pipelineConfigErr error
+
+			pipelineName string
+		)
+
+		BeforeEach(func() {
+			pipelineExists = true
+			pipelineConfigErr = nil
+
+			pipelineName = "some pipeline"
+		})
+
+		JustBeforeEach(func() {
+			fakeGCClient.DeletePipelineReturns(pipelineExists, pipelineConfigErr)
+		})
+
+		It("returns successfully", func() {
+			err := client.DeletePipeline(pipelineName)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(fakeGCClient.DeletePipelineCallCount()).To(Equal(1))
+			Expect(fakeGCClient.DeletePipelineArgsForCall(0)).To(Equal(pipelineName))
+		})
+
+		Context("when getting pipelines returns an error", func() {
+			BeforeEach(func() {
+				pipelineConfigErr = fmt.Errorf("some error")
+			})
+
+			It("returns error including target url", func() {
+				err := client.DeletePipeline(pipelineName)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring("some error"))
+			})
+		})
+
+		Context("when pipeline does not exist", func() {
+			BeforeEach(func() {
+				pipelineExists = false
+			})
+
+			It("returns error including target url", func() {
+				err := client.DeletePipeline(pipelineName)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring(pipelineName))
+				Expect(err.Error()).Should(ContainSubstring("not found"))
+			})
+		})
+	})
 })

@@ -134,32 +134,11 @@ jobs:
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	AfterEach(func() {
-		response, err := flyConn.DestroyPipeline(pipelineName)
-		if err != nil {
-			fmt.Fprintf(GinkgoWriter, "destroy-pipeline failed %s", string(response))
-		}
-		Expect(err).NotTo(HaveOccurred())
-	})
+	Describe("Creating pipelines successfully", func() {
 
-	It("creates pipeline and returns valid json", func() {
-		By("Running the command")
-		session := run(command, stdinContents)
-		Eventually(session, outTimeout).Should(gexec.Exit(0))
-
-		By("Outputting a valid json response")
-		response := concourse.OutResponse{}
-		err := json.Unmarshal(session.Out.Contents(), &response)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("Validating output contains checksum")
-		Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
-	})
-
-	Context("when pipelines_file is provided instead", func() {
-		BeforeEach(func() {
-			pipelines = []concourse.Pipeline{}
-			pipelinesFileFilename = defaultPipelinesFileFilename
+		AfterEach(func() {
+			err := apiClient.DeletePipeline(pipelineName)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("creates pipeline and returns valid json", func() {
@@ -174,6 +153,27 @@ jobs:
 
 			By("Validating output contains checksum")
 			Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
+		})
+
+		Context("when pipelines_file is provided instead", func() {
+			BeforeEach(func() {
+				pipelines = []concourse.Pipeline{}
+				pipelinesFileFilename = defaultPipelinesFileFilename
+			})
+
+			It("creates pipeline and returns valid json", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+				Eventually(session, outTimeout).Should(gexec.Exit(0))
+
+				By("Outputting a valid json response")
+				response := concourse.OutResponse{}
+				err := json.Unmarshal(session.Out.Contents(), &response)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				By("Validating output contains checksum")
+				Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
+			})
 		})
 	})
 

@@ -24,6 +24,14 @@ type FakeClient struct {
 		result1 string
 		result2 error
 	}
+	DeletePipelineStub        func(pipelineName string) error
+	deletePipelineMutex       sync.RWMutex
+	deletePipelineArgsForCall []struct {
+		pipelineName string
+	}
+	deletePipelineReturns struct {
+		result1 error
+	}
 	invocations map[string][][]interface{}
 }
 
@@ -87,6 +95,40 @@ func (fake *FakeClient) PipelineConfigReturns(result1 string, result2 error) {
 		result1 string
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeClient) DeletePipeline(pipelineName string) error {
+	fake.deletePipelineMutex.Lock()
+	fake.deletePipelineArgsForCall = append(fake.deletePipelineArgsForCall, struct {
+		pipelineName string
+	}{pipelineName})
+	fake.guard("DeletePipeline")
+	fake.invocations["DeletePipeline"] = append(fake.invocations["DeletePipeline"], []interface{}{pipelineName})
+	fake.deletePipelineMutex.Unlock()
+	if fake.DeletePipelineStub != nil {
+		return fake.DeletePipelineStub(pipelineName)
+	} else {
+		return fake.deletePipelineReturns.result1
+	}
+}
+
+func (fake *FakeClient) DeletePipelineCallCount() int {
+	fake.deletePipelineMutex.RLock()
+	defer fake.deletePipelineMutex.RUnlock()
+	return len(fake.deletePipelineArgsForCall)
+}
+
+func (fake *FakeClient) DeletePipelineArgsForCall(i int) string {
+	fake.deletePipelineMutex.RLock()
+	defer fake.deletePipelineMutex.RUnlock()
+	return fake.deletePipelineArgsForCall[i].pipelineName
+}
+
+func (fake *FakeClient) DeletePipelineReturns(result1 error) {
+	fake.DeletePipelineStub = nil
+	fake.deletePipelineReturns = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeClient) Invocations() map[string][][]interface{} {
