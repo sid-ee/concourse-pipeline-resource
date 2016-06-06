@@ -68,7 +68,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		config, err := c.apiClient.PipelineConfig(pipeline.Name)
+		_, config, _, err := c.apiClient.PipelineConfig(pipeline.Name)
 
 		if err != nil {
 			return "", err

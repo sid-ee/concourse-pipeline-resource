@@ -141,14 +141,14 @@ Either static or dynamic configuration must be selected; using both is not allow
 Must be non-nil and non-empty. The structure of the `pipeline` object is as follows:
 
  - `name`: *Required.* Name of pipeline to be configured.
- Maps to `-p my-pipeline-name` in `fly set-pipeline` command.
+ Equivalent of `-p my-pipeline-name` in `fly set-pipeline` command.
 
  - `config_file`: *Required.* Location of config file.
- Maps to `-c some-config-file.yml` in `fly set-pipeline` command.
+ Equivalent of `-c some-config-file.yml` in `fly set-pipeline` command.
 
  - `vars_files`: *Optional.* Array of strings corresponding to files
  containing variables to be interpolated via `{{ }}` in `config_file`.
- Maps to `-l some-vars-file.yml` in `fly set-pipeline` command.
+ Equivalent of `-l some-vars-file.yml` in `fly set-pipeline` command.
 
 #### Parameters - dynamic
 
@@ -217,15 +217,9 @@ go get -u github.com/onsi/ginkgo/ginkgo
 The tests require a concourse API server to test against, and a valid
 basic auth username/password for that concourse deployment.
 
-The tests also require that you provide the fly CLI as a binary.
-This CLI must be compatible with the chosen concourse deployment - check version with `fly --version`.
-The source for the fly CLI can be found [here](https://github.com/concourse/fly).
-`FLY_LOCATION` should be set to the location of the compiled binary.
-
 Run the tests with the following command:
 
 ```
-FLY_LOCATION=/path/to/fly/cli \
 TARGET=https://my-concourse.com \
 USERNAME=my-basic-auth-user \
 PASSWORD=my-basic-auth-password \

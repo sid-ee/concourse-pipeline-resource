@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/concourse/atc"
 	gc "github.com/concourse/go-concourse/concourse"
 )
 
@@ -15,7 +16,8 @@ var NewGCClientFunc func(target string, httpClient *http.Client) gc.Client = gc.
 
 type Client interface {
 	Pipelines() ([]Pipeline, error)
-	PipelineConfig(pipelineName string) (string, error)
+	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
 	DeletePipeline(pipelineName string) error
 }
 

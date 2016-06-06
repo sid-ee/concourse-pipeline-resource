@@ -4,13 +4,13 @@ import (
 	"crypto/md5"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 
+	"github.com/concourse/fly/template"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
+	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers"
 	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner"
 )
 
@@ -19,54 +19,31 @@ const (
 )
 
 type OutCommand struct {
-	logger        logger.Logger
-	binaryVersion string
-	flyConn       fly.FlyConn
-	apiClient     api.Client
-	sourcesDir    string
+	logger         logger.Logger
+	binaryVersion  string
+	apiClient      api.Client
+	sourcesDir     string
+	pipelineSetter helpers.PipelineSetter
 }
 
 func NewOutCommand(
 	binaryVersion string,
 	logger logger.Logger,
-	flyConn fly.FlyConn,
+	pipelineSetter helpers.PipelineSetter,
 	apiClient api.Client,
 	sourcesDir string,
 ) *OutCommand {
 	return &OutCommand{
-		logger:        logger,
-		binaryVersion: binaryVersion,
-		flyConn:       flyConn,
-		apiClient:     apiClient,
-		sourcesDir:    sourcesDir,
+		logger:         logger,
+		binaryVersion:  binaryVersion,
+		pipelineSetter: pipelineSetter,
+		apiClient:      apiClient,
+		sourcesDir:     sourcesDir,
 	}
 }
 
 func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
-
-	c.logger.Debugf("Performing login\n")
-
-	insecure := false
-	if input.Source.Insecure != "" {
-		var err error
-		insecure, err = strconv.ParseBool(input.Source.Insecure)
-		if err != nil {
-			return concourse.OutResponse{}, err
-		}
-	}
-
-	_, err := c.flyConn.Login(
-		input.Source.Target,
-		input.Source.Username,
-		input.Source.Password,
-		insecure,
-	)
-	if err != nil {
-		return concourse.OutResponse{}, err
-	}
-
-	c.logger.Debugf("Login successful\n")
 
 	pipelines := input.Params.Pipelines
 
@@ -82,7 +59,13 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 			varsFilepaths = append(varsFilepaths, varFilepath)
 		}
 
-		_, err := c.flyConn.SetPipeline(p.Name, configFilepath, varsFilepaths)
+		var templateVariables template.Variables
+		err := c.pipelineSetter.SetPipeline(
+			p.Name,
+			configFilepath,
+			templateVariables,
+			varsFilepaths,
+		)
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}
@@ -100,7 +83,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
 		c.logger.Debugf("Getting pipeline config: %s\n", pipeline.Name)
-		config, err := c.apiClient.PipelineConfig(pipeline.Name)
+		_, config, _, err := c.apiClient.PipelineConfig(pipeline.Name)
 
 		if err != nil {
 			return "", err

@@ -271,6 +271,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/aryann/difflib",
+			"repository": "https://github.com/aryann/difflib",
+			"vcs": "git",
+			"revision": "035af7c09b120b0909dd998c92745b82f61e0b1c",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/bigdatadev/goryman",
 			"repository": "https://github.com/bigdatadev/goryman",
 			"vcs": "git",
@@ -320,6 +328,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/concourse/fly",
+			"repository": "https://github.com/concourse/fly",
+			"vcs": "git",
+			"revision": "0bae6a3966ac894a89e5356957e83e1a19eb8a61",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/concourse/go-concourse",
 			"repository": "https://github.com/concourse/go-concourse",
 			"vcs": "git",
@@ -356,6 +372,14 @@
 			"repository": "https://github.com/elazarl/go-bindata-assetfs",
 			"vcs": "git",
 			"revision": "57eb5e1fc594ad4b0b1dbea7b286d299e0cb43c2",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/fatih/color",
+			"repository": "https://github.com/fatih/color",
+			"vcs": "git",
+			"revision": "533cd7fd8a85905f67a1753afb4deddc85ea174f",
 			"branch": "master",
 			"notests": true
 		},
@@ -489,6 +513,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/inconshreveable/go-update",
+			"repository": "https://github.com/inconshreveable/go-update",
+			"vcs": "git",
+			"revision": "8152e7eb6ccf8679a64582a66b78519688d156ad",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/jessevdk/go-flags",
 			"repository": "https://github.com/jessevdk/go-flags",
 			"vcs": "git",
@@ -497,10 +529,50 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/kr/pty",
+			"repository": "https://github.com/kr/pty",
+			"vcs": "git",
+			"revision": "0467868096dbfab4b683e41dd7aaba1c12363233",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/kr/tarutil",
+			"repository": "https://github.com/kr/tarutil",
+			"vcs": "git",
+			"revision": "3924116a60ddca945515d9f4197f71cf749d6aaa",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/lib/pq",
 			"repository": "https://github.com/lib/pq",
 			"vcs": "git",
 			"revision": "ee1442bda7bd1b6a84e913bdb421cb1874ec629d",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/mattn/go-colorable",
+			"repository": "https://github.com/mattn/go-colorable",
+			"vcs": "git",
+			"revision": "9056b7a9f2d1f2d96498d6d146acd1f9d5ed3d59",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/mattn/go-isatty",
+			"repository": "https://github.com/mattn/go-isatty",
+			"vcs": "git",
+			"revision": "56b76bdf51f7708750eac80fa38b952bb9f32639",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/mgutz/ansi",
+			"repository": "https://github.com/mgutz/ansi",
+			"vcs": "git",
+			"revision": "c286dcecd19ff979eeb73ea444e479b903f2cfcb",
 			"branch": "master",
 			"notests": true
 		},
@@ -561,6 +633,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/pkg/term",
+			"repository": "https://github.com/pkg/term",
+			"vcs": "git",
+			"revision": "62a3461209d38082eff7297a83cc424ef1844a77",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/sclevine/agouti",
 			"repository": "https://github.com/sclevine/agouti",
 			"vcs": "git",
@@ -582,6 +662,15 @@
 			"vcs": "git",
 			"revision": "b15ebd8bd97ae9202eb00c076d59b2f2824bce37",
 			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/vito/go-interact/interact",
+			"repository": "https://github.com/vito/go-interact",
+			"vcs": "git",
+			"revision": "0eb390344c5c183069c844093f1bb2ab968eae7b",
+			"branch": "master",
+			"path": "/interact",
 			"notests": true
 		},
 		{
@@ -688,6 +777,15 @@
 			"vcs": "git",
 			"revision": "c406a4cc4ba462e5dc2f16225c5bd9488f9cbe10",
 			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "golang.org/x/sys/unix",
+			"repository": "https://go.googlesource.com/sys",
+			"vcs": "git",
+			"revision": "076b546753157f758b316e59bcb51e6807c04057",
+			"branch": "master",
+			"path": "/unix",
 			"notests": true
 		},
 		{

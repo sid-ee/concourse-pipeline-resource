@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/concourse/atc"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/check"
@@ -118,21 +119,22 @@ pipeline2: foo
 	JustBeforeEach(func() {
 		fakeAPIClient.PipelinesReturns(pipelines, pipelinesErr)
 
-		fakeAPIClient.PipelineConfigStub = func(name string) (string, error) {
+		fakeAPIClient.PipelineConfigStub = func(name string) (atc.Config, string, string, error) {
+			defer GinkgoRecover()
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			if pipelineConfigErr != nil {
-				return "", pipelineConfigErr
+				return atc.Config{}, "", "", pipelineConfigErr
 			}
 
 			switch name {
 			case pipelines[0].Name:
-				return pipelineContents[0], nil
+				return atc.Config{}, pipelineContents[0], "", nil
 			case pipelines[1].Name:
-				return pipelineContents[1], nil
+				return atc.Config{}, pipelineContents[1], "", nil
 			default:
 				Fail("Unexpected invocation of PipelineConfig")
-				return "", nil
+				return atc.Config{}, "", "", nil
 			}
 		}
 	})

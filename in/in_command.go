@@ -62,7 +62,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		go func(i int, p api.Pipeline) {
 			defer wg.Done()
 
-			config, err := c.apiClient.PipelineConfig(p.Name)
+			_, config, _, err := c.apiClient.PipelineConfig(p.Name)
 			if err != nil {
 				errChan <- err
 			}

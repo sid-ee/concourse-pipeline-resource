@@ -6,14 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/concourse/atc"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
+	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers/helpersfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 )
 
@@ -27,7 +28,6 @@ var _ = Describe("Out", func() {
 		username           string
 		password           string
 		concoursePipelines []concourse.Pipeline
-		flyRunCallCount    int
 
 		pipelines       []api.Pipeline
 		getPipelinesErr error
@@ -39,13 +39,12 @@ var _ = Describe("Out", func() {
 		outRequest concourse.OutRequest
 		outCommand *out.OutCommand
 
-		fakeFlyConn   *flyfakes.FakeFlyConn
-		fakeAPIClient *apifakes.FakeClient
+		fakePipelineSetter *helpersfakes.FakePipelineSetter
+		fakeAPIClient      *apifakes.FakeClient
 	)
 
 	BeforeEach(func() {
-		flyRunCallCount = 0
-		fakeFlyConn = &flyfakes.FakeFlyConn{}
+		fakePipelineSetter = &helpersfakes.FakePipelineSetter{}
 		fakeAPIClient = &apifakes.FakeClient{}
 
 		var err error
@@ -119,28 +118,28 @@ pipeline3: foo
 	JustBeforeEach(func() {
 		fakeAPIClient.PipelinesReturns(pipelines, getPipelinesErr)
 
-		fakeAPIClient.PipelineConfigStub = func(name string) (string, error) {
+		fakeAPIClient.PipelineConfigStub = func(name string) (atc.Config, string, string, error) {
 			defer GinkgoRecover()
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			if pipelineConfigErr != nil {
-				return "", pipelineConfigErr
+				return atc.Config{}, "", "", pipelineConfigErr
 			}
 
 			switch name {
 			case pipelines[0].Name:
-				return pipelineContents[0], nil
+				return atc.Config{}, pipelineContents[0], "", nil
 			case pipelines[1].Name:
-				return pipelineContents[1], nil
+				return atc.Config{}, pipelineContents[1], "", nil
 			case pipelines[2].Name:
-				return pipelineContents[2], nil
+				return atc.Config{}, pipelineContents[2], "", nil
 			default:
 				Fail("Unexpected invocation of PipelineConfig")
-				return "", nil
+				return atc.Config{}, "", "", nil
 			}
 		}
 
-		fakeFlyConn.SetPipelineReturns(nil, setPipelinesErr)
+		fakePipelineSetter.SetPipelineReturns(setPipelinesErr)
 
 		sanitized := concourse.SanitizedSource(outRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
@@ -148,7 +147,13 @@ pipeline3: foo
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
 		binaryVersion := "v0.1.2-unit-tests"
-		outCommand = out.NewOutCommand(binaryVersion, ginkgoLogger, fakeFlyConn, fakeAPIClient, sourcesDir)
+		outCommand = out.NewOutCommand(
+			binaryVersion,
+			ginkgoLogger,
+			fakePipelineSetter,
+			fakeAPIClient,
+			sourcesDir,
+		)
 	})
 
 	AfterEach(func() {
@@ -156,13 +161,13 @@ pipeline3: foo
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("invokes fly set-pipeline for each pipeline", func() {
+	It("sets each pipeline", func() {
 		_, err := outCommand.Run(outRequest)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(concoursePipelines)))
+		Expect(fakePipelineSetter.SetPipelineCallCount()).To(Equal(len(concoursePipelines)))
 		for i, p := range concoursePipelines {
-			name, configFilepath, varsFilepaths := fakeFlyConn.SetPipelineArgsForCall(i)
+			name, configFilepath, _, varsFilepaths := fakePipelineSetter.SetPipelineArgsForCall(i)
 			Expect(name).To(Equal(p.Name))
 			Expect(configFilepath).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
 
@@ -188,51 +193,6 @@ pipeline3: foo
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(response.Metadata).NotTo(BeNil())
-	})
-
-	Context("when insecure parses as true", func() {
-		BeforeEach(func() {
-			outRequest.Source.Insecure = "true"
-		})
-
-		It("invokes the login with insecure: true, without error", func() {
-			_, err := outCommand.Run(outRequest)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
-			_, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
-
-			Expect(insecure).To(BeTrue())
-		})
-	})
-
-	Context("when insecure fails to parse into a boolean", func() {
-		BeforeEach(func() {
-			outRequest.Source.Insecure = "unparsable"
-		})
-
-		It("returns an error", func() {
-			_, err := outCommand.Run(outRequest)
-			Expect(err).To(HaveOccurred())
-		})
-	})
-
-	Context("when login returns an error", func() {
-		var (
-			expectedErr error
-		)
-
-		BeforeEach(func() {
-			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
-		})
-
-		It("returns an error", func() {
-			_, err := outCommand.Run(outRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err).To(Equal(expectedErr))
-		})
 	})
 
 	Context("when setting pipelines returns an error", func() {

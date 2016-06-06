@@ -6,21 +6,19 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/cmd/out/filereader"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
+	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 	"github.com/robdimsdale/concourse-pipeline-resource/validator"
 )
 
 const (
-	flyBinaryName        = "fly"
 	atcExternalURLEnvKey = "ATC_EXTERNAL_URL"
 )
 
@@ -43,13 +41,6 @@ func main() {
 
 	sourcesDir := os.Args[1]
 
-	outDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	var input concourse.OutRequest
-
 	logFile, err := ioutil.TempFile("", "concourse-pipeline-resource-out.log")
 	if err != nil {
 		log.Fatalln(err)
@@ -58,6 +49,7 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "Logging to %s\n", logFile.Name())
 
+	var input concourse.OutRequest
 	err = json.NewDecoder(os.Stdin).Decode(&input)
 	if err != nil {
 		fmt.Fprintf(logFile, "Exiting with error: %v\n", err)
@@ -68,9 +60,6 @@ func main() {
 	sanitizer := sanitizer.NewSanitizer(sanitized, logFile)
 
 	l = logger.NewLogger(sanitizer)
-
-	flyBinaryPath := filepath.Join(outDir, flyBinaryName)
-	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
 
 	err = validator.ValidateOut(input)
 	if err != nil {
@@ -116,7 +105,15 @@ func main() {
 	)
 
 	apiClient := api.NewClient(input.Source.Target, httpClient)
-	response, err := out.NewOutCommand(version, l, flyConn, apiClient, sourcesDir).Run(input)
+	cd := helpers.NewConfigDiffer(sanitizer)
+	pipelineSetter := helpers.NewPipelineSetter(apiClient, cd)
+	response, err := out.NewOutCommand(
+		version,
+		l,
+		pipelineSetter,
+		apiClient,
+		sourcesDir,
+	).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

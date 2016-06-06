@@ -135,7 +135,6 @@ jobs:
 	})
 
 	Describe("Creating pipelines successfully", func() {
-
 		AfterEach(func() {
 			err := apiClient.DeletePipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())

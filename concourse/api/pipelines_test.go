@@ -83,7 +83,9 @@ var _ = Describe("Pipeline methods", func() {
 
 	Describe("PipelineConfig", func() {
 		var (
+			atcConfig         atc.Config
 			atcRawConfig      atc.RawConfig
+			configVersion     string
 			pipelineExists    bool
 			pipelineConfigErr error
 
@@ -91,23 +93,32 @@ var _ = Describe("Pipeline methods", func() {
 		)
 
 		BeforeEach(func() {
+			atcConfig = atc.Config{Groups: atc.GroupConfigs{{Name: "some group"}}}
+			atcRawConfig = atc.RawConfig("some raw config")
+			configVersion = "some config version"
 			pipelineExists = true
 			pipelineConfigErr = nil
-
-			atcRawConfig = atc.RawConfig("some raw config")
 
 			pipelineName = "some pipeline"
 		})
 
 		JustBeforeEach(func() {
-			fakeGCClient.PipelineConfigReturns(atc.Config{}, atcRawConfig, "", pipelineExists, pipelineConfigErr)
+			fakeGCClient.PipelineConfigReturns(
+				atcConfig,
+				atcRawConfig,
+				configVersion,
+				pipelineExists,
+				pipelineConfigErr,
+			)
 		})
 
 		It("returns successfully", func() {
-			returnedConfig, err := client.PipelineConfig(pipelineName)
+			returnedATCConfig, returnedConfig, returnedConfigVersion, err := client.PipelineConfig(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
+			Expect(returnedATCConfig).To(Equal(atcConfig))
 			Expect(returnedConfig).To(Equal(atcRawConfig.String()))
+			Expect(returnedConfigVersion).To(Equal(configVersion))
 		})
 
 		Context("when getting pipelines returns an error", func() {
@@ -116,7 +127,7 @@ var _ = Describe("Pipeline methods", func() {
 			})
 
 			It("returns error including target url", func() {
-				_, err := client.PipelineConfig(pipelineName)
+				_, _, _, err := client.PipelineConfig(pipelineName)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).Should(ContainSubstring(target))
@@ -130,12 +141,100 @@ var _ = Describe("Pipeline methods", func() {
 			})
 
 			It("returns error including target url", func() {
-				_, err := client.PipelineConfig(pipelineName)
+				_, _, _, err := client.PipelineConfig(pipelineName)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).Should(ContainSubstring(target))
 				Expect(err.Error()).Should(ContainSubstring(pipelineName))
 				Expect(err.Error()).Should(ContainSubstring("not found"))
+			})
+		})
+	})
+
+	Describe("SetPipelineConfig", func() {
+		var (
+			pipelineCreated   bool
+			pipelineUpdated   bool
+			warnings          []gc.ConfigWarning
+			pipelineConfigErr error
+
+			pipelineName  string
+			configVersion string
+			passedConfig  atc.Config
+		)
+
+		BeforeEach(func() {
+			pipelineCreated = false
+			pipelineUpdated = true
+			warnings = nil
+			pipelineConfigErr = nil
+
+			pipelineName = "some pipeline"
+			configVersion = "some version"
+			passedConfig = atc.Config{}
+		})
+
+		JustBeforeEach(func() {
+			fakeGCClient.CreateOrUpdatePipelineConfigReturns(
+				pipelineCreated,
+				pipelineUpdated,
+				warnings,
+				pipelineConfigErr,
+			)
+		})
+
+		It("returns successfully", func() {
+			err := client.SetPipelineConfig(
+				pipelineName,
+				configVersion,
+				passedConfig,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(fakeGCClient.CreateOrUpdatePipelineConfigCallCount()).To(Equal(1))
+			invokedPipelineName, invokedConfigVersion, invokedPassedConfig :=
+				fakeGCClient.CreateOrUpdatePipelineConfigArgsForCall(0)
+
+			Expect(invokedPipelineName).To(Equal(pipelineName))
+			Expect(invokedConfigVersion).To(Equal(configVersion))
+			Expect(invokedPassedConfig).To(Equal(passedConfig))
+		})
+
+		Context("when getting pipelines returns an error", func() {
+			BeforeEach(func() {
+				pipelineConfigErr = fmt.Errorf("some error")
+			})
+
+			It("returns error including target url", func() {
+				err := client.SetPipelineConfig(
+					pipelineName,
+					configVersion,
+					passedConfig,
+				)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring("some error"))
+			})
+		})
+
+		Context("when pipeline was not created or updated", func() {
+			BeforeEach(func() {
+				pipelineCreated = false
+				pipelineUpdated = false
+			})
+
+			It("returns error including target url", func() {
+				err := client.SetPipelineConfig(
+					pipelineName,
+					configVersion,
+					passedConfig,
+				)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring(pipelineName))
+				Expect(err.Error()).Should(ContainSubstring("not created or updated"))
 			})
 		})
 	})
