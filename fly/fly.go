@@ -15,9 +15,7 @@ import (
 
 type FlyConn interface {
 	Login(url string, username string, password string, insecure bool) ([]byte, error)
-	GetPipeline(pipelineName string) ([]byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
-	DestroyPipeline(pipelineName string) ([]byte, error)
 }
 
 type flyConn struct {
@@ -91,13 +89,6 @@ func (f flyConn) run(args ...string) ([]byte, error) {
 	return outbuf.Bytes(), nil
 }
 
-func (f flyConn) GetPipeline(pipelineName string) ([]byte, error) {
-	return f.run(
-		"get-pipeline",
-		"-p", pipelineName,
-	)
-}
-
 func (f flyConn) SetPipeline(
 	pipelineName string,
 	configFilepath string,
@@ -115,12 +106,4 @@ func (f flyConn) SetPipeline(
 	}
 
 	return f.run(allArgs...)
-}
-
-func (f flyConn) DestroyPipeline(pipelineName string) ([]byte, error) {
-	return f.run(
-		"destroy-pipeline",
-		"-n",
-		"-p", pipelineName,
-	)
 }

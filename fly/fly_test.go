@@ -139,30 +139,6 @@ var _ = Describe("FlyConn", func() {
 		})
 	})
 
-	Describe("GetPipeline", func() {
-		var (
-			pipelineName string
-		)
-
-		BeforeEach(func() {
-			pipelineName = "some-pipeline"
-		})
-
-		It("returns output without error", func() {
-			output, err := flyConn.GetPipeline(pipelineName)
-			Expect(err).NotTo(HaveOccurred())
-
-			expectedOutput := fmt.Sprintf(
-				"%s %s %s %s %s\n",
-				"-t", target,
-				"get-pipeline",
-				"-p", pipelineName,
-			)
-
-			Expect(string(output)).To(Equal(expectedOutput))
-		})
-	})
-
 	Describe("SetPipeline", func() {
 		var (
 			pipelineName   string
@@ -191,7 +167,6 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		Context("when optional vars files are provided", func() {
-
 			var (
 				varsFiles []string
 			)
@@ -220,33 +195,6 @@ var _ = Describe("FlyConn", func() {
 
 				Expect(string(output)).To(Equal(expectedOutput))
 			})
-		})
-	})
-
-	Describe("DestroyPipeline", func() {
-		var (
-			pipelineName   string
-			configFilepath string
-		)
-
-		BeforeEach(func() {
-			pipelineName = "some-pipeline"
-			configFilepath = "some-config-file"
-		})
-
-		It("returns output without error", func() {
-			output, err := flyConn.DestroyPipeline(pipelineName)
-			Expect(err).NotTo(HaveOccurred())
-
-			expectedOutput := fmt.Sprintf(
-				"%s %s %s %s %s %s\n",
-				"-t", target,
-				"destroy-pipeline",
-				"-n",
-				"-p", pipelineName,
-			)
-
-			Expect(string(output)).To(Equal(expectedOutput))
 		})
 	})
 })
