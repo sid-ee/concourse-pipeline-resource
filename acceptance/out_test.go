@@ -174,6 +174,33 @@ jobs:
 				Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
 			})
 		})
+
+		Context("when the target is not provided", func() {
+			BeforeEach(func() {
+				var err error
+				err = os.Setenv("ATC_EXTERNAL_URL", outRequest.Source.Target)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				outRequest.Source.Target = ""
+
+				stdinContents, err = json.Marshal(outRequest)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+
+			It("creates pipeline and returns valid json", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+				Eventually(session, outTimeout).Should(gexec.Exit(0))
+
+				By("Outputting a valid json response")
+				response := concourse.OutResponse{}
+				err := json.Unmarshal(session.Out.Contents(), &response)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				By("Validating output contains checksum")
+				Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
+			})
+		})
 	})
 
 	Context("when validation fails", func() {
@@ -189,33 +216,6 @@ jobs:
 			By("Validating command exited with error")
 			Eventually(session, outTimeout).Should(gexec.Exit(1))
 			Expect(session.Err).Should(gbytes.Say(".*pipelines.*provided"))
-		})
-	})
-
-	Context("target not provided", func() {
-		BeforeEach(func() {
-			var err error
-			err = os.Setenv("ATC_EXTERNAL_URL", outRequest.Source.Target)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			outRequest.Source.Target = ""
-
-			stdinContents, err = json.Marshal(outRequest)
-			Expect(err).ShouldNot(HaveOccurred())
-		})
-
-		It("creates pipeline and returns valid json", func() {
-			By("Running the command")
-			session := run(command, stdinContents)
-			Eventually(session, outTimeout).Should(gexec.Exit(0))
-
-			By("Outputting a valid json response")
-			response := concourse.OutResponse{}
-			err := json.Unmarshal(session.Out.Contents(), &response)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			By("Validating output contains checksum")
-			Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
 		})
 	})
 })
