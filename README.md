@@ -117,7 +117,7 @@ jobs:
 
 ### `check`: Check for changes to the pipelines.
 
-Return a checksum of the concatenated contents of all pipelines.
+Return the versions of all pipelines.
 
 ### `in`: Get the configuration of the pipelines
 

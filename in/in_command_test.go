@@ -27,15 +27,15 @@ var _ = Describe("In", func() {
 		username string
 		password string
 
-		inRequest         concourse.InRequest
-		pipelinesChecksum string
-		inCommand         *in.InCommand
+		inRequest concourse.InRequest
+		inCommand *in.InCommand
 
 		fakeAPIClient *apifakes.FakeClient
 
-		pipelines    []api.Pipeline
-		pipelinesErr error
+		pipelines        []api.Pipeline
+		pipelineVersions []string
 
+		pipelinesErr      error
 		pipelineConfigErr error
 
 		pipelineContents []string
@@ -52,8 +52,6 @@ var _ = Describe("In", func() {
 		username = "some user"
 		password = "some password"
 
-		pipelinesChecksum = "some-checksum"
-
 		pipelinesErr = nil
 		pipelines = []api.Pipeline{
 			{
@@ -65,6 +63,8 @@ var _ = Describe("In", func() {
 				URL:  "pipeline_URL_2",
 			},
 		}
+
+		pipelineVersions = []string{"1234", "2345"}
 
 		pipelineConfigErr = nil
 		pipelineContents = make([]string, 2)
@@ -84,7 +84,7 @@ pipeline2: foo
 				Password: password,
 			},
 			Version: concourse.Version{
-				PipelinesChecksum: pipelinesChecksum,
+				pipelines[0].Name: pipelineVersions[0],
 			},
 		}
 	})
@@ -102,9 +102,9 @@ pipeline2: foo
 
 			switch name {
 			case pipelines[0].Name:
-				return atc.Config{}, pipelineContents[0], "", nil
+				return atc.Config{}, pipelineContents[0], pipelineVersions[0], nil
 			case pipelines[1].Name:
-				return atc.Config{}, pipelineContents[1], "", nil
+				return atc.Config{}, pipelineContents[1], pipelineVersions[1], nil
 			default:
 				Fail("Unexpected invocation of PipelineConfig")
 				return atc.Config{}, "", "", nil
@@ -152,7 +152,7 @@ pipeline2: foo
 
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(response.Version.PipelinesChecksum).To(Equal(pipelinesChecksum))
+		Expect(response.Version[pipelines[0].Name]).To(Equal(pipelineVersions[0]))
 	})
 
 	It("returns metadata", func() {

@@ -28,9 +28,8 @@ var _ = Describe("Check", func() {
 		username string
 		password string
 
-		pipelinesChecksum string
-		expectedResponse  concourse.CheckResponse
-		pipelineContents  []string
+		expectedResponse concourse.CheckResponse
+		pipelineContents []string
 
 		checkRequest concourse.CheckRequest
 		checkCommand *check.CheckCommand
@@ -38,6 +37,7 @@ var _ = Describe("Check", func() {
 		pipelinesErr      error
 		pipelineConfigErr error
 		pipelines         []api.Pipeline
+		pipelineVersions  []string
 
 		fakeAPIClient *apifakes.FakeClient
 	)
@@ -56,6 +56,8 @@ var _ = Describe("Check", func() {
 				URL:  "pipeline URL 2",
 			},
 		}
+
+		pipelineVersions = []string{"1234", "2345"}
 
 		pipelineContents = make([]string, 2)
 
@@ -96,10 +98,10 @@ pipeline2: foo
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		pipelinesChecksum = "15c2eae5189cedf18c1d7e278b14342a"
 		expectedResponse = []concourse.Version{
 			{
-				PipelinesChecksum: pipelinesChecksum,
+				pipelines[0].Name: pipelineVersions[0],
+				pipelines[1].Name: pipelineVersions[1],
 			},
 		}
 
@@ -129,9 +131,9 @@ pipeline2: foo
 
 			switch name {
 			case pipelines[0].Name:
-				return atc.Config{}, pipelineContents[0], "", nil
+				return atc.Config{}, pipelineContents[0], pipelineVersions[0], nil
 			case pipelines[1].Name:
-				return atc.Config{}, pipelineContents[1], "", nil
+				return atc.Config{}, pipelineContents[1], pipelineVersions[1], nil
 			default:
 				Fail("Unexpected invocation of PipelineConfig")
 				return atc.Config{}, "", "", nil
@@ -139,7 +141,7 @@ pipeline2: foo
 		}
 	})
 
-	It("returns pipelines checksum without error", func() {
+	It("returns pipeline versions without error", func() {
 		response, err := checkCommand.Run(checkRequest)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -149,7 +151,7 @@ pipeline2: foo
 	Context("when the most recent version is provided", func() {
 		BeforeEach(func() {
 			checkRequest.Version = concourse.Version{
-				PipelinesChecksum: expectedResponse[0].PipelinesChecksum,
+				pipelines[0].Name: expectedResponse[0][pipelines[0].Name],
 			}
 		})
 
@@ -164,7 +166,7 @@ pipeline2: foo
 	Context("when some other version is provided", func() {
 		BeforeEach(func() {
 			checkRequest.Version = concourse.Version{
-				PipelinesChecksum: "foo",
+				pipelines[0].Name: "foo",
 			}
 		})
 

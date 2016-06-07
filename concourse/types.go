@@ -12,9 +12,7 @@ type CheckRequest struct {
 	Version Version `json:"version"`
 }
 
-type Version struct {
-	PipelinesChecksum string `json:"pipelines_checksum"`
-}
+type Version map[string]string
 
 type CheckResponse []Version
 

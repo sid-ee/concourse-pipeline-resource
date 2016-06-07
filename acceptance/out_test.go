@@ -150,8 +150,8 @@ jobs:
 			err := json.Unmarshal(session.Out.Contents(), &response)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("Validating output contains checksum")
-			Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
+			By("Validating output contains pipeline version")
+			Expect(response.Version[pipelineName]).NotTo(BeEmpty())
 		})
 
 		Context("when pipelines_file is provided instead", func() {
@@ -170,8 +170,8 @@ jobs:
 				err := json.Unmarshal(session.Out.Contents(), &response)
 				Expect(err).ShouldNot(HaveOccurred())
 
-				By("Validating output contains checksum")
-				Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
+				By("Validating output contains pipeline version")
+				Expect(response.Version[pipelineName]).NotTo(BeEmpty())
 			})
 		})
 
@@ -197,8 +197,8 @@ jobs:
 				err := json.Unmarshal(session.Out.Contents(), &response)
 				Expect(err).ShouldNot(HaveOccurred())
 
-				By("Validating output contains checksum")
-				Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
+				By("Validating output contains pipeline version")
+				Expect(response.Version[pipelineName]).NotTo(BeEmpty())
 			})
 		})
 	})

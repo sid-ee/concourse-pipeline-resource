@@ -1,16 +1,12 @@
 package check
 
 import (
-	"crypto/md5"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner"
 )
 
 type CheckCommand struct {
@@ -66,34 +62,21 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
 
-	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
+	pipelineVersions := make(map[string]string, len(pipelines))
+
+	for _, pipeline := range pipelines {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		_, config, _, err := c.apiClient.PipelineConfig(pipeline.Name)
+		_, _, version, err := c.apiClient.PipelineConfig(pipeline.Name)
 
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
-		return config, nil
+		pipelineVersions[pipeline.Name] = version
 	}
-
-	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, pipelines, c.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	allContent := strings.Join(pipelinesContents, "")
-
-	pipelinesChecksumString := fmt.Sprintf(
-		"%x",
-		md5.Sum([]byte(allContent)),
-	)
-	c.logger.Debugf("pipeline content checksum: %s\n", pipelinesChecksumString)
 
 	out := concourse.CheckResponse{
-		concourse.Version{
-			PipelinesChecksum: pipelinesChecksumString,
-		},
+		pipelineVersions,
 	}
 
 	c.logger.Debugf("Returning output: %+v\n", out)

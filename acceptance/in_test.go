@@ -47,7 +47,8 @@ var _ = Describe("In", func() {
 				Insecure: fmt.Sprintf("%t", insecure),
 			},
 			Version: concourse.Version{
-				PipelinesChecksum: "some-pipeline-checksum",
+				"some-pipeline":       "some-pipeline-version",
+				"some-other-pipeline": "some-other-pipeline-version",
 			},
 		}
 
@@ -55,34 +56,71 @@ var _ = Describe("In", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	It("downloads all pipeline configs to the target directory", func() {
-		By("Running the command")
-		session := run(command, stdinContents)
+	Describe("successful behavior", func() {
+		It("downloads all pipeline configs to the target directory", func() {
+			By("Running the command")
+			session := run(command, stdinContents)
 
-		Eventually(session, inTimeout).Should(gexec.Exit(0))
+			Eventually(session, inTimeout).Should(gexec.Exit(0))
 
-		files, err := ioutil.ReadDir(destDirectory)
-		Expect(err).NotTo(HaveOccurred())
+			files, err := ioutil.ReadDir(destDirectory)
+			Expect(err).NotTo(HaveOccurred())
 
-		Expect(len(files)).To(BeNumerically(">", 0))
-		for _, file := range files {
-			Expect(file.Name()).To(MatchRegexp(".*\\.yml"))
-			Expect(file.Size()).To(BeNumerically(">", 0))
-		}
-	})
+			Expect(len(files)).To(BeNumerically(">", 0))
+			for _, file := range files {
+				Expect(file.Name()).To(MatchRegexp(".*\\.yml"))
+				Expect(file.Size()).To(BeNumerically(">", 0))
+			}
+		})
 
-	It("returns valid json", func() {
-		By("Running the command")
-		session := run(command, stdinContents)
-		Eventually(session, inTimeout).Should(gexec.Exit(0))
+		It("returns valid json", func() {
+			By("Running the command")
+			session := run(command, stdinContents)
+			Eventually(session, inTimeout).Should(gexec.Exit(0))
 
-		By("Outputting a valid json response")
-		response := concourse.InResponse{}
-		err := json.Unmarshal(session.Out.Contents(), &response)
-		Expect(err).ShouldNot(HaveOccurred())
+			By("Outputting a valid json response")
+			response := concourse.InResponse{}
+			err := json.Unmarshal(session.Out.Contents(), &response)
+			Expect(err).ShouldNot(HaveOccurred())
 
-		By("Validating output contains checksum")
-		Expect(response.Version.PipelinesChecksum).To(Equal(inRequest.Version.PipelinesChecksum))
+			By("Validating output contains pipeline versions")
+			Expect(len(response.Version)).To(BeNumerically(">", 0))
+			for k, v := range response.Version {
+				Expect(k).NotTo(BeEmpty())
+				Expect(v).NotTo(BeEmpty())
+			}
+		})
+
+		Context("target not provided", func() {
+			BeforeEach(func() {
+				var err error
+				err = os.Setenv("ATC_EXTERNAL_URL", inRequest.Source.Target)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				inRequest.Source.Target = ""
+
+				stdinContents, err = json.Marshal(inRequest)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+
+			It("returns valid json", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+				Eventually(session, inTimeout).Should(gexec.Exit(0))
+
+				By("Outputting a valid json response")
+				response := concourse.InResponse{}
+				err := json.Unmarshal(session.Out.Contents(), &response)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				By("Validating output contains pipeline versions")
+				Expect(len(response.Version)).To(BeNumerically(">", 0))
+				for k, v := range response.Version {
+					Expect(k).NotTo(BeEmpty())
+					Expect(v).NotTo(BeEmpty())
+				}
+			})
+		})
 	})
 
 	Context("when validation fails", func() {
@@ -101,33 +139,6 @@ var _ = Describe("In", func() {
 			By("Validating command exited with error")
 			Eventually(session, inTimeout).Should(gexec.Exit(1))
 			Expect(session.Err).Should(gbytes.Say(".*username.*provided"))
-		})
-	})
-
-	Context("target not provided", func() {
-		BeforeEach(func() {
-			var err error
-			err = os.Setenv("ATC_EXTERNAL_URL", inRequest.Source.Target)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			inRequest.Source.Target = ""
-
-			stdinContents, err = json.Marshal(inRequest)
-			Expect(err).ShouldNot(HaveOccurred())
-		})
-
-		It("returns valid json", func() {
-			By("Running the command")
-			session := run(command, stdinContents)
-			Eventually(session, inTimeout).Should(gexec.Exit(0))
-
-			By("Outputting a valid json response")
-			response := concourse.InResponse{}
-			err := json.Unmarshal(session.Out.Contents(), &response)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			By("Validating output contains checksum")
-			Expect(response.Version.PipelinesChecksum).To(Equal(inRequest.Version.PipelinesChecksum))
 		})
 	})
 })

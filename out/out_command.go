@@ -1,17 +1,13 @@
 package out
 
 import (
-	"crypto/md5"
-	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/concourse/fly/template"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers"
-	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner"
 )
 
 const (
@@ -73,45 +69,30 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 	c.logger.Debugf("Setting pipelines complete\n")
 
 	c.logger.Debugf("Getting pipelines\n")
+
 	apiPipelines, err := c.apiClient.Pipelines()
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}
-	c.logger.Debugf("Getting pipelines complete\n")
 
-	c.logger.Debugf("Found pipelines: %+v\n", apiPipelines)
+	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
 
-	gpFunc := func(index int, pipeline api.Pipeline) (string, error) {
-		c.logger.Debugf("Getting pipeline config: %s\n", pipeline.Name)
-		_, config, _, err := c.apiClient.PipelineConfig(pipeline.Name)
+	pipelineVersions := make(map[string]string, len(pipelines))
+
+	for _, pipeline := range apiPipelines {
+		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
+		_, _, version, err := c.apiClient.PipelineConfig(pipeline.Name)
 
 		if err != nil {
-			return "", err
+			return concourse.OutResponse{}, err
 		}
 
-		return config, nil
+		pipelineVersions[pipeline.Name] = version
 	}
-
-	pipelinesContents, err := pipelinerunner.RunForAllPipelines(gpFunc, apiPipelines, c.logger)
-	if err != nil {
-		return concourse.OutResponse{}, err
-	}
-
-	allContent := strings.Join(pipelinesContents, "")
-
-	pipelinesChecksumString := fmt.Sprintf(
-		"%x",
-		md5.Sum([]byte(allContent)),
-	)
-	c.logger.Debugf("pipeline content checksum: %s\n", pipelinesChecksumString)
-
-	metadata := []concourse.Metadata{}
 
 	response := concourse.OutResponse{
-		Version: concourse.Version{
-			PipelinesChecksum: pipelinesChecksumString,
-		},
-		Metadata: metadata,
+		Version:  pipelineVersions,
+		Metadata: []concourse.Metadata{},
 	}
 
 	return response, nil

@@ -35,6 +35,7 @@ var _ = Describe("Out", func() {
 
 		pipelineConfigErr error
 		pipelineContents  []string
+		pipelineVersions  []string
 
 		outRequest concourse.OutRequest
 		outCommand *out.OutCommand
@@ -86,6 +87,8 @@ pipeline2: foo
 pipeline3: foo
 `
 
+		pipelineVersions = []string{"1234", "2345", "3456"}
+
 		concoursePipelines = []concourse.Pipeline{
 			{
 				Name:       pipelines[0].Name,
@@ -128,11 +131,11 @@ pipeline3: foo
 
 			switch name {
 			case pipelines[0].Name:
-				return atc.Config{}, pipelineContents[0], "", nil
+				return atc.Config{}, pipelineContents[0], pipelineVersions[0], nil
 			case pipelines[1].Name:
-				return atc.Config{}, pipelineContents[1], "", nil
+				return atc.Config{}, pipelineContents[1], pipelineVersions[1], nil
 			case pipelines[2].Name:
-				return atc.Config{}, pipelineContents[2], "", nil
+				return atc.Config{}, pipelineContents[2], pipelineVersions[2], nil
 			default:
 				Fail("Unexpected invocation of PipelineConfig")
 				return atc.Config{}, "", "", nil
@@ -179,12 +182,17 @@ pipeline3: foo
 		}
 	})
 
-	It("returns provided version", func() {
+	It("returns updated pipeline version", func() {
 		response, err := outCommand.Run(outRequest)
 
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(response.Version.PipelinesChecksum).To(Equal("621f716f112c3c1621bfcfa57dc4f765"))
+		Expect(response.Version[pipelines[0].Name]).
+			To(Equal(pipelineVersions[0]))
+		Expect(response.Version[pipelines[1].Name]).
+			To(Equal(pipelineVersions[1]))
+		Expect(response.Version[pipelines[2].Name]).
+			To(Equal(pipelineVersions[2]))
 	})
 
 	It("returns metadata", func() {
