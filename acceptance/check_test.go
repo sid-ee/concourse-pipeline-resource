@@ -2,6 +2,8 @@ package acceptance
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -33,11 +35,9 @@ var _ = Describe("Check", func() {
 				Target:   target,
 				Username: username,
 				Password: password,
-				Insecure: insecure,
+				Insecure: fmt.Sprintf("%t", insecure),
 			},
-			Version: concourse.Version{
-				PipelinesChecksum: "",
-			},
+			Version: concourse.Version{},
 		}
 
 		var err error
@@ -45,18 +45,50 @@ var _ = Describe("Check", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	It("returns checksum without error", func() {
-		By("Running the command")
-		session := run(command, stdinContents)
+	Describe("successful behavior", func() {
+		It("returns pipeline versions without error", func() {
+			By("Running the command")
+			session := run(command, stdinContents)
 
-		By("Validating command exited with error")
-		Eventually(session, checkTimeout).Should(gexec.Exit(0))
+			By("Validating command exited without error")
+			Eventually(session, checkTimeout).Should(gexec.Exit(0))
 
-		var resp concourse.CheckResponse
-		err := json.Unmarshal(session.Out.Contents(), &resp)
-		Expect(err).NotTo(HaveOccurred())
+			var resp concourse.CheckResponse
+			err := json.Unmarshal(session.Out.Contents(), &resp)
+			Expect(err).NotTo(HaveOccurred())
 
-		Expect(len(resp)).To(BeNumerically(">", 0))
+			Expect(len(resp)).To(BeNumerically(">", 0))
+			for _, v := range resp {
+				Expect(v).NotTo(BeEmpty())
+			}
+		})
+
+		Context("target not provided", func() {
+			BeforeEach(func() {
+				var err error
+				err = os.Setenv("ATC_EXTERNAL_URL", checkRequest.Source.Target)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				checkRequest.Source.Target = ""
+
+				stdinContents, err = json.Marshal(checkRequest)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		It("returns pipeline version without error", func() {
+			By("Running the command")
+			session := run(command, stdinContents)
+
+			By("Validating command exited without error")
+			Eventually(session, checkTimeout).Should(gexec.Exit(0))
+
+			var resp concourse.CheckResponse
+			err := json.Unmarshal(session.Out.Contents(), &resp)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(len(resp)).To(BeNumerically(">", 0))
+		})
 	})
 
 	Context("when validation fails", func() {

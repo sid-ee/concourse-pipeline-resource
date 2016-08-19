@@ -10,18 +10,12 @@ import (
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-)
-
-const (
-	apiPrefix = "/api/v1"
 )
 
 type InCommand struct {
 	logger        logger.Logger
 	binaryVersion string
-	flyConn       fly.FlyConn
 	apiClient     api.Client
 	downloadDir   string
 }
@@ -29,14 +23,12 @@ type InCommand struct {
 func NewInCommand(
 	binaryVersion string,
 	logger logger.Logger,
-	flyConn fly.FlyConn,
 	apiClient api.Client,
 	downloadDir string,
 ) *InCommand {
 	return &InCommand{
 		logger:        logger,
 		binaryVersion: binaryVersion,
-		flyConn:       flyConn,
 		apiClient:     apiClient,
 		downloadDir:   downloadDir,
 	}
@@ -45,22 +37,8 @@ func NewInCommand(
 func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Performing login\n")
-
-	_, err := c.flyConn.Login(
-		input.Source.Target,
-		input.Source.Username,
-		input.Source.Password,
-		input.Source.Insecure,
-	)
-	if err != nil {
-		return concourse.InResponse{}, err
-	}
-
-	c.logger.Debugf("Login successful\n")
-
 	c.logger.Debugf("Creating download directory: %s\n", c.downloadDir)
-	err = os.MkdirAll(c.downloadDir, os.ModePerm)
+	err := os.MkdirAll(c.downloadDir, os.ModePerm)
 	if err != nil {
 		log.Fatalf("Failed to create download directory: %s\n", err.Error())
 	}
@@ -84,13 +62,13 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		go func(i int, p api.Pipeline) {
 			defer wg.Done()
 
-			outContents, err := c.flyConn.GetPipeline(p.Name)
+			_, config, _, err := c.apiClient.PipelineConfig(p.Name)
 			if err != nil {
 				errChan <- err
 			}
 			pipelinesWithContents[i] = pipelineWithContent{
 				name:     p.Name,
-				contents: outContents,
+				contents: config,
 			}
 		}(i, p)
 	}
@@ -109,20 +87,16 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 	for _, p := range pipelinesWithContents {
 		pipelineContentsFilepath := filepath.Join(c.downloadDir, fmt.Sprintf("%s.yml", p.name))
 		c.logger.Debugf("Writing pipeline contents to: %s\n", pipelineContentsFilepath)
-		err = ioutil.WriteFile(pipelineContentsFilepath, p.contents, os.ModePerm)
+		err = ioutil.WriteFile(pipelineContentsFilepath, []byte(p.contents), os.ModePerm)
 		if err != nil {
 			// Untested as it is too hard to force ioutil.WriteFile to error
 			return concourse.InResponse{}, err
 		}
 	}
 
-	metadata := make([]concourse.Metadata, len(pipelinesWithContents))
-
 	response := concourse.InResponse{
-		Version: concourse.Version{
-			PipelinesChecksum: input.Version.PipelinesChecksum,
-		},
-		Metadata: metadata,
+		Version:  input.Version,
+		Metadata: []concourse.Metadata{},
 	}
 
 	return response, nil
@@ -130,5 +104,5 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 
 type pipelineWithContent struct {
 	name     string
-	contents []byte
+	contents string
 }

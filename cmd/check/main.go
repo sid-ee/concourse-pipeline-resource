@@ -6,19 +6,18 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
+	"strconv"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/check"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 	"github.com/robdimsdale/concourse-pipeline-resource/validator"
 )
 
 const (
-	flyBinaryName = "fly"
+	atcExternalURLEnvKey = "ATC_EXTERNAL_URL"
 )
 
 var (
@@ -31,11 +30,6 @@ var (
 func main() {
 	if version == "" {
 		version = "dev"
-	}
-
-	checkDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
-	if err != nil {
-		log.Fatalln(err)
 	}
 
 	var input concourse.CheckRequest
@@ -59,17 +53,33 @@ func main() {
 
 	l = logger.NewLogger(sanitizer)
 
-	flyBinaryPath := filepath.Join(checkDir, flyBinaryName)
-	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
-
 	err = validator.ValidateCheck(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)
 	}
 
-	apiClient := api.NewClient(input.Source.Target)
-	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn, apiClient)
+	if input.Source.Target == "" {
+		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
+	}
+
+	insecure := false
+	if input.Source.Insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(input.Source.Insecure)
+		if err != nil {
+			log.Fatalln("Invalid value for insecure: %v", input.Source.Insecure)
+		}
+	}
+
+	httpClient := api.HTTPClient(
+		input.Source.Username,
+		input.Source.Password,
+		insecure,
+	)
+
+	apiClient := api.NewClient(input.Source.Target, httpClient)
+	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), apiClient)
 	response, err := checkCommand.Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)

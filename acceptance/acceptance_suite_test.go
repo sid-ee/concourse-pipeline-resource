@@ -5,14 +5,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
+	"strconv"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"github.com/robdimsdale/concourse-pipeline-resource/fly"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 
 	"testing"
@@ -26,9 +24,9 @@ var (
 	target   string
 	username string
 	password string
-	insecure string
+	insecure bool
 
-	flyConn fly.FlyConn
+	apiClient api.Client
 )
 
 func TestAcceptance(t *testing.T) {
@@ -51,11 +49,11 @@ var _ = BeforeSuite(func() {
 	password = os.Getenv("PASSWORD")
 	Expect(password).NotTo(BeEmpty(), "$PASSWORD must be provided")
 
-	By("Getting insecure from environment variables")
-	insecure = os.Getenv("INSECURE")
-	if insecure == "" {
-		By("Insecure not found, using default value: false")
-		insecure = "false"
+	insecureFlag := os.Getenv("INSECURE")
+	if insecureFlag != "" {
+		By("Getting insecure from environment variables")
+		insecure, err = strconv.ParseBool(insecureFlag)
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	By("Compiling check binary")
@@ -70,34 +68,6 @@ var _ = BeforeSuite(func() {
 	inPath, err = gexec.Build("github.com/robdimsdale/concourse-pipeline-resource/cmd/in", "-race")
 	Expect(err).NotTo(HaveOccurred())
 
-	By("Copying fly to compilation location")
-	originalFlyPathPath := os.Getenv("FLY_LOCATION")
-	Expect(originalFlyPathPath).NotTo(BeEmpty(), "$FLY_LOCATION must be provided")
-	_, err = os.Stat(originalFlyPathPath)
-	Expect(err).NotTo(HaveOccurred())
-
-	checkFlyPath := filepath.Join(path.Dir(checkPath), "fly")
-	copyFileContents(originalFlyPathPath, checkFlyPath)
-	Expect(err).NotTo(HaveOccurred())
-
-	inFlyPath := filepath.Join(path.Dir(inPath), "fly")
-	copyFileContents(originalFlyPathPath, inFlyPath)
-	Expect(err).NotTo(HaveOccurred())
-
-	outFlyPath := filepath.Join(path.Dir(outPath), "fly")
-	copyFileContents(originalFlyPathPath, outFlyPath)
-	Expect(err).NotTo(HaveOccurred())
-
-	By("Ensuring copies of fly is executable")
-	err = os.Chmod(checkFlyPath, os.ModePerm)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = os.Chmod(inFlyPath, os.ModePerm)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = os.Chmod(outFlyPath, os.ModePerm)
-	Expect(err).NotTo(HaveOccurred())
-
 	By("Sanitizing acceptance test output")
 	sanitized := map[string]string{
 		password: "***sanitized-password***",
@@ -105,13 +75,14 @@ var _ = BeforeSuite(func() {
 	sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 	GinkgoWriter = sanitizer
 
-	By("Creating fly connection")
-	l := logger.NewLogger(sanitizer)
-	flyConn = fly.NewFlyConn("concourse-pipeline-resource-target", l, inFlyPath)
+	By("Creating API Client")
+	httpClient := api.HTTPClient(
+		username,
+		password,
+		insecure,
+	)
 
-	By("Logging in with fly")
-	_, err = flyConn.Login(target, username, password, insecure)
-	Expect(err).NotTo(HaveOccurred())
+	apiClient = api.NewClient(target, httpClient)
 })
 
 var _ = AfterSuite(func() {

@@ -121,7 +121,7 @@ jobs:
 				Target:   target,
 				Username: username,
 				Password: password,
-				Insecure: insecure,
+				Insecure: fmt.Sprintf("%t", insecure),
 			},
 			Params: concourse.OutParams{
 				Pipelines:     pipelines,
@@ -134,32 +134,10 @@ jobs:
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	AfterEach(func() {
-		response, err := flyConn.DestroyPipeline(pipelineName)
-		if err != nil {
-			fmt.Fprintf(GinkgoWriter, "destroy-pipeline failed %s", string(response))
-		}
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	It("creates pipeline and returns valid json", func() {
-		By("Running the command")
-		session := run(command, stdinContents)
-		Eventually(session, outTimeout).Should(gexec.Exit(0))
-
-		By("Outputting a valid json response")
-		response := concourse.OutResponse{}
-		err := json.Unmarshal(session.Out.Contents(), &response)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("Validating output contains checksum")
-		Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
-	})
-
-	Context("when pipelines_file is provided instead", func() {
-		BeforeEach(func() {
-			pipelines = []concourse.Pipeline{}
-			pipelinesFileFilename = defaultPipelinesFileFilename
+	Describe("Creating pipelines successfully", func() {
+		AfterEach(func() {
+			err := apiClient.DeletePipeline(pipelineName)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("creates pipeline and returns valid json", func() {
@@ -172,8 +150,56 @@ jobs:
 			err := json.Unmarshal(session.Out.Contents(), &response)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("Validating output contains checksum")
-			Expect(response.Version.PipelinesChecksum).NotTo(BeEmpty())
+			By("Validating output contains pipeline version")
+			Expect(response.Version[pipelineName]).NotTo(BeEmpty())
+		})
+
+		Context("when pipelines_file is provided instead", func() {
+			BeforeEach(func() {
+				pipelines = []concourse.Pipeline{}
+				pipelinesFileFilename = defaultPipelinesFileFilename
+			})
+
+			It("creates pipeline and returns valid json", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+				Eventually(session, outTimeout).Should(gexec.Exit(0))
+
+				By("Outputting a valid json response")
+				response := concourse.OutResponse{}
+				err := json.Unmarshal(session.Out.Contents(), &response)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				By("Validating output contains pipeline version")
+				Expect(response.Version[pipelineName]).NotTo(BeEmpty())
+			})
+		})
+
+		Context("when the target is not provided", func() {
+			BeforeEach(func() {
+				var err error
+				err = os.Setenv("ATC_EXTERNAL_URL", outRequest.Source.Target)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				outRequest.Source.Target = ""
+
+				stdinContents, err = json.Marshal(outRequest)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+
+			It("creates pipeline and returns valid json", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+				Eventually(session, outTimeout).Should(gexec.Exit(0))
+
+				By("Outputting a valid json response")
+				response := concourse.OutResponse{}
+				err := json.Unmarshal(session.Out.Contents(), &response)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				By("Validating output contains pipeline version")
+				Expect(response.Version[pipelineName]).NotTo(BeEmpty())
+			})
 		})
 	})
 

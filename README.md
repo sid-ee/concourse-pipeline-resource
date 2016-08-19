@@ -39,13 +39,18 @@ in this repository.
 
 ## Source Configuration
 
-* `target`: *Required.*  URL of your concourse instance e.g. `https://my-concourse.com`.
+* `target`: *Optional.* URL of your concourse instance e.g. `https://my-concourse.com`.
+  If not specified, the resource defaults to the `ATC_EXTERNAL_URL` environment variable,
+  meaning it will always target the same concourse that created the container.
 
 * `username`: *Required.*  Basic auth username for logging in to Concourse.
   Basic Auth must be enabled on the Concourse installation.
 
 * `password`: *Required.*  Basic auth password for logging in to Concourse.
   Basic Auth must be enabled on the Concourse installation.
+
+* `insecure`: *Optional.* Connect to Concourse insecurely - i.e. skip SSL validation.
+  Defaults to false if not provided.
 
 ### Example Pipeline Configuration
 
@@ -112,7 +117,7 @@ jobs:
 
 ### `check`: Check for changes to the pipelines.
 
-Return a checksum of the concatenated contents of all pipelines.
+Return the versions of all pipelines.
 
 ### `in`: Get the configuration of the pipelines
 
@@ -136,14 +141,14 @@ Either static or dynamic configuration must be selected; using both is not allow
 Must be non-nil and non-empty. The structure of the `pipeline` object is as follows:
 
  - `name`: *Required.* Name of pipeline to be configured.
- Maps to `-p my-pipeline-name` in `fly set-pipeline` command.
+ Equivalent of `-p my-pipeline-name` in `fly set-pipeline` command.
 
  - `config_file`: *Required.* Location of config file.
- Maps to `-c some-config-file.yml` in `fly set-pipeline` command.
+ Equivalent of `-c some-config-file.yml` in `fly set-pipeline` command.
 
  - `vars_files`: *Optional.* Array of strings corresponding to files
  containing variables to be interpolated via `{{ }}` in `config_file`.
- Maps to `-l some-vars-file.yml` in `fly set-pipeline` command.
+ Equivalent of `-l some-vars-file.yml` in `fly set-pipeline` command.
 
 #### Parameters - dynamic
 
@@ -180,6 +185,27 @@ If using golang 1.5 run the following command:
 export GO15VENDOREXPERIMENT=1
 ```
 
+#### Updating dependencies
+
+Install [gvt](https://github.com/FiloSottile/gvt) and make sure it is available
+in your $PATH, e.g.:
+
+```
+go get -u github.com/FiloSottile/gvt
+```
+
+To add a new dependency:
+```
+gvt fetch
+```
+
+To update an existing dependency to a specific version:
+
+```
+gvt delete <import_path>
+gvt fetch -revision <revision_number> <import_path>
+```
+
 ### Running the tests
 
 Install the ginkgo executable with:
@@ -191,20 +217,19 @@ go get -u github.com/onsi/ginkgo/ginkgo
 The tests require a concourse API server to test against, and a valid
 basic auth username/password for that concourse deployment.
 
-The tests also require that you provide the fly CLI as a binary.
-This CLI must be compatible with the chosen concourse deployment - check version with `fly --version`.
-The source for the fly CLI can be found [here](https://github.com/concourse/fly).
-`FLY_LOCATION` should be set to the location of the compiled binary.
-
 Run the tests with the following command:
 
 ```
-FLY_LOCATION=/path/to/fly/cli \
 TARGET=https://my-concourse.com \
 USERNAME=my-basic-auth-user \
 PASSWORD=my-basic-auth-password \
 ./bin/test
 ```
+
+### Contributing
+
+Please make all pull requests to the `develop` branch, and
+[ensure the tests pass locally](https://github.com/robdimsdale/concourse-pipeline-resource#running-the-tests).
 
 ### Project management
 

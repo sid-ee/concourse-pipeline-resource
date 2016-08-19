@@ -1,62 +1,63 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
+
+	"github.com/concourse/atc"
 )
-
-const (
-	apiPrefix = "/api/v1"
-)
-
-//go:generate counterfeiter . Client
-
-type Client interface {
-	Pipelines() ([]Pipeline, error)
-}
-
-type client struct {
-	target string
-}
-
-func NewClient(target string) Client {
-	return &client{
-		target: target,
-	}
-}
 
 func (c client) Pipelines() ([]Pipeline, error) {
-	targetUrl := fmt.Sprintf(
-		"%s%s/pipelines",
-		c.target,
-		apiPrefix,
+	atcPipelines, err := c.gcClient.ListPipelines()
+	if err != nil {
+		return nil, c.wrapErr(err)
+	}
+
+	return pipelinesFromATCPipelines(atcPipelines), nil
+}
+
+func (c client) PipelineConfig(pipelineName string) (atc.Config, string, string, error) {
+	atcConfig, atcRawConfig, configVersion, exists, err :=
+		c.gcClient.PipelineConfig(pipelineName)
+	if err != nil {
+		return atc.Config{}, "", "", c.wrapErr(err)
+	}
+
+	if !exists {
+		err := fmt.Errorf("Pipeline not found: %s", pipelineName)
+		return atc.Config{}, "", "", c.wrapErr(err)
+	}
+
+	return atcConfig, atcRawConfig.String(), configVersion, nil
+}
+
+func (c client) SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error {
+	created, updated, _, err := c.gcClient.CreateOrUpdatePipelineConfig(
+		pipelineName,
+		configVersion,
+		passedConfig,
 	)
-	resp, err := http.Get(targetUrl)
 	if err != nil {
-		return nil, err
+		return c.wrapErr(err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpected response from  - status code: %d, expected: %d",
-			targetUrl,
-			resp.StatusCode,
-			http.StatusOK,
-		)
+	if !created && !updated {
+		err := fmt.Errorf("Pipeline not created or updated: %s", pipelineName)
+		return c.wrapErr(err)
 	}
 
-	b, err := ioutil.ReadAll(resp.Body)
+	return nil
+}
+
+func (c client) DeletePipeline(pipelineName string) error {
+	exists, err := c.gcClient.DeletePipeline(pipelineName)
 	if err != nil {
-		// Untested as it is too hard to force ReadAll to return an error
-		return nil, err
+		return c.wrapErr(err)
 	}
 
-	var pipelines []Pipeline
-	err = json.Unmarshal(b, &pipelines)
-	if err != nil {
-		return nil, err
+	if !exists {
+		err := fmt.Errorf("Pipeline not found: %s", pipelineName)
+		return c.wrapErr(err)
 	}
 
-	return pipelines, nil
+	return nil
 }

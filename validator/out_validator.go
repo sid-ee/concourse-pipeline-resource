@@ -7,10 +7,6 @@ import (
 )
 
 func ValidateOut(input concourse.OutRequest) error {
-	if input.Source.Target == "" {
-		return fmt.Errorf("%s must be provided", "target")
-	}
-
 	if input.Source.Username == "" {
 		return fmt.Errorf("%s must be provided", "username")
 	}
