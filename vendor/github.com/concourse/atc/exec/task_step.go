@@ -12,18 +12,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/clock"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/worker"
 	"github.com/concourse/atc/worker/image"
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 )
 
 const taskProcessPropertyName = "concourse:task-process"
 const taskExitStatusPropertyName = "concourse:exit-status"
-const sigTermWaitTime = 10 * time.Second
 
 // MissingInputsError is returned when any of the task's required inputs are
 // missing.
@@ -39,27 +38,28 @@ func (err MissingInputsError) Error() string {
 // TaskStep executes a TaskConfig, whose inputs will be fetched from the
 // SourceRepository and outputs will be added to the SourceRepository.
 type TaskStep struct {
-	logger              lager.Logger
-	containerID         worker.Identifier
-	metadata            worker.Metadata
-	tags                atc.Tags
-	delegate            TaskDelegate
-	privileged          Privileged
-	configSource        TaskConfigSource
-	workerPool          worker.Client
-	artifactsRoot       string
-	trackerFactory      TrackerFactory
-	resourceTypes       atc.ResourceTypes
+	logger            lager.Logger
+	containerID       worker.Identifier
+	metadata          worker.Metadata
+	tags              atc.Tags
+	teamID            int
+	delegate          TaskDelegate
+	privileged        Privileged
+	configSource      TaskConfigSource
+	workerPool        worker.Client
+	artifactsRoot     string
+	resourceTypes     atc.ResourceTypes
+	inputMapping      map[string]string
+	outputMapping     map[string]string
+	imageArtifactName string
+	clock             clock.Clock
+	repo              *SourceRepository
+
+	container           worker.Container
 	containerSuccessTTL time.Duration
 	containerFailureTTL time.Duration
-	inputMapping        map[string]string
-	outputMapping       map[string]string
-	imageArtifactName   string
-	clock               clock.Clock
-	repo                *SourceRepository
 
-	container worker.Container
-	process   garden.Process
+	process garden.Process
 
 	exitStatus int
 }
@@ -69,38 +69,38 @@ func newTaskStep(
 	containerID worker.Identifier,
 	metadata worker.Metadata,
 	tags atc.Tags,
+	teamID int,
 	delegate TaskDelegate,
 	privileged Privileged,
 	configSource TaskConfigSource,
 	workerPool worker.Client,
 	artifactsRoot string,
-	trackerFactory TrackerFactory,
 	resourceTypes atc.ResourceTypes,
-	containerSuccessTTL time.Duration,
-	containerFailureTTL time.Duration,
 	inputMapping map[string]string,
 	outputMapping map[string]string,
 	imageArtifactName string,
 	clock clock.Clock,
+	containerSuccessTTL time.Duration,
+	containerFailureTTL time.Duration,
 ) TaskStep {
 	return TaskStep{
 		logger:              logger,
 		containerID:         containerID,
 		metadata:            metadata,
 		tags:                tags,
+		teamID:              teamID,
 		delegate:            delegate,
 		privileged:          privileged,
 		configSource:        configSource,
 		workerPool:          workerPool,
 		artifactsRoot:       artifactsRoot,
-		trackerFactory:      trackerFactory,
 		resourceTypes:       resourceTypes,
-		containerSuccessTTL: containerSuccessTTL,
-		containerFailureTTL: containerFailureTTL,
 		inputMapping:        inputMapping,
 		outputMapping:       outputMapping,
 		imageArtifactName:   imageArtifactName,
 		clock:               clock,
+		containerSuccessTTL: containerSuccessTTL,
+		containerFailureTTL: containerFailureTTL,
 	}
 }
 
@@ -199,6 +199,7 @@ func (step *TaskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 		workerSpec := worker.WorkerSpec{
 			Platform: config.Platform,
 			Tags:     step.tags,
+			TeamID:   step.teamID,
 		}
 
 		if config.ImageResource != nil {
@@ -267,19 +268,12 @@ func (step *TaskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 	case <-signals:
 		step.registerSource(config)
 
-		go step.process.Signal(garden.SignalTerminate)
-
-		timer := step.clock.NewTimer(sigTermWaitTime)
-
-	OUT:
-		for {
-			select {
-			case <-timer.C():
-				step.process.Signal(garden.SignalKill)
-			case <-exited:
-				break OUT
-			}
+		err = step.container.Stop(false)
+		if err != nil {
+			step.logger.Error("stopping-container", err)
 		}
+
+		<-exited
 
 		return ErrInterrupted
 
@@ -312,7 +306,6 @@ func (step *TaskStep) createContainer(compatibleWorkers []worker.Worker, config 
 	outputMounts := []worker.VolumeMount{}
 	for _, output := range config.Outputs {
 		path := artifactsPath(output, step.artifactsRoot)
-
 		outVolume, err := chosenWorker.CreateVolume(
 			step.logger,
 			worker.VolumeSpec{
@@ -320,6 +313,7 @@ func (step *TaskStep) createContainer(compatibleWorkers []worker.Worker, config 
 				Privileged: bool(step.privileged),
 				TTL:        worker.VolumeTTL,
 			},
+			step.teamID,
 		)
 		if err == worker.ErrNoVolumeManager {
 			break
@@ -363,6 +357,7 @@ func (step *TaskStep) createContainer(compatibleWorkers []worker.Worker, config 
 					Privileged: true,
 					TTL:        worker.VolumeTTL,
 				},
+				step.teamID,
 			)
 			if err != nil {
 				return nil, nil, err
@@ -380,13 +375,17 @@ func (step *TaskStep) createContainer(compatibleWorkers []worker.Worker, config 
 			}
 		}
 
-		cowVolume, err := chosenWorker.CreateVolume(step.logger, worker.VolumeSpec{
-			Strategy: worker.ContainerRootFSStrategy{
-				Parent: volume,
+		cowVolume, err := chosenWorker.CreateVolume(
+			step.logger,
+			worker.VolumeSpec{
+				Strategy: worker.ContainerRootFSStrategy{
+					Parent: volume,
+				},
+				Privileged: bool(step.privileged),
+				TTL:        worker.VolumeTTL,
 			},
-			Privileged: bool(step.privileged),
-			TTL:        worker.VolumeTTL,
-		})
+			step.teamID,
+		)
 
 		if err != nil {
 			return nil, nil, err
@@ -417,13 +416,17 @@ func (step *TaskStep) createContainer(compatibleWorkers []worker.Worker, config 
 	containerSpec := worker.ContainerSpec{
 		Platform:  config.Platform,
 		Tags:      step.tags,
+		TeamID:    step.teamID,
 		Inputs:    inputMounts,
 		Outputs:   outputMounts,
 		ImageSpec: imageSpec,
+		User:      config.Run.User,
 	}
 
 	runContainerID := step.containerID
 	runContainerID.Stage = db.ContainerStageRun
+
+	step.logger.Debug("task-step-creating-container", lager.Data{"container-id": runContainerID})
 	container, err := chosenWorker.CreateContainer(
 		step.logger.Session("create-container"),
 		signals,
@@ -494,8 +497,6 @@ func (step *TaskStep) Result(x interface{}) bool {
 	}
 }
 
-// Release releases the created container for either the configured
-// containerSuccessTTL or containerFailureTTL.
 func (step *TaskStep) Release() {
 	if step.container == nil {
 		return
@@ -506,47 +507,6 @@ func (step *TaskStep) Release() {
 	} else {
 		step.container.Release(worker.FinalTTL(step.containerFailureTTL))
 	}
-}
-
-// StreamFile streams the given file out of the task's container.
-func (step *TaskStep) StreamFile(source string) (io.ReadCloser, error) {
-	out, err := step.container.StreamOut(garden.StreamOutSpec{
-		Path: path.Join(step.artifactsRoot, source),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	tarReader := tar.NewReader(out)
-
-	_, err = tarReader.Next()
-	if err != nil {
-		return nil, FileNotFoundError{Path: source}
-	}
-
-	return fileReadCloser{
-		Reader: tarReader,
-		Closer: out,
-	}, nil
-}
-
-// StreamTo streams the task's entire working directory to the destination.
-func (step *TaskStep) StreamTo(destination ArtifactDestination) error {
-	out, err := step.container.StreamOut(garden.StreamOutSpec{
-		Path: step.artifactsRoot + "/",
-	})
-	if err != nil {
-		return err
-	}
-
-	defer out.Close()
-
-	return destination.StreamIn(".", out)
-}
-
-// VolumeOn returns nothing.
-func (step *TaskStep) VolumeOn(worker worker.Worker) (worker.Volume, bool, error) {
-	return nil, false, nil
 }
 
 func (step *TaskStep) chooseWorkerWithMostVolumes(compatibleWorkers []worker.Worker, inputs []atc.TaskInputConfig) (worker.Worker, []worker.VolumeMount, []inputPair, error) {

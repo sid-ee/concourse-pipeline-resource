@@ -15,17 +15,7 @@ func (s *Server) ListJobInputs(pipelineDB db.PipelineDB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jobName := r.FormValue(":job_name")
 
-		pipelineConfig, _, found, err := pipelineDB.GetConfig()
-		if err != nil {
-			logger.Error("failed-to-get-config", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		if !found {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+		pipelineConfig := pipelineDB.Config()
 
 		jobConfig, found := pipelineConfig.Jobs.Lookup(jobName)
 		if !found {
@@ -33,18 +23,17 @@ func (s *Server) ListJobInputs(pipelineDB db.PipelineDB) http.Handler {
 			return
 		}
 
-		versionsDB, err := pipelineDB.LoadVersionsDB()
+		scheduler := s.schedulerFactory.BuildScheduler(pipelineDB, s.externalURL)
+
+		err := scheduler.SaveNextInputMapping(logger, jobConfig)
 		if err != nil {
-			logger.Error("failed-to-load-version-db", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		jobInputs := config.JobInputs(jobConfig)
-
-		inputVersions, found, _, err := pipelineDB.GetNextInputVersions(versionsDB, jobName, jobInputs)
+		buildInputs, found, err := pipelineDB.GetNextBuildInputs(jobName)
 		if err != nil {
-			logger.Error("failed-to-get-latest-input-versions", err)
+			logger.Error("failed-to-get-next-build-inputs", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -54,8 +43,9 @@ func (s *Server) ListJobInputs(pipelineDB db.PipelineDB) http.Handler {
 			return
 		}
 
-		buildInputs := make([]atc.BuildInput, len(inputVersions))
-		for i, input := range inputVersions {
+		jobInputs := config.JobInputs(jobConfig)
+		presentedBuildInputs := make([]atc.BuildInput, len(buildInputs))
+		for i, input := range buildInputs {
 			resource, _ := pipelineConfig.Resources.Lookup(input.Resource)
 
 			var config config.JobInput
@@ -66,9 +56,9 @@ func (s *Server) ListJobInputs(pipelineDB db.PipelineDB) http.Handler {
 				}
 			}
 
-			buildInputs[i] = present.BuildInput(input, config, resource.Source)
+			presentedBuildInputs[i] = present.BuildInput(input, config, resource.Source)
 		}
 
-		json.NewEncoder(w).Encode(buildInputs)
+		json.NewEncoder(w).Encode(presentedBuildInputs)
 	})
 }

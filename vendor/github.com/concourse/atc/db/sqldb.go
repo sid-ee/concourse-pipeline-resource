@@ -6,19 +6,23 @@ import (
 )
 
 type SQLDB struct {
-	conn Conn
-	bus  *notificationsBus
+	conn        Conn
+	lockFactory LockFactory
+	bus         *notificationsBus
 
-	buildPrepHelper buildPreparationHelper
+	buildFactory *buildFactory
 }
 
 func NewSQL(
 	sqldbConnection Conn,
 	bus *notificationsBus,
+	lockFactory LockFactory,
 ) *SQLDB {
 	return &SQLDB{
-		conn: sqldbConnection,
-		bus:  bus,
+		conn:         sqldbConnection,
+		lockFactory:  lockFactory,
+		bus:          bus,
+		buildFactory: newBuildFactory(sqldbConnection, bus, lockFactory),
 	}
 }
 
@@ -32,28 +36,6 @@ func (err nonOneRowAffectedError) Error() string {
 
 type scannable interface {
 	Scan(destinations ...interface{}) error
-}
-
-func newConditionNotifier(bus *notificationsBus, channel string, cond func() (bool, error)) (Notifier, error) {
-	notified, err := bus.Listen(channel)
-	if err != nil {
-		return nil, err
-	}
-
-	notifier := &conditionNotifier{
-		cond:    cond,
-		bus:     bus,
-		channel: channel,
-
-		notified: notified,
-		notify:   make(chan struct{}, 1),
-
-		stop: make(chan struct{}),
-	}
-
-	go notifier.watch()
-
-	return notifier, nil
 }
 
 type conditionNotifier struct {

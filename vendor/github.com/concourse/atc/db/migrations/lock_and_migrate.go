@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 
 	"github.com/BurntSushi/migration"
 )

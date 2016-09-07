@@ -13,19 +13,13 @@ func (s *Server) GetJob(pipelineDB db.PipelineDB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jobName := r.FormValue(":job_name")
 
-		config, _, found, err := pipelineDB.GetConfig()
+		job, found, err := pipelineDB.GetJob(jobName)
 		if err != nil {
-			logger.Error("could-not-get-pipeline-config", err)
+			logger.Error("could-not-get-job-finished", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		if !found {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		job, found := config.Jobs.Lookup(jobName)
 		if !found {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -38,15 +32,16 @@ func (s *Server) GetJob(pipelineDB db.PipelineDB) http.Handler {
 			return
 		}
 
-		dbJob, err := pipelineDB.GetJob(job.Name)
-		if err != nil {
-			logger.Error("could-not-get-job-finished", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		teamName := r.FormValue(":team_name")
 
 		w.WriteHeader(http.StatusOK)
 
-		json.NewEncoder(w).Encode(present.Job(dbJob, job, config.Groups, finished, next))
+		json.NewEncoder(w).Encode(present.Job(
+			teamName,
+			job,
+			pipelineDB.Config().Groups,
+			finished,
+			next,
+		))
 	})
 }

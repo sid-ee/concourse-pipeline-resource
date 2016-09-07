@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
-	"github.com/pivotal-golang/lager"
 )
 
 func (s *Server) GetMinLevel(w http.ResponseWriter, r *http.Request) {

@@ -7,9 +7,10 @@ import (
 	"errors"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
+	"github.com/concourse/atc/event"
 	"github.com/lib/pq"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . Conn
@@ -75,73 +76,45 @@ func HashResourceConfig(checkType string, source atc.Source) string {
 }
 
 type DB interface {
-	SaveTeam(team Team) (SavedTeam, error)
-	GetTeamByName(teamName string) (SavedTeam, bool, error)
-	UpdateTeamBasicAuth(team Team) (SavedTeam, error)
-	UpdateTeamGitHubAuth(team Team) (SavedTeam, error)
+	GetTeams() ([]SavedTeam, error)
+	CreateTeam(team Team) (SavedTeam, error)
 	CreateDefaultTeamIfNotExists() error
 	DeleteTeamByName(teamName string) error
 
-	GetBuild(buildID int) (Build, bool, error)
-	GetBuildVersionedResources(buildID int) (SavedVersionedResources, error)
-	GetBuildResources(buildID int) ([]BuildInput, []BuildOutput, error)
-	GetBuilds(Page) ([]Build, Pagination, error)
 	GetAllStartedBuilds() ([]Build, error)
+	GetPublicBuilds(page Page) ([]Build, Pagination, error)
 
-	CreatePipe(pipeGUID string, url string) error
+	FindJobIDForBuild(buildID int) (int, bool, error)
+
+	CreatePipe(pipeGUID string, url string, teamID int) error
 	GetPipe(pipeGUID string) (Pipe, error)
 
-	CreateOneOffBuild() (Build, error)
-	GetBuildPreparation(buildID int) (BuildPreparation, bool, error)
-	UpdateBuildPreparation(buildPreparation BuildPreparation) error
-	ResetBuildPreparationsWithPipelinePaused(pipelineID int) error
+	GetTaskLock(logger lager.Logger, taskName string) (Lock, bool, error)
 
-	LeaseBuildTracking(logger lager.Logger, buildID int, interval time.Duration) (Lease, bool, error)
-	LeaseBuildScheduling(logger lager.Logger, buildID int, interval time.Duration) (Lease, bool, error)
-	GetLease(logger lager.Logger, taskName string, interval time.Duration) (Lease, bool, error)
-
-	StartBuild(buildID int, pipelineID int, engineName, engineMetadata string) (bool, error)
-	FinishBuild(buildID int, pipelineID int, status Status) error
-	ErrorBuild(buildID int, pipelineID int, cause error) error
-
-	SaveBuildInput(buildID int, input BuildInput) (SavedVersionedResource, error)
-	SaveBuildOutput(buildID int, vr VersionedResource, explicit bool) (SavedVersionedResource, error)
-
-	GetBuildEvents(buildID int, from uint) (EventSource, error)
-	SaveBuildEvent(buildID int, pipelineID int, event atc.Event) error
 	DeleteBuildEventsByBuildIDs(buildIDs []int) error
-
-	SaveBuildEngineMetadata(buildID int, engineMetadata string) error
-
-	AbortBuild(buildID int) error
-	AbortNotifier(buildID int) (Notifier, error)
 
 	Workers() ([]SavedWorker, error) // auto-expires workers based on ttl
 	GetWorker(workerName string) (SavedWorker, bool, error)
 	SaveWorker(WorkerInfo, time.Duration) (SavedWorker, error)
 
-	FindContainersByDescriptors(Container) ([]SavedContainer, error)
 	GetContainer(string) (SavedContainer, bool, error)
-	CreateContainer(Container, time.Duration, time.Duration) (SavedContainer, error)
+	CreateContainer(container Container, ttl time.Duration, maxLifetime time.Duration, volumeHandles []string) (SavedContainer, error)
 	FindContainerByIdentifier(ContainerIdentifier) (SavedContainer, bool, error)
+	FindLatestSuccessfulBuildsPerJob() (map[int]int, error)
+	FindJobContainersFromUnsuccessfulBuilds() ([]SavedContainer, error)
 	UpdateExpiresAtOnContainer(handle string, ttl time.Duration) error
 	ReapContainer(handle string) error
 
 	DeleteContainer(string) error
 
-	GetConfigByBuildID(buildID int) (atc.Config, ConfigVersion, error)
-
 	InsertVolume(data Volume) error
 	GetVolumes() ([]SavedVolume, error)
 	GetVolumesByIdentifier(VolumeIdentifier) ([]SavedVolume, error)
 	ReapVolume(string) error
+	SetVolumeTTLAndSizeInBytes(string, time.Duration, int64) error
 	SetVolumeTTL(string, time.Duration) error
 	GetVolumeTTL(volumeHandle string) (time.Duration, bool, error)
-	SetVolumeSize(string, uint) error
 	GetVolumesForOneOffBuildImageResources() ([]SavedVolume, error)
-
-	SaveImageResourceVersion(buildID int, planID atc.PlanID, identifier ResourceCacheIdentifier) error
-	GetImageResourceCacheIdentifiersByBuildID(buildID int) ([]ResourceCacheIdentifier, error)
 }
 
 //go:generate counterfeiter . Notifier
@@ -151,41 +124,17 @@ type Notifier interface {
 	Close() error
 }
 
-//go:generate counterfeiter . PipelinesDB
-
-type PipelinesDB interface {
-	GetAllPipelines() ([]SavedPipeline, error)
-	GetPipelineByID(pipelineID int) (SavedPipeline, error)
-	GetPipelineByTeamNameAndName(teamName string, pipelineName string) (SavedPipeline, error)
-
-	OrderPipelines([]string) error
-}
-
-//go:generate counterfeiter . ConfigDB
-
-type ConfigDB interface {
-	GetConfig(teamName, pipelineName string) (atc.Config, atc.RawConfig, ConfigVersion, error)
-	SaveConfig(string, string, atc.Config, ConfigVersion, PipelinePausedState) (SavedPipeline, bool, error)
-}
-
 //ConfigVersion is a sequence identifier used for compare-and-swap
 type ConfigVersion int
 
 var ErrConfigComparisonFailed = errors.New("comparison with existing config failed during save")
-
-//go:generate counterfeiter . Lock
-
-type Lock interface {
-	Release() error
-}
-
 var ErrEndOfBuildEventStream = errors.New("end of build event stream")
 var ErrBuildEventStreamClosed = errors.New("build event stream closed")
 
 //go:generate counterfeiter . EventSource
 
 type EventSource interface {
-	Next() (atc.Event, error)
+	Next() (event.Envelope, error)
 	Close() error
 }
 
@@ -201,20 +150,10 @@ type BuildOutput struct {
 	VersionedResource
 }
 
-type VersionHistory struct {
-	VersionedResource SavedVersionedResource
-	InputsTo          []*JobHistory
-	OutputsOf         []*JobHistory
-}
-
-type JobHistory struct {
-	JobName string
-	Builds  []Build
-}
-
 type SavedWorker struct {
 	WorkerInfo
 
+	TeamName  string
 	ExpiresIn time.Duration
 }
 
@@ -229,6 +168,7 @@ type WorkerInfo struct {
 	ResourceTypes    []atc.WorkerResourceType
 	Platform         string
 	Tags             []string
+	TeamID           int
 	Name             string
 	StartTime        int64
 }

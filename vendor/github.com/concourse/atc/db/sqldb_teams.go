@@ -3,12 +3,34 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
-
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/concourse/atc"
 )
+
+func (db *SQLDB) GetTeams() ([]SavedTeam, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, name, admin, basic_auth, github_auth, uaa_auth, genericoauth_auth FROM teams
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	teams := []SavedTeam{}
+
+	for rows.Next() {
+		team, err := scanTeam(rows)
+
+		if err != nil {
+			return nil, err
+		}
+
+		teams = append(teams, team)
+	}
+
+	return teams, nil
+}
 
 func (db *SQLDB) CreateDefaultTeamIfNotExists() error {
 	_, err := db.conn.Exec(`
@@ -17,7 +39,7 @@ func (db *SQLDB) CreateDefaultTeamIfNotExists() error {
 	)
 	SELECT $1, true
 	WHERE NOT EXISTS (
-		SELECT id FROM teams WHERE name = $1
+		SELECT id FROM teams WHERE LOWER(name) = LOWER($1)
 	)
 	`, atc.DefaultTeamName)
 	if err != nil {
@@ -27,53 +49,59 @@ func (db *SQLDB) CreateDefaultTeamIfNotExists() error {
 	_, err = db.conn.Exec(`
 		UPDATE teams
 		SET admin = true
-		WHERE name = $1
+		WHERE LOWER(name) = LOWER($1)
 	`, atc.DefaultTeamName)
 	return err
 }
 
-func (db *SQLDB) SaveTeam(data Team) (SavedTeam, error) {
-	jsonEncodedBasicAuth, err := db.jsonEncodeTeamBasicAuth(data)
-	if err != nil {
-		return SavedTeam{}, err
-	}
-	jsonEncodedGitHubAuth, err := db.jsonEncodeTeamGitHubAuth(data)
+func (db *SQLDB) CreateTeam(team Team) (SavedTeam, error) {
+	jsonEncodedBasicAuth, err := team.BasicAuth.EncryptedJSON()
 	if err != nil {
 		return SavedTeam{}, err
 	}
 
-	return db.queryTeam(fmt.Sprintf(`
+	var gitHubAuth *GitHubAuth
+	if team.GitHubAuth != nil && team.GitHubAuth.ClientID != "" && team.GitHubAuth.ClientSecret != "" {
+		gitHubAuth = team.GitHubAuth
+	}
+	jsonEncodedGitHubAuth, err := json.Marshal(gitHubAuth)
+	if err != nil {
+		return SavedTeam{}, err
+	}
+
+	jsonEncodedUAAAuth, err := json.Marshal(team.UAAAuth)
+	if err != nil {
+		return SavedTeam{}, err
+	}
+
+	jsonEncodedGenericOAuth, err := json.Marshal(team.GenericOAuth)
+	if err != nil {
+		return SavedTeam{}, err
+	}
+
+	return scanTeam(db.conn.QueryRow(`
 	INSERT INTO teams (
-    name, basic_auth, github_auth
+    name, basic_auth, github_auth, uaa_auth, genericoauth_auth
 	) VALUES (
-		'%s', '%s', '%s'
+		$1, $2, $3, $4, $5
 	)
-	RETURNING id, name, admin, basic_auth, github_auth
-	`, data.Name, jsonEncodedBasicAuth, jsonEncodedGitHubAuth,
-	))
+	RETURNING id, name, admin, basic_auth, github_auth, uaa_auth, genericoauth_auth
+	`, team.Name, jsonEncodedBasicAuth, string(jsonEncodedGitHubAuth), string(jsonEncodedUAAAuth), string(jsonEncodedGenericOAuth)))
 }
 
-func (db *SQLDB) queryTeam(query string) (SavedTeam, error) {
-	var basicAuth, gitHubAuth sql.NullString
+func scanTeam(rows scannable) (SavedTeam, error) {
+	var basicAuth, gitHubAuth, uaaAuth, genericOAuth sql.NullString
 	var savedTeam SavedTeam
 
-	tx, err := db.conn.Begin()
-	if err != nil {
-		return SavedTeam{}, err
-	}
-	defer tx.Rollback()
-
-	err = tx.QueryRow(query).Scan(
+	err := rows.Scan(
 		&savedTeam.ID,
 		&savedTeam.Name,
 		&savedTeam.Admin,
 		&basicAuth,
 		&gitHubAuth,
+		&uaaAuth,
+		&genericOAuth,
 	)
-	if err != nil {
-		return savedTeam, err
-	}
-	err = tx.Commit()
 	if err != nil {
 		return savedTeam, err
 	}
@@ -92,87 +120,27 @@ func (db *SQLDB) queryTeam(query string) (SavedTeam, error) {
 		}
 	}
 
-	return savedTeam, nil
-}
-
-func (db *SQLDB) GetTeamByName(teamName string) (SavedTeam, bool, error) {
-	query := fmt.Sprintf(`
-		SELECT id, name, admin, basic_auth, github_auth
-		FROM teams
-		WHERE name ILIKE '%s'
-	`, teamName,
-	)
-	savedTeam, err := db.queryTeam(query)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return savedTeam, false, nil
-		}
-
-		return savedTeam, false, err
-	}
-
-	return savedTeam, true, nil
-}
-
-func (db *SQLDB) jsonEncodeTeamGitHubAuth(team Team) (string, error) {
-	if team.ClientID == "" || team.ClientSecret == "" {
-		team.GitHubAuth = GitHubAuth{}
-	}
-
-	json, err := json.Marshal(team.GitHubAuth)
-	return string(json), err
-}
-
-func (db *SQLDB) UpdateTeamGitHubAuth(team Team) (SavedTeam, error) {
-	gitHubAuth, err := db.jsonEncodeTeamGitHubAuth(team)
-	if err != nil {
-		return SavedTeam{}, err
-	}
-
-	query := fmt.Sprintf(`
-		UPDATE teams
-		SET github_auth = '%s'
-		WHERE name ILIKE '%s'
-		RETURNING id, name, admin, basic_auth, github_auth
-	`, gitHubAuth, team.Name,
-	)
-	return db.queryTeam(query)
-}
-
-func (db *SQLDB) jsonEncodeTeamBasicAuth(team Team) (string, error) {
-	if team.BasicAuthUsername == "" || team.BasicAuthPassword == "" {
-		team.BasicAuth = BasicAuth{}
-	} else {
-		encryptedPw, err := bcrypt.GenerateFromPassword([]byte(team.BasicAuthPassword), 4)
+	if uaaAuth.Valid {
+		err = json.Unmarshal([]byte(uaaAuth.String), &savedTeam.UAAAuth)
 		if err != nil {
-			return "", err
+			return savedTeam, err
 		}
-		team.BasicAuthPassword = string(encryptedPw)
 	}
 
-	json, err := json.Marshal(team.BasicAuth)
-	return string(json), err
-}
-
-func (db *SQLDB) UpdateTeamBasicAuth(team Team) (SavedTeam, error) {
-	basicAuth, err := db.jsonEncodeTeamBasicAuth(team)
-	if err != nil {
-		return SavedTeam{}, err
+	if genericOAuth.Valid {
+		err = json.Unmarshal([]byte(genericOAuth.String), &savedTeam.GenericOAuth)
+		if err != nil {
+			return savedTeam, err
+		}
 	}
 
-	query := fmt.Sprintf(`
-		UPDATE teams
-		SET basic_auth = '%s'
-		WHERE name ILIKE '%s'
-		RETURNING id, name, admin, basic_auth, github_auth
-	`, basicAuth, team.Name)
-	return db.queryTeam(query)
+	return savedTeam, nil
 }
 
 func (db *SQLDB) DeleteTeamByName(teamName string) error {
 	_, err := db.conn.Exec(`
     DELETE FROM teams
-		WHERE name ILIKE $1
+		WHERE LOWER(name) = LOWER($1)
 	`, teamName)
 	return err
 }

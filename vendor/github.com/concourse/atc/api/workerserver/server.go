@@ -3,14 +3,15 @@ package workerserver
 import (
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 )
 
 type Server struct {
 	logger lager.Logger
 
-	db WorkerDB
+	db            WorkerDB
+	teamDBFactory db.TeamDBFactory
 }
 
 //go:generate counterfeiter . WorkerDB
@@ -23,9 +24,11 @@ type WorkerDB interface {
 func NewServer(
 	logger lager.Logger,
 	db WorkerDB,
+	teamDBFactory db.TeamDBFactory,
 ) *Server {
 	return &Server{
-		logger: logger,
-		db:     db,
+		logger:        logger,
+		db:            db,
+		teamDBFactory: teamDBFactory,
 	}
 }

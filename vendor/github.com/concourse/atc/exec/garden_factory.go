@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/clock"
+	"code.cloudfoundry.org/lager"
 
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/resource"
@@ -15,11 +15,9 @@ import (
 )
 
 type gardenFactory struct {
-	workerClient        worker.Client
-	tracker             resource.Tracker
-	trackerFactory      TrackerFactory
-	containerSuccessTTL time.Duration
-	containerFailureTTL time.Duration
+	workerClient    worker.Client
+	tracker         resource.Tracker
+	resourceFetcher resource.Fetcher
 }
 
 //go:generate counterfeiter . TrackerFactory
@@ -31,14 +29,12 @@ type TrackerFactory interface {
 func NewGardenFactory(
 	workerClient worker.Client,
 	tracker resource.Tracker,
-	containerSuccessTTL time.Duration,
-	containerFailureTTL time.Duration,
+	resourceFetcher resource.Fetcher,
 ) Factory {
 	return &gardenFactory{
-		workerClient:        workerClient,
-		tracker:             tracker,
-		containerSuccessTTL: containerSuccessTTL,
-		containerFailureTTL: containerFailureTTL,
+		workerClient:    workerClient,
+		tracker:         tracker,
+		resourceFetcher: resourceFetcher,
 	}
 }
 
@@ -51,8 +47,11 @@ func (factory *gardenFactory) DependentGet(
 	delegate GetDelegate,
 	resourceConfig atc.ResourceConfig,
 	tags atc.Tags,
+	teamID int,
 	params atc.Params,
 	resourceTypes atc.ResourceTypes,
+	containerSuccessTTL time.Duration,
+	containerFailureTTL time.Duration,
 ) StepFactory {
 	return newDependentGetStep(
 		logger,
@@ -66,10 +65,12 @@ func (factory *gardenFactory) DependentGet(
 			Metadata:  workerMetadata,
 		},
 		tags,
+		teamID,
 		delegate,
-		factory.tracker,
+		factory.resourceFetcher,
 		resourceTypes,
-		factory.containerFailureTTL,
+		containerSuccessTTL,
+		containerFailureTTL,
 	)
 }
 
@@ -82,9 +83,12 @@ func (factory *gardenFactory) Get(
 	delegate GetDelegate,
 	resourceConfig atc.ResourceConfig,
 	tags atc.Tags,
+	teamID int,
 	params atc.Params,
 	version atc.Version,
 	resourceTypes atc.ResourceTypes,
+	containerSuccessTTL time.Duration,
+	containerFailureTTL time.Duration,
 ) StepFactory {
 	workerMetadata.WorkingDirectory = resource.ResourcesDir("get")
 	return newGetStep(
@@ -106,10 +110,13 @@ func (factory *gardenFactory) Get(
 			Ephemeral: false,
 		},
 		tags,
+		teamID,
 		delegate,
-		factory.tracker,
+		factory.resourceFetcher,
 		resourceTypes,
-		factory.containerFailureTTL,
+
+		containerSuccessTTL,
+		containerFailureTTL,
 	)
 }
 
@@ -121,8 +128,11 @@ func (factory *gardenFactory) Put(
 	delegate PutDelegate,
 	resourceConfig atc.ResourceConfig,
 	tags atc.Tags,
+	teamID int,
 	params atc.Params,
 	resourceTypes atc.ResourceTypes,
+	containerSuccessTTL time.Duration,
+	containerFailureTTL time.Duration,
 ) StepFactory {
 	workerMetadata.WorkingDirectory = resource.ResourcesDir("put")
 	return newPutStep(
@@ -136,11 +146,12 @@ func (factory *gardenFactory) Put(
 			Metadata:  workerMetadata,
 		},
 		tags,
+		teamID,
 		delegate,
 		factory.tracker,
 		resourceTypes,
-		factory.containerSuccessTTL,
-		factory.containerFailureTTL,
+		containerSuccessTTL,
+		containerFailureTTL,
 	)
 }
 
@@ -152,12 +163,15 @@ func (factory *gardenFactory) Task(
 	delegate TaskDelegate,
 	privileged Privileged,
 	tags atc.Tags,
+	teamID int,
 	configSource TaskConfigSource,
 	resourceTypes atc.ResourceTypes,
 	inputMapping map[string]string,
 	outputMapping map[string]string,
 	imageArtifactName string,
 	clock clock.Clock,
+	containerSuccessTTL time.Duration,
+	containerFailureTTL time.Duration,
 ) StepFactory {
 	workingDirectory := factory.taskWorkingDirectory(sourceName)
 	workerMetadata.WorkingDirectory = workingDirectory
@@ -166,19 +180,19 @@ func (factory *gardenFactory) Task(
 		id,
 		workerMetadata,
 		tags,
+		teamID,
 		delegate,
 		privileged,
 		configSource,
 		factory.workerClient,
 		workingDirectory,
-		factory.trackerFactory,
 		resourceTypes,
-		factory.containerSuccessTTL,
-		factory.containerFailureTTL,
 		inputMapping,
 		outputMapping,
 		imageArtifactName,
 		clock,
+		containerSuccessTTL,
+		containerFailureTTL,
 	)
 }
 

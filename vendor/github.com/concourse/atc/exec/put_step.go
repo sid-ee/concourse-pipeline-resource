@@ -6,27 +6,26 @@ import (
 	"os"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/resource"
 	"github.com/concourse/atc/worker"
-	"github.com/pivotal-golang/lager"
 )
 
 // PutStep produces a resource version using preconfigured params and any data
 // available in the SourceRepository.
 type PutStep struct {
-	logger              lager.Logger
-	resourceConfig      atc.ResourceConfig
-	params              atc.Params
-	stepMetadata        StepMetadata
-	session             resource.Session
-	tags                atc.Tags
-	delegate            PutDelegate
-	tracker             resource.Tracker
-	resourceTypes       atc.ResourceTypes
-	containerSuccessTTL time.Duration
-	containerFailureTTL time.Duration
+	logger         lager.Logger
+	resourceConfig atc.ResourceConfig
+	params         atc.Params
+	stepMetadata   StepMetadata
+	session        resource.Session
+	tags           atc.Tags
+	teamID         int
+	delegate       PutDelegate
+	tracker        resource.Tracker
+	resourceTypes  atc.ResourceTypes
 
 	repository *SourceRepository
 
@@ -35,6 +34,9 @@ type PutStep struct {
 	versionedSource resource.VersionedSource
 
 	succeeded bool
+
+	containerSuccessTTL time.Duration
+	containerFailureTTL time.Duration
 }
 
 func newPutStep(
@@ -44,6 +46,7 @@ func newPutStep(
 	stepMetadata StepMetadata,
 	session resource.Session,
 	tags atc.Tags,
+	teamID int,
 	delegate PutDelegate,
 	tracker resource.Tracker,
 	resourceTypes atc.ResourceTypes,
@@ -57,6 +60,7 @@ func newPutStep(
 		stepMetadata:        stepMetadata,
 		session:             session,
 		tags:                tags,
+		teamID:              teamID,
 		delegate:            delegate,
 		tracker:             tracker,
 		resourceTypes:       resourceTypes,
@@ -103,6 +107,7 @@ func (step *PutStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 		runSession,
 		resource.ResourceType(step.resourceConfig.Type),
 		step.tags,
+		step.teamID,
 		resourceSources,
 		step.resourceTypes,
 		step.delegate,
@@ -131,7 +136,7 @@ func (step *PutStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 		artifactSource = resourceSource{scopedRepo}
 	}
 
-	step.versionedSource = step.resource.Put(
+	step.versionedSource, err = step.resource.Put(
 		resource.IOConfig{
 			Stdout: step.delegate.Stdout(),
 			Stderr: step.delegate.Stderr(),
@@ -139,9 +144,9 @@ func (step *PutStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 		step.resourceConfig.Source,
 		step.params,
 		artifactSource,
+		signals,
+		ready,
 	)
-
-	err = step.versionedSource.Run(signals, ready)
 
 	if err, ok := err.(resource.ErrResourceScriptFailed); ok {
 		step.delegate.Completed(ExitStatus(err.ExitStatus), nil)
@@ -165,8 +170,6 @@ func (step *PutStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	return nil
 }
 
-// Release releases the created container for either the configured
-// containerSuccessTTL or containerFailureTTL.
 func (step *PutStep) Release() {
 	if step.resource == nil {
 		return

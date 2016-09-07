@@ -4,15 +4,20 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/concourse/atc"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/auth"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/engine"
 	"github.com/concourse/atc/worker"
-	"github.com/pivotal-golang/lager"
 )
 
-type EventHandlerFactory func(lager.Logger, BuildsDB, int) http.Handler
+type EventHandlerFactory func(lager.Logger, db.Build) http.Handler
+
+//go:generate counterfeiter . BuildsDB
+
+type BuildsDB interface {
+	GetPublicBuilds(page db.Page) ([]db.Build, db.Pagination, error)
+}
 
 type Server struct {
 	logger lager.Logger
@@ -21,8 +26,8 @@ type Server struct {
 
 	engine              engine.Engine
 	workerClient        worker.Client
-	db                  BuildsDB
-	configDB            db.ConfigDB
+	teamDBFactory       db.TeamDBFactory
+	buildsDB            BuildsDB
 	eventHandlerFactory EventHandlerFactory
 	drain               <-chan struct{}
 	rejector            auth.Rejector
@@ -30,27 +35,13 @@ type Server struct {
 	httpClient *http.Client
 }
 
-//go:generate counterfeiter . BuildsDB
-
-type BuildsDB interface {
-	GetBuild(buildID int) (db.Build, bool, error)
-	GetBuildEvents(buildID int, from uint) (db.EventSource, error)
-	GetBuildResources(buildID int) ([]db.BuildInput, []db.BuildOutput, error)
-	GetBuildPreparation(buildID int) (db.BuildPreparation, bool, error)
-
-	GetBuilds(db.Page) ([]db.Build, db.Pagination, error)
-
-	CreateOneOffBuild() (db.Build, error)
-	GetConfigByBuildID(buildID int) (atc.Config, db.ConfigVersion, error)
-}
-
 func NewServer(
 	logger lager.Logger,
 	externalURL string,
 	engine engine.Engine,
 	workerClient worker.Client,
-	db BuildsDB,
-	configDB db.ConfigDB,
+	teamDBFactory db.TeamDBFactory,
+	buildsDB BuildsDB,
 	eventHandlerFactory EventHandlerFactory,
 	drain <-chan struct{},
 ) *Server {
@@ -61,8 +52,8 @@ func NewServer(
 
 		engine:              engine,
 		workerClient:        workerClient,
-		db:                  db,
-		configDB:            configDB,
+		teamDBFactory:       teamDBFactory,
+		buildsDB:            buildsDB,
 		eventHandlerFactory: eventHandlerFactory,
 		drain:               drain,
 

@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"os"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/exec"
 	"github.com/concourse/atc/worker"
-	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
 )
 
@@ -20,19 +21,26 @@ type execMetadata struct {
 }
 
 const execEngineName = "exec.v2"
+const successTTL = 5 * time.Minute
+const failureTTL = 5 * time.Minute
 
 type execEngine struct {
 	factory         exec.Factory
 	delegateFactory BuildDelegateFactory
-	db              EngineDB
+	teamDBFactory   db.TeamDBFactory
 	externalURL     string
 }
 
-func NewExecEngine(factory exec.Factory, delegateFactory BuildDelegateFactory, db EngineDB, externalURL string) Engine {
+func NewExecEngine(
+	factory exec.Factory,
+	delegateFactory BuildDelegateFactory,
+	teamDBFactory db.TeamDBFactory,
+	externalURL string,
+) Engine {
 	return &execEngine{
 		factory:         factory,
 		delegateFactory: delegateFactory,
-		db:              db,
+		teamDBFactory:   teamDBFactory,
 		externalURL:     externalURL,
 	}
 }
@@ -41,96 +49,111 @@ func (engine *execEngine) Name() string {
 	return execEngineName
 }
 
-func (engine *execEngine) CreateBuild(logger lager.Logger, model db.Build, plan atc.Plan) (Build, error) {
+func (engine *execEngine) CreateBuild(logger lager.Logger, build db.Build, plan atc.Plan) (Build, error) {
 	return &execBuild{
-		buildID:      model.ID,
-		stepMetadata: buildMetadata(model, engine.externalURL),
+		buildID:      build.ID(),
+		teamName:     build.TeamName(),
+		teamID:       build.TeamID(),
+		stepMetadata: buildMetadata(build, engine.externalURL),
 
-		db:       engine.db,
 		factory:  engine.factory,
-		delegate: engine.delegateFactory.Delegate(model.ID, model.PipelineID),
+		delegate: engine.delegateFactory.Delegate(build),
 		metadata: execMetadata{
 			Plan: plan,
 		},
 
 		signals: make(chan os.Signal, 1),
+
+		containerSuccessTTL: successTTL,
+		containerFailureTTL: failureTTL,
 	}, nil
 }
 
-func (engine *execEngine) LookupBuild(logger lager.Logger, model db.Build) (Build, error) {
+func (engine *execEngine) LookupBuild(logger lager.Logger, build db.Build) (Build, error) {
 	var metadata execMetadata
-	err := json.Unmarshal([]byte(model.EngineMetadata), &metadata)
+	err := json.Unmarshal([]byte(build.EngineMetadata()), &metadata)
 	if err != nil {
 		logger.Error("invalid-metadata", err)
 		return nil, err
 	}
 
-	err = atc.NewPlanTraversal(engine.convertPipelineNameToID).Traverse(&metadata.Plan)
+	err = atc.NewPlanTraversal(engine.convertPipelineNameToID(build.TeamName())).Traverse(&metadata.Plan)
 	if err != nil {
 		return nil, err
 	}
 
 	return &execBuild{
-		buildID:      model.ID,
-		stepMetadata: buildMetadata(model, engine.externalURL),
+		buildID:      build.ID(),
+		teamName:     build.TeamName(),
+		teamID:       build.TeamID(),
+		stepMetadata: buildMetadata(build, engine.externalURL),
 
-		db:       engine.db,
 		factory:  engine.factory,
-		delegate: engine.delegateFactory.Delegate(model.ID, model.PipelineID),
+		delegate: engine.delegateFactory.Delegate(build),
 		metadata: metadata,
 
 		signals: make(chan os.Signal, 1),
+
+		containerSuccessTTL: successTTL,
+		containerFailureTTL: failureTTL,
 	}, nil
 }
 
-func (engine *execEngine) convertPipelineNameToID(plan *atc.Plan) error {
-	var pipelineName *string
-	var pipelineID *int
+func (engine *execEngine) convertPipelineNameToID(teamName string) func(plan *atc.Plan) error {
+	teamDB := engine.teamDBFactory.GetTeamDB(teamName)
+	return func(plan *atc.Plan) error {
+		var pipelineName *string
+		var pipelineID *int
 
-	switch {
-	case plan.Get != nil:
-		pipelineName = &plan.Get.Pipeline
-		pipelineID = &plan.Get.PipelineID
-	case plan.Put != nil:
-		pipelineName = &plan.Put.Pipeline
-		pipelineID = &plan.Put.PipelineID
-	case plan.Task != nil:
-		pipelineName = &plan.Task.Pipeline
-		pipelineID = &plan.Task.PipelineID
-	case plan.DependentGet != nil:
-		pipelineName = &plan.DependentGet.Pipeline
-		pipelineID = &plan.DependentGet.PipelineID
-	}
-
-	if pipelineName != nil && *pipelineName != "" {
-		if *pipelineID != 0 {
-			return fmt.Errorf(
-				"build plan with ID %s has both pipeline name (%s) and ID (%d)",
-				plan.ID,
-				*pipelineName,
-				*pipelineID,
-			)
+		switch {
+		case plan.Get != nil:
+			pipelineName = &plan.Get.Pipeline
+			pipelineID = &plan.Get.PipelineID
+		case plan.Put != nil:
+			pipelineName = &plan.Put.Pipeline
+			pipelineID = &plan.Put.PipelineID
+		case plan.Task != nil:
+			pipelineName = &plan.Task.Pipeline
+			pipelineID = &plan.Task.PipelineID
+		case plan.DependentGet != nil:
+			pipelineName = &plan.DependentGet.Pipeline
+			pipelineID = &plan.DependentGet.PipelineID
 		}
 
-		savedPipeline, err := engine.db.GetPipelineByTeamNameAndName(atc.DefaultTeamName, *pipelineName)
+		if pipelineName != nil && *pipelineName != "" {
+			if *pipelineID != 0 {
+				return fmt.Errorf(
+					"build plan with ID %s has both pipeline name (%s) and ID (%d)",
+					plan.ID,
+					*pipelineName,
+					*pipelineID,
+				)
+			}
 
-		if err != nil {
-			return err
+			savedPipeline, found, err := teamDB.GetPipelineByName(*pipelineName)
+
+			if err != nil {
+				return err
+			}
+
+			if !found {
+				return errors.New("pipeline not found: " + *pipelineName)
+			}
+
+			*pipelineID = savedPipeline.ID
+			*pipelineName = ""
 		}
 
-		*pipelineID = savedPipeline.ID
-		*pipelineName = ""
+		return nil
 	}
-
-	return nil
 }
 
-func buildMetadata(model db.Build, externalURL string) StepMetadata {
+func buildMetadata(build db.Build, externalURL string) StepMetadata {
 	return StepMetadata{
-		BuildID:      model.ID,
-		BuildName:    model.Name,
-		JobName:      model.JobName,
-		PipelineName: model.PipelineName,
+		BuildID:      build.ID(),
+		BuildName:    build.Name(),
+		JobName:      build.JobName(),
+		PipelineName: build.PipelineName(),
 		ExternalURL:  externalURL,
 	}
 }
@@ -138,8 +161,8 @@ func buildMetadata(model db.Build, externalURL string) StepMetadata {
 type execBuild struct {
 	buildID      int
 	stepMetadata StepMetadata
-
-	db EngineDB
+	teamName     string
+	teamID       int
 
 	factory  exec.Factory
 	delegate BuildDelegate
@@ -147,6 +170,9 @@ type execBuild struct {
 	signals chan os.Signal
 
 	metadata execMetadata
+
+	containerSuccessTTL time.Duration
+	containerFailureTTL time.Duration
 }
 
 func (build *execBuild) Metadata() string {
@@ -158,11 +184,11 @@ func (build *execBuild) Metadata() string {
 	return string(payload)
 }
 
-func (build *execBuild) PublicPlan(lager.Logger) (atc.PublicBuildPlan, bool, error) {
+func (build *execBuild) PublicPlan(lager.Logger) (atc.PublicBuildPlan, error) {
 	return atc.PublicBuildPlan{
 		Schema: execEngineName,
 		Plan:   build.metadata.Plan.Public(),
-	}, true, nil
+	}, nil
 }
 
 func (build *execBuild) Abort(lager.Logger) error {
@@ -279,6 +305,7 @@ func (build *execBuild) stepIdentifier(
 			StepName:   stepName,
 			Type:       stepType,
 			PipelineID: pipelineID,
+			TeamID:     build.teamID,
 			Attempts:   attempts,
 		}
 }

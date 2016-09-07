@@ -8,12 +8,22 @@ import (
 	"github.com/tedsuo/rata"
 )
 
-func Job(dbJob db.SavedJob, job atc.JobConfig, groups atc.GroupConfigs, finishedBuild, nextBuild *db.Build) atc.Job {
+func Job(
+	teamName string,
+	job db.SavedJob,
+	groups atc.GroupConfigs,
+	finishedBuild db.Build,
+	nextBuild db.Build,
+) atc.Job {
 	generator := rata.NewRequestGenerator("", web.Routes)
 
 	req, err := generator.CreateRequest(
 		web.GetJob,
-		rata.Params{"job": job.Name, "pipeline_name": dbJob.PipelineName},
+		rata.Params{
+			"job":           job.Name,
+			"pipeline_name": job.PipelineName,
+			"team_name":     teamName,
+		},
 		nil,
 	)
 	if err != nil {
@@ -23,12 +33,12 @@ func Job(dbJob db.SavedJob, job atc.JobConfig, groups atc.GroupConfigs, finished
 	var presentedNextBuild, presentedFinishedBuild *atc.Build
 
 	if nextBuild != nil {
-		presented := Build(*nextBuild)
+		presented := Build(nextBuild)
 		presentedNextBuild = &presented
 	}
 
 	if finishedBuild != nil {
-		presented := Build(*finishedBuild)
+		presented := Build(finishedBuild)
 		presentedFinishedBuild = &presented
 	}
 
@@ -42,7 +52,7 @@ func Job(dbJob db.SavedJob, job atc.JobConfig, groups atc.GroupConfigs, finished
 	}
 
 	sanitizedInputs := []atc.JobInput{}
-	for _, input := range config.JobInputs(job) {
+	for _, input := range config.JobInputs(job.Config) {
 		sanitizedInputs = append(sanitizedInputs, atc.JobInput{
 			Name:     input.Name,
 			Resource: input.Resource,
@@ -52,7 +62,7 @@ func Job(dbJob db.SavedJob, job atc.JobConfig, groups atc.GroupConfigs, finished
 	}
 
 	sanitizedOutputs := []atc.JobOutput{}
-	for _, output := range config.JobOutputs(job) {
+	for _, output := range config.JobOutputs(job.Config) {
 		sanitizedOutputs = append(sanitizedOutputs, atc.JobOutput{
 			Name:     output.Name,
 			Resource: output.Resource,
@@ -62,9 +72,9 @@ func Job(dbJob db.SavedJob, job atc.JobConfig, groups atc.GroupConfigs, finished
 	return atc.Job{
 		Name:                 job.Name,
 		URL:                  req.URL.String(),
-		DisableManualTrigger: job.DisableManualTrigger,
-		Paused:               dbJob.Paused,
-		FirstLoggedBuildID:   dbJob.FirstLoggedBuildID,
+		DisableManualTrigger: job.Config.DisableManualTrigger,
+		Paused:               job.Paused,
+		FirstLoggedBuildID:   job.FirstLoggedBuildID,
 		FinishedBuild:        presentedFinishedBuild,
 		NextBuild:            presentedNextBuild,
 

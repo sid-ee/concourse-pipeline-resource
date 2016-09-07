@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/concourse/atc"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
+	"github.com/concourse/atc/db"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
@@ -20,59 +20,30 @@ type OAuthCallbackHandler struct {
 	providerFactory ProviderFactory
 	privateKey      *rsa.PrivateKey
 	tokenGenerator  TokenGenerator
-	db              AuthDB
+	teamDBFactory   db.TeamDBFactory
+	expire          time.Duration
 }
 
 func NewOAuthCallbackHandler(
 	logger lager.Logger,
 	providerFactory ProviderFactory,
 	privateKey *rsa.PrivateKey,
-	db AuthDB,
+	teamDBFactory db.TeamDBFactory,
+	expire time.Duration,
 ) http.Handler {
 	return &OAuthCallbackHandler{
 		logger:          logger,
 		providerFactory: providerFactory,
 		privateKey:      privateKey,
 		tokenGenerator:  NewTokenGenerator(privateKey),
-		db:              db,
+		teamDBFactory:   teamDBFactory,
+		expire:          expire,
 	}
 }
 
 func (handler *OAuthCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hLog := handler.logger.Session("callback")
 	providerName := r.FormValue(":provider")
-	teamName := atc.DefaultTeamName
-
-	team, found, err := handler.db.GetTeamByName(atc.DefaultTeamName)
-	if err != nil {
-		hLog.Error("failed-to-get-team", err)
-		http.Error(w, "failed to get team", http.StatusInternalServerError)
-		return
-	}
-	if !found {
-		hLog.Info("failed-to-find-team", lager.Data{
-			"teamName": teamName,
-		})
-		http.Error(w, "failed to find team", http.StatusNotFound)
-		return
-	}
-
-	providers, err := handler.providerFactory.GetProviders(teamName)
-	if err != nil {
-		handler.logger.Error("unknown-provider", err, lager.Data{
-			"provider": providerName,
-			"teamName": teamName,
-		})
-
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	provider, found := providers[providerName]
-	if !found {
-		http.Error(w, "unknown provider", http.StatusNotFound)
-		return
-	}
 
 	paramState := r.FormValue("state")
 
@@ -114,15 +85,63 @@ func (handler *OAuthCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	token, err := provider.Exchange(oauth2.NoContext, r.FormValue("code"))
+	teamName := oauthState.TeamName
+	teamDB := handler.teamDBFactory.GetTeamDB(teamName)
+	team, found, err := teamDB.GetTeam()
+	if err != nil {
+		hLog.Error("failed-to-get-team", err)
+		http.Error(w, "failed to get team", http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		hLog.Info("failed-to-find-team", lager.Data{
+			"teamName": teamName,
+		})
+		http.Error(w, "failed to find team", http.StatusNotFound)
+		return
+	}
+
+	provider, found, err := handler.providerFactory.GetProvider(team, providerName)
+	if err != nil {
+		handler.logger.Error("failed-to-get-provider", err, lager.Data{
+			"provider": providerName,
+			"teamName": teamName,
+		})
+
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if !found {
+		handler.logger.Info("provider-not-found-for-team", lager.Data{
+			"provider": providerName,
+			"teamName": teamName,
+		})
+
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	preTokenClient, err := provider.PreTokenClient()
+	if err != nil {
+		handler.logger.Error("failed-to-construct-pre-token-client", err, lager.Data{
+			"provider": providerName,
+			"teamName": teamName,
+		})
+
+		http.Error(w, "unable to connect to provider: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	ctx := context.WithValue(oauth2.NoContext, oauth2.HTTPClient, preTokenClient)
+
+	token, err := provider.Exchange(ctx, r.FormValue("code"))
 	if err != nil {
 		hLog.Error("failed-to-exchange-token", err)
 		http.Error(w, "failed to exchange token", http.StatusInternalServerError)
 		return
 	}
 
-	disabledKeepAliveClient := http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
-	ctx := context.WithValue(oauth2.NoContext, oauth2.HTTPClient, disabledKeepAliveClient)
 	httpClient := provider.Client(ctx, token)
 
 	verified, err := provider.Verify(hLog.Session("verify"), httpClient)
@@ -138,7 +157,7 @@ func (handler *OAuthCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	exp := time.Now().Add(CookieAge)
+	exp := time.Now().Add(handler.expire)
 
 	tokenType, signedToken, err := handler.tokenGenerator.GenerateToken(exp, team.Name, team.ID, team.Admin)
 	if err != nil {
@@ -154,6 +173,13 @@ func (handler *OAuthCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		Value:   tokenStr,
 		Path:    "/",
 		Expires: exp,
+	})
+
+	// Deletes the oauth state cookie to avoid CSRF attacks
+	http.SetCookie(w, &http.Cookie{
+		Name:   cookieState.Name,
+		Path:   "/",
+		MaxAge: -1,
 	})
 
 	if oauthState.Redirect != "" {

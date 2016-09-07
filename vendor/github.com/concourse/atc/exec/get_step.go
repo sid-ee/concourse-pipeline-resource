@@ -2,42 +2,45 @@ package exec
 
 import (
 	"archive/tar"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/resource"
 	"github.com/concourse/atc/worker"
-	"github.com/pivotal-golang/lager"
 )
 
 // GetStep will fetch a version of a resource on a worker that supports the
 // resource type.
 type GetStep struct {
-	logger              lager.Logger
-	sourceName          SourceName
-	resourceConfig      atc.ResourceConfig
-	version             atc.Version
-	params              atc.Params
-	cacheIdentifier     resource.CacheIdentifier
-	stepMetadata        StepMetadata
-	session             resource.Session
-	tags                atc.Tags
-	delegate            GetDelegate
-	tracker             resource.Tracker
-	resourceTypes       atc.ResourceTypes
-	containerFailureTTL time.Duration
+	logger          lager.Logger
+	sourceName      SourceName
+	resourceConfig  atc.ResourceConfig
+	version         atc.Version
+	params          atc.Params
+	cacheIdentifier resource.CacheIdentifier
+	stepMetadata    StepMetadata
+	session         resource.Session
+	tags            atc.Tags
+	teamID          int
+	delegate        GetDelegate
+	resourceFetcher resource.Fetcher
+	resourceTypes   atc.ResourceTypes
 
 	repository *SourceRepository
 
-	resource resource.Resource
-
-	versionedSource resource.VersionedSource
+	fetchSource resource.FetchSource
 
 	succeeded bool
+
+	containerSuccessTTL time.Duration
+	containerFailureTTL time.Duration
 }
 
 func newGetStep(
@@ -50,9 +53,11 @@ func newGetStep(
 	stepMetadata StepMetadata,
 	session resource.Session,
 	tags atc.Tags,
+	teamID int,
 	delegate GetDelegate,
-	tracker resource.Tracker,
+	resourceFetcher resource.Fetcher,
 	resourceTypes atc.ResourceTypes,
+	containerSuccessTTL time.Duration,
 	containerFailureTTL time.Duration,
 ) GetStep {
 	return GetStep{
@@ -65,9 +70,11 @@ func newGetStep(
 		stepMetadata:        stepMetadata,
 		session:             session,
 		tags:                tags,
+		teamID:              teamID,
 		delegate:            delegate,
-		tracker:             tracker,
+		resourceFetcher:     resourceFetcher,
 		resourceTypes:       resourceTypes,
+		containerSuccessTTL: containerSuccessTTL,
 		containerFailureTTL: containerFailureTTL,
 	}
 }
@@ -112,94 +119,54 @@ func (step *GetStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	runSession := step.session
 	runSession.ID.Stage = db.ContainerStageRun
 
-	trackedResource, cache, err := step.tracker.InitWithCache(
+	resourceDefinition := &getStepResource{
+		source:       step.resourceConfig.Source,
+		resourceType: resource.ResourceType(step.resourceConfig.Type),
+		delegate:     step.delegate,
+		params:       step.params,
+		version:      step.version,
+	}
+
+	var err error
+	step.fetchSource, err = step.resourceFetcher.Fetch(
 		step.logger,
-		step.stepMetadata,
 		runSession,
-		resource.ResourceType(step.resourceConfig.Type),
 		step.tags,
-		step.cacheIdentifier,
+		step.teamID,
 		step.resourceTypes,
+		step.cacheIdentifier,
+		step.stepMetadata,
 		step.delegate,
+		resourceDefinition,
+		signals,
+		ready,
 	)
+
+	if err, ok := err.(resource.ErrResourceScriptFailed); ok {
+		step.logger.Error("get-run-resource-script-failed", err)
+		step.delegate.Completed(ExitStatus(err.ExitStatus), nil)
+		return nil
+	}
+
 	if err != nil {
-		step.logger.Error("failed-to-initialize-resource", err)
+		step.logger.Error("failed-to-init-with-cache", err)
 		return err
 	}
 
-	step.resource = trackedResource
-
-	step.versionedSource = step.resource.Get(
-		resource.IOConfig{
-			Stdout: step.delegate.Stdout(),
-			Stderr: step.delegate.Stderr(),
-		},
-		step.resourceConfig.Source,
-		step.params,
-		step.version,
-	)
-
-	isInitialized, err := cache.IsInitialized()
-	if err != nil {
-		step.logger.Error("failed-to-check-if-cache-is-initialized", err)
-		return err
-	}
-
-	if isInitialized {
-		step.logger.Debug("cache-already-initialized")
-
-		fmt.Fprintf(step.delegate.Stdout(), "using version of resource found in cache\n")
-		close(ready)
-	} else {
-		step.logger.Debug("cache-not-initialized")
-
-		err = step.versionedSource.Run(signals, ready)
-
-		if err, ok := err.(resource.ErrResourceScriptFailed); ok {
-			step.delegate.Completed(ExitStatus(err.ExitStatus), nil)
-			return nil
-		}
-
-		if err == resource.ErrAborted {
-			return ErrInterrupted
-		}
-
-		if err != nil {
-			step.logger.Error("failed-to-run-get", err)
-			return err
-		}
-
-		err = cache.Initialize()
-		if err != nil {
-			step.logger.Error("failed-to-initialize-cache", err)
-		}
-	}
-
-	step.repository.RegisterSource(step.sourceName, step)
-
-	step.succeeded = true
-	step.delegate.Completed(ExitStatus(0), &VersionInfo{
-		Version:  step.versionedSource.Version(),
-		Metadata: step.versionedSource.Metadata(),
-	})
+	step.registerAndReportResource()
 
 	return nil
 }
 
-// Release releases the resource's container (and thus volumes). If the step
-// failed, they are released with the configured containerFailureTTL.
-// Otherwise, they are released without setting a final TTL, so that the
-// cache's own TTL is respected. This differs from other steps which typically
-// release with the configured containerSuccessTTL.
 func (step *GetStep) Release() {
-	if step.resource == nil {
+	if step.fetchSource == nil {
 		return
 	}
 
 	if step.succeeded {
-		step.resource.Release(nil)
+		step.fetchSource.Release(worker.FinalTTL(step.containerSuccessTTL))
 	} else {
-		step.resource.Release(worker.FinalTTL(step.containerFailureTTL))
+		step.fetchSource.Release(worker.FinalTTL(step.containerFailureTTL))
 	}
 }
 
@@ -218,8 +185,8 @@ func (step *GetStep) Result(x interface{}) bool {
 
 	case *VersionInfo:
 		*v = VersionInfo{
-			Version:  step.versionedSource.Version(),
-			Metadata: step.versionedSource.Metadata(),
+			Version:  step.fetchSource.VersionedSource().Version(),
+			Metadata: step.fetchSource.VersionedSource().Metadata(),
 		}
 		return true
 
@@ -236,7 +203,7 @@ func (step *GetStep) VolumeOn(worker worker.Worker) (worker.Volume, bool, error)
 
 // StreamTo streams the resource's data to the destination.
 func (step *GetStep) StreamTo(destination ArtifactDestination) error {
-	out, err := step.versionedSource.StreamOut(".")
+	out, err := step.fetchSource.VersionedSource().StreamOut(".")
 	if err != nil {
 		return err
 	}
@@ -248,7 +215,7 @@ func (step *GetStep) StreamTo(destination ArtifactDestination) error {
 
 // StreamFile streams a single file out of the resource.
 func (step *GetStep) StreamFile(path string) (io.ReadCloser, error) {
-	out, err := step.versionedSource.StreamOut(path)
+	out, err := step.fetchSource.VersionedSource().StreamOut(path)
 	if err != nil {
 		return nil, err
 	}
@@ -264,4 +231,69 @@ func (step *GetStep) StreamFile(path string) (io.ReadCloser, error) {
 		Reader: tarReader,
 		Closer: out,
 	}, nil
+}
+
+func (step *GetStep) registerAndReportResource() {
+	step.repository.RegisterSource(step.sourceName, step)
+
+	step.succeeded = true
+	step.delegate.Completed(ExitStatus(0), &VersionInfo{
+		Version:  step.fetchSource.VersionedSource().Version(),
+		Metadata: step.fetchSource.VersionedSource().Metadata(),
+	})
+}
+
+type getStepResource struct {
+	delegate     GetDelegate
+	resourceType resource.ResourceType
+	source       atc.Source
+	params       atc.Params
+	version      atc.Version
+}
+
+func (d *getStepResource) IOConfig() resource.IOConfig {
+	return resource.IOConfig{
+		Stdout: d.delegate.Stdout(),
+		Stderr: d.delegate.Stderr(),
+	}
+}
+
+func (d *getStepResource) Source() atc.Source {
+	return d.source
+}
+
+func (d *getStepResource) Params() atc.Params {
+	return d.params
+}
+
+func (d *getStepResource) Version() atc.Version {
+	return d.version
+}
+
+func (d *getStepResource) ResourceType() resource.ResourceType {
+	return d.resourceType
+}
+
+func (d *getStepResource) LockName(workerName string) (string, error) {
+	id := &getStepLeaseID{
+		Type:       d.resourceType,
+		Version:    d.version,
+		Source:     d.source,
+		Params:     d.params,
+		WorkerName: workerName,
+	}
+
+	taskNameJSON, err := json.Marshal(id)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(taskNameJSON)), nil
+}
+
+type getStepLeaseID struct {
+	Type       resource.ResourceType `json:"type"`
+	Version    atc.Version           `json:"version"`
+	Source     atc.Source            `json:"source"`
+	Params     atc.Params            `json:"params"`
+	WorkerName string                `json:"worker_name"`
 }

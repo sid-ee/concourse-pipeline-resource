@@ -3,8 +3,8 @@ package pipelineserver
 import (
 	"net/http"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 )
 
 func (s *Server) DeletePipeline(pipelineDB db.PipelineDB) http.Handler {

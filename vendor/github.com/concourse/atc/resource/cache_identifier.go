@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/worker"
-	"github.com/pivotal-golang/lager"
 )
 
 const reapExtraVolumeTTL = time.Minute
@@ -33,11 +33,13 @@ type ResourceCacheIdentifier struct {
 func (identifier ResourceCacheIdentifier) FindOn(logger lager.Logger, workerClient worker.Client) (worker.Volume, bool, error) {
 	volumes, err := workerClient.ListVolumes(logger, identifier.initializedVolumeProperties())
 	if err != nil {
+		logger.Error("failed-to-list-volumes", err)
 		return nil, false, err
 	}
 
 	switch len(volumes) {
 	case 0:
+		logger.Debug("no-volumes-found")
 		return nil, false, nil
 	case 1:
 		return volumes[0], true, nil
@@ -64,6 +66,7 @@ func (identifier ResourceCacheIdentifier) CreateOn(logger lager.Logger, workerCl
 			Privileged: true,
 			TTL:        ttl,
 		},
+		0,
 	)
 }
 

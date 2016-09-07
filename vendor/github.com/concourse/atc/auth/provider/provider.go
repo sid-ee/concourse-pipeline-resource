@@ -3,7 +3,7 @@ package provider
 import (
 	"net/http"
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
@@ -14,7 +14,7 @@ type Providers map[string]Provider
 //go:generate counterfeiter . Provider
 
 type Provider interface {
-	DisplayName() string
+	PreTokenClient() (*http.Client, error)
 
 	OAuthClient
 	Verifier

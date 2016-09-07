@@ -4,7 +4,7 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/web"
@@ -29,14 +29,18 @@ type TemplateData struct {
 	GroupStates  []group.State
 	Groups       map[string]bool
 	PipelineName string
+	TeamName     string
+	Elm          bool
 }
 
 func (handler *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) error {
 	client := handler.clientFactory.Build(r)
 
 	pipelineName := r.FormValue(":pipeline")
+	teamName := r.FormValue(":team_name")
 
-	pipeline, found, err := client.Pipeline(pipelineName)
+	team := client.Team(teamName)
+	pipeline, found, err := team.Pipeline(pipelineName)
 	if err != nil {
 		handler.logger.Error("failed-to-load-config", err)
 		return err
@@ -51,6 +55,8 @@ func (handler *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) error 
 	for _, group := range pipeline.Groups {
 		groups[group.Name] = false
 	}
+
+	_, isElm := r.URL.Query()["elm"]
 
 	enabledGroups, found := r.URL.Query()["groups"]
 	if !found && len(pipeline.Groups) > 0 {
@@ -67,6 +73,8 @@ func (handler *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) error 
 			return groups[g.Name]
 		}),
 		PipelineName: pipelineName,
+		TeamName:     teamName,
+		Elm:          isElm,
 	}
 
 	log := handler.logger.Session("index")

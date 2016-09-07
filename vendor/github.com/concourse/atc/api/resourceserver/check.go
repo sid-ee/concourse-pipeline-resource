@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/resource"
-	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/rata"
 )
 

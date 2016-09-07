@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 func (s *Server) OrderPipelines(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +17,10 @@ func (s *Server) OrderPipelines(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.pipelinesDB.OrderPipelines(pipelineNames)
+	teamName := r.FormValue(":team_name")
+	teamDB := s.teamDBFactory.GetTeamDB(teamName)
+
+	err := teamDB.OrderPipelines(pipelineNames)
 	if err != nil {
 		s.logger.Error("failed-to-order-pipelines", err, lager.Data{
 			"pipeline-names": pipelineNames,

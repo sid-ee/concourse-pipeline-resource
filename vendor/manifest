@@ -315,7 +315,7 @@
 			"importpath": "github.com/concourse/atc",
 			"repository": "https://github.com/concourse/atc",
 			"vcs": "git",
-			"revision": "82eebae2790d0539107ef047f444a6c6663eebbc",
+			"revision": "c7c12df0a1cb3d4c0e1142afe41df15a377f9818",
 			"branch": "master",
 			"notests": true
 		},

@@ -8,32 +8,35 @@ import (
 	"strings"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
-	"github.com/concourse/atc/config"
 	"github.com/concourse/atc/db/algorithm"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . PipelineDB
 
 type PipelineDB interface {
+	Pipeline() SavedPipeline
 	GetPipelineName() string
 	GetPipelineID() int
 	ScopedName(string) string
+	TeamID() int
+	Config() atc.Config
+	ConfigVersion() ConfigVersion
+
+	Reload() (bool, error)
 
 	Pause() error
 	Unpause() error
 	IsPaused() (bool, error)
+	IsPublic() bool
 	UpdateName(string) error
-
 	Destroy() error
 
-	GetConfig() (atc.Config, ConfigVersion, bool, error)
-
-	LeaseScheduling(lager.Logger, time.Duration) (Lease, bool, error)
+	AcquireSchedulingLock(lager.Logger, time.Duration) (Lock, bool, error)
 
 	GetResource(resourceName string) (SavedResource, bool, error)
-	GetResources() ([]DashboardResource, atc.GroupConfigs, bool, error)
+	GetResources() ([]SavedResource, bool, error)
 	GetResourceType(resourceTypeName string) (SavedResourceType, bool, error)
 	GetResourceVersions(resourceName string, page Page) ([]SavedVersionedResource, Pagination, bool, error)
 
@@ -47,44 +50,50 @@ type PipelineDB interface {
 	EnableVersionedResource(versionedResourceID int) error
 	DisableVersionedResource(versionedResourceID int) error
 	SetResourceCheckError(resource SavedResource, err error) error
-	LeaseResourceChecking(logger lager.Logger, resource string, length time.Duration, immediate bool) (Lease, bool, error)
-	LeaseResourceTypeChecking(logger lager.Logger, resourceType string, length time.Duration, immediate bool) (Lease, bool, error)
+	AcquireResourceCheckingLock(logger lager.Logger, resource SavedResource, length time.Duration, immediate bool) (Lock, bool, error)
+	AcquireResourceTypeCheckingLock(logger lager.Logger, resourceType SavedResourceType, length time.Duration, immediate bool) (Lock, bool, error)
 
-	GetJob(job string) (SavedJob, error)
+	GetJobs() (map[string]SavedJob, error)
+	GetJob(job string) (SavedJob, bool, error)
 	PauseJob(job string) error
 	UnpauseJob(job string) error
+	SetMaxInFlightReached(string, bool) error
 	UpdateFirstLoggedBuildID(job string, newFirstLoggedBuildID int) error
 
-	GetJobFinishedAndNextBuild(job string) (*Build, *Build, error)
+	GetJobFinishedAndNextBuild(job string) (Build, Build, error)
 
 	GetJobBuilds(job string, page Page) ([]Build, Pagination, error)
 	GetAllJobBuilds(job string) ([]Build, error)
 
 	GetJobBuild(job string, build string) (Build, bool, error)
 	CreateJobBuild(job string) (Build, error)
-	CreateJobBuildForCandidateInputs(job string) (Build, bool, error)
-
+	EnsurePendingBuildExists(jobName string) error
+	GetNextPendingBuildForJob(jobName string) (Build, bool, error)
+	GetAllPendingBuilds() (map[string][]Build, error)
 	UseInputsForBuild(buildID int, inputs []BuildInput) error
+	AcquireResourceCheckingForJobLock(logger lager.Logger, jobName string) (Lock, bool, error)
 
 	LoadVersionsDB() (*algorithm.VersionsDB, error)
-	GetNextInputVersions(versions *algorithm.VersionsDB, job string, inputs []config.JobInput) ([]BuildInput, bool, MissingInputReasons, error)
-	GetJobBuildForInputs(job string, inputs []BuildInput) (Build, bool, error)
-	GetNextPendingBuild(job string) (Build, bool, error)
+	GetVersionedResourceByVersion(atcVersion atc.Version, resourceName string) (SavedVersionedResource, bool, error)
+	SaveIndependentInputMapping(inputMapping algorithm.InputMapping, jobName string) error
+	GetIndependentBuildInputs(jobName string) ([]BuildInput, error)
+	SaveNextInputMapping(inputMapping algorithm.InputMapping, jobName string) error
+	GetNextBuildInputs(jobName string) ([]BuildInput, bool, error)
+	DeleteNextInputMapping(jobName string) error
 
-	GetBuild(buildID int) (Build, bool, error)
-	GetCurrentBuild(job string) (Build, bool, error)
 	GetRunningBuildsBySerialGroup(jobName string, serialGroups []string) ([]Build, error)
 	GetNextPendingBuildBySerialGroup(jobName string, serialGroups []string) (Build, bool, error)
 
 	UpdateBuildToScheduled(buildID int) (bool, error)
-	SaveBuildInput(buildID int, input BuildInput) (SavedVersionedResource, error)
-	SaveBuildOutput(buildID int, vr VersionedResource, explicit bool) (SavedVersionedResource, error)
+	SaveInput(buildID int, input BuildInput) (SavedVersionedResource, error)
+	SaveOutput(buildID int, vr VersionedResource, explicit bool) (SavedVersionedResource, error)
 	GetBuildsWithVersionAsInput(versionedResourceID int) ([]Build, error)
 	GetBuildsWithVersionAsOutput(versionedResourceID int) ([]Build, error)
 
-	UpdateBuildPreparation(prep BuildPreparation) error
-
 	GetDashboard() (Dashboard, atc.GroupConfigs, error)
+
+	Expose() error
+	Hide() error
 }
 
 type pipelineDB struct {
@@ -95,7 +104,8 @@ type pipelineDB struct {
 
 	versionsDB *algorithm.VersionsDB
 
-	buildPrepHelper buildPreparationHelper
+	lockFactory  LockFactory
+	buildFactory *buildFactory
 }
 
 type ResourceNotFoundError struct {
@@ -104,6 +114,14 @@ type ResourceNotFoundError struct {
 
 func (e ResourceNotFoundError) Error() string {
 	return fmt.Sprintf("resource '%s' not found", e.Name)
+}
+
+type ResourceTypeNotFoundError struct {
+	Name string
+}
+
+func (e ResourceTypeNotFoundError) Error() string {
+	return fmt.Sprintf("resource type '%s' not found", e.Name)
 }
 
 type FirstLoggedBuildIDDecreasedError struct {
@@ -116,6 +134,10 @@ func (e FirstLoggedBuildIDDecreasedError) Error() string {
 	return fmt.Sprintf("first logged build id for job '%s' decreased from %d to %d", e.Job, e.OldID, e.NewID)
 }
 
+func (pdb *pipelineDB) Pipeline() SavedPipeline {
+	return pdb.SavedPipeline
+}
+
 func (pdb *pipelineDB) GetPipelineName() string {
 	return pdb.Name
 }
@@ -126,6 +148,22 @@ func (pdb *pipelineDB) GetPipelineID() int {
 
 func (pdb *pipelineDB) ScopedName(name string) string {
 	return pdb.Name + ":" + name
+}
+
+func (pdb *pipelineDB) TeamID() int {
+	return pdb.SavedPipeline.TeamID
+}
+
+func (pdb *pipelineDB) Config() atc.Config {
+	return pdb.SavedPipeline.Config
+}
+
+func (pdb *pipelineDB) ConfigVersion() ConfigVersion {
+	return pdb.SavedPipeline.Version
+}
+
+func (pdb *pipelineDB) IsPublic() bool {
+	return pdb.Public
 }
 
 func (pdb *pipelineDB) Unpause() error {
@@ -196,30 +234,25 @@ func (pdb *pipelineDB) Destroy() error {
 	return tx.Commit()
 }
 
-func (pdb *pipelineDB) GetConfig() (atc.Config, ConfigVersion, bool, error) {
-	var configBlob []byte
-	var version int
+func (pdb *pipelineDB) Reload() (bool, error) {
+	row := pdb.conn.QueryRow(`
+		SELECT `+pipelineColumns+`
+		FROM pipelines p
+		INNER JOIN teams t ON t.id = p.team_id
+		WHERE p.id = $1
+	`, pdb.ID)
 
-	err := pdb.conn.QueryRow(`
-			SELECT config, version
-			FROM pipelines
-			WHERE id = $1
-		`, pdb.ID).Scan(&configBlob, &version)
+	savedPipeline, err := scanPipeline(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return atc.Config{}, 0, false, nil
+			return false, nil
 		}
-
-		return atc.Config{}, 0, false, err
+		return false, err
 	}
 
-	var config atc.Config
-	err = json.Unmarshal(configBlob, &config)
-	if err != nil {
-		return atc.Config{}, 0, false, err
-	}
+	pdb.SavedPipeline = savedPipeline
 
-	return config, ConfigVersion(version), true, nil
+	return true, nil
 }
 
 func (pdb *pipelineDB) GetResource(resourceName string) (SavedResource, bool, error) {
@@ -243,217 +276,266 @@ func (pdb *pipelineDB) GetResource(resourceName string) (SavedResource, bool, er
 	return resource, found, nil
 }
 
-func (pdb *pipelineDB) GetResources() ([]DashboardResource, atc.GroupConfigs, bool, error) {
+func (pdb *pipelineDB) GetResources() ([]SavedResource, bool, error) {
 	rows, err := pdb.conn.Query(`
-			SELECT id, name, check_error, paused
+			SELECT id, name, config, check_error, paused
 			FROM resources
 			WHERE pipeline_id = $1
+				AND active = true
 		`, pdb.ID)
 
 	if err != nil {
-		return nil, nil, false, err
+		return nil, false, err
 	}
 
 	defer rows.Close()
 
-	savedResources := map[string]SavedResource{}
+	savedResources := []SavedResource{}
 
 	for rows.Next() {
-		savedResource := SavedResource{PipelineName: pdb.Name}
-		var checkErr sql.NullString
-		err := rows.Scan(&savedResource.ID, &savedResource.Name, &checkErr, &savedResource.Paused)
+		savedResource, found, err := pdb.scanResource(rows)
 		if err != nil {
-			return nil, nil, false, err
+			return nil, false, err
 		}
 
-		if checkErr.Valid {
-			savedResource.CheckError = errors.New(checkErr.String)
-		}
-		savedResources[savedResource.Name] = savedResource
-	}
-
-	pipelineConfig, _, found, err := pdb.GetConfig()
-	if err != nil {
-		return nil, nil, false, err
-	}
-
-	if !found {
-		return nil, nil, false, nil
-	}
-	resourceConfigs := pipelineConfig.Resources
-	var dashboardResources []DashboardResource
-
-	for _, resourceConfig := range resourceConfigs {
-		savedResource, found := savedResources[resourceConfig.Name]
 		if !found {
-			return nil, nil, false, fmt.Errorf("found resource in pipeline configuration but not in database: %s", resourceConfig.Name)
+			return nil, false, errors.New("resource-not-found")
 		}
-		dashboardResources = append(dashboardResources, DashboardResource{
-			Resource:       savedResource,
-			ResourceConfig: resourceConfig,
-		})
+
+		savedResources = append(savedResources, savedResource)
 	}
 
-	return dashboardResources, pipelineConfig.Groups, true, nil
+	return savedResources, true, nil
 }
 
-func (pdb *pipelineDB) LeaseResourceChecking(logger lager.Logger, resourceName string, interval time.Duration, immediate bool) (Lease, bool, error) {
-	logger = logger.Session("lease", lager.Data{
-		"resource": resourceName,
-	})
-
-	lease := &lease{
-		conn:   pdb.conn,
-		logger: logger,
-		attemptSignFunc: func(tx Tx) (sql.Result, error) {
-			params := []interface{}{resourceName, pdb.ID}
-
-			condition := ""
-			if immediate {
-				condition = "NOT checking"
-			} else {
-				condition = "now() - last_checked > ($3 || ' SECONDS')::INTERVAL"
-				params = append(params, interval.Seconds())
-			}
-
-			return tx.Exec(`
-				UPDATE resources
-				SET last_checked = now(), checking = true
-				WHERE name = $1
-					AND pipeline_id = $2
-					AND `+condition, params...)
-		},
-		heartbeatFunc: func(tx Tx) (sql.Result, error) {
-			return tx.Exec(`
-				UPDATE resources
-				SET last_checked = now()
-				WHERE name = $1
-					AND pipeline_id = $2
-			`, resourceName, pdb.ID)
-		},
-		breakFunc: func() {
-			_, err := pdb.conn.Exec(`
-				UPDATE resources
-				SET checking = false
-				WHERE name = $1
-				  AND pipeline_id = $2
-			`, resourceName, pdb.ID)
-			if err != nil {
-				logger.Error("failed-to-reset-checking-state", err)
-			}
-		},
-	}
-
-	renewed, err := lease.AttemptSign(interval)
+func (pdb *pipelineDB) AcquireResourceCheckingLock(logger lager.Logger, resource SavedResource, interval time.Duration, immediate bool) (Lock, bool, error) {
+	tx, err := pdb.conn.Begin()
 	if err != nil {
 		return nil, false, err
 	}
 
-	if !renewed {
-		return nil, renewed, nil
+	defer tx.Rollback()
+
+	params := []interface{}{resource.Name, pdb.ID}
+
+	condition := ""
+	if !immediate {
+		condition = "AND now() - last_checked > ($3 || ' SECONDS')::INTERVAL"
+		params = append(params, interval.Seconds())
 	}
 
-	lease.KeepSigned(interval)
-
-	return lease, true, nil
-}
-
-func (pdb *pipelineDB) LeaseResourceTypeChecking(logger lager.Logger, resourceTypeName string, interval time.Duration, immediate bool) (Lease, bool, error) {
-	logger = logger.Session("lease", lager.Data{
-		"resource-type": resourceTypeName,
-	})
-
-	lease := &lease{
-		conn:   pdb.conn,
-		logger: logger,
-		attemptSignFunc: func(tx Tx) (sql.Result, error) {
-			params := []interface{}{resourceTypeName, pdb.ID}
-
-			condition := ""
-			if immediate {
-				condition = "NOT checking"
-			} else {
-				condition = "now() - last_checked > ($3 || ' SECONDS')::INTERVAL"
-				params = append(params, interval.Seconds())
-			}
-
-			return tx.Exec(`
-				UPDATE resource_types
-				SET last_checked = now(), checking = true
-				WHERE name = $1
-					AND pipeline_id = $2
-					AND `+condition, params...)
-		},
-		heartbeatFunc: func(tx Tx) (sql.Result, error) {
-			return tx.Exec(`
-				UPDATE resource_types
-				SET last_checked = now()
-				WHERE name = $1
-					AND pipeline_id = $2
-			`, resourceTypeName, pdb.ID)
-		},
-		breakFunc: func() {
-			_, err := pdb.conn.Exec(`
-				UPDATE resource_types
-				SET checking = false
-				WHERE name = $1
-				  AND pipeline_id = $2
-			`, resourceTypeName, pdb.ID)
-			if err != nil {
-				logger.Error("failed-to-reset-checking-state", err)
-			}
-		},
-	}
-
-	renewed, err := lease.AttemptSign(interval)
+	updated, err := checkIfRowsUpdated(tx, `
+		UPDATE resources
+		SET last_checked = now()
+		WHERE name = $1
+			AND pipeline_id = $2
+	`+condition, params...)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if !renewed {
-		return nil, renewed, nil
+	if !updated {
+		return nil, false, nil
 	}
 
-	lease.KeepSigned(interval)
+	lock := pdb.lockFactory.NewLock(
+		logger.Session("lock", lager.Data{
+			"resource": resource.Name,
+		}),
+		resourceCheckingLockID(resource.ID),
+	)
 
-	return lease, true, nil
+	acquired, err := lock.Acquire()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !acquired {
+		return nil, false, nil
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		lock.Release()
+		return nil, false, err
+	}
+
+	return lock, true, nil
 }
 
-func (pdb *pipelineDB) LeaseScheduling(logger lager.Logger, interval time.Duration) (Lease, bool, error) {
-	lease := &lease{
-		conn: pdb.conn,
-		logger: logger.Session("lease", lager.Data{
+func (pdb *pipelineDB) AcquireResourceTypeCheckingLock(logger lager.Logger, resourceType SavedResourceType, interval time.Duration, immediate bool) (Lock, bool, error) {
+	tx, err := pdb.conn.Begin()
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer tx.Rollback()
+
+	params := []interface{}{resourceType.Name, pdb.ID}
+
+	condition := ""
+	if !immediate {
+		condition = "AND now() - last_checked > ($3 || ' SECONDS')::INTERVAL"
+		params = append(params, interval.Seconds())
+	}
+
+	updated, err := checkIfRowsUpdated(tx, `
+		UPDATE resource_types
+		SET last_checked = now()
+		WHERE name = $1
+			AND pipeline_id = $2
+	`+condition, params...)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !updated {
+		return nil, false, nil
+	}
+
+	lock := pdb.lockFactory.NewLock(
+		logger.Session("lock", lager.Data{
+			"resource-type": resourceType.Name,
+		}),
+		resourceTypeCheckingLockID(resourceType.ID),
+	)
+
+	acquired, err := lock.Acquire()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !acquired {
+		return nil, false, nil
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		lock.Release()
+		return nil, false, err
+	}
+
+	return lock, true, nil
+}
+
+func (pdb *pipelineDB) AcquireSchedulingLock(logger lager.Logger, interval time.Duration) (Lock, bool, error) {
+	tx, err := pdb.conn.Begin()
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer tx.Rollback()
+
+	updated, err := checkIfRowsUpdated(tx, `
+		UPDATE pipelines
+		SET last_scheduled = now()
+		WHERE id = $1
+			AND now() - last_scheduled > ($2 || ' SECONDS')::INTERVAL
+	`, pdb.ID, interval.Seconds())
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !updated {
+		return nil, false, nil
+	}
+
+	lock := pdb.lockFactory.NewLock(
+		logger.Session("lock", lager.Data{
 			"pipeline": pdb.Name,
 		}),
-		attemptSignFunc: func(tx Tx) (sql.Result, error) {
-			return tx.Exec(`
-				UPDATE pipelines
-				SET last_scheduled = now()
-				WHERE id = $1
-					AND now() - last_scheduled > ($2 || ' SECONDS')::INTERVAL
-			`, pdb.ID, interval.Seconds())
-		},
-		heartbeatFunc: func(tx Tx) (sql.Result, error) {
-			return tx.Exec(`
-				UPDATE pipelines
-				SET last_scheduled = now()
-				WHERE id = $1
-			`, pdb.ID)
-		},
-	}
+		pipelineSchedulingLockLockID(pdb.ID),
+	)
 
-	renewed, err := lease.AttemptSign(interval)
+	acquired, err := lock.Acquire()
 	if err != nil {
 		return nil, false, err
 	}
 
-	if !renewed {
-		return nil, renewed, nil
+	if !acquired {
+		return nil, false, nil
 	}
 
-	lease.KeepSigned(interval)
+	err = tx.Commit()
+	if err != nil {
+		lock.Release()
+		return nil, false, err
+	}
 
-	return lease, true, nil
+	return lock, true, nil
+}
+
+func (pdb *pipelineDB) AcquireResourceCheckingForJobLock(logger lager.Logger, jobName string) (Lock, bool, error) {
+	tx, err := pdb.conn.Begin()
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer tx.Rollback()
+
+	savedJob, err := pdb.getJob(tx, jobName)
+	if err != nil {
+		return nil, false, err
+	}
+
+	lock := pdb.lockFactory.NewLock(
+		logger.Session("lock", lager.Data{
+			"job_name": jobName,
+		}),
+		resourceCheckingForJobLockID(savedJob.ID),
+	)
+
+	lock.AfterRelease(func() error {
+		_, err := pdb.conn.Exec(`
+			UPDATE jobs
+			SET resource_checking = false
+			WHERE name = $1
+				AND pipeline_id = $2
+		`, jobName, pdb.ID)
+		return err
+	})
+
+	acquired, err := lock.Acquire()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !acquired {
+		return nil, false, nil
+	}
+
+	var resourceCheckWaiverEnd int
+	err = tx.QueryRow(`
+		SELECT COALESCE(MAX(b.id), 0)
+			FROM builds b
+			JOIN jobs j ON b.job_id = j.id
+			WHERE j.name = $1
+				AND j.pipeline_id = $2
+	`, jobName, pdb.ID).Scan(&resourceCheckWaiverEnd)
+	if err != nil {
+		lock.Release()
+		return nil, false, err
+	}
+
+	_, err = tx.Exec(`
+		UPDATE jobs
+		SET resource_check_waiver_end = $3,
+			resource_checking = true
+		WHERE name = $1
+			AND pipeline_id = $2
+	`, jobName, pdb.ID, resourceCheckWaiverEnd)
+	if err != nil {
+		lock.Release()
+		return nil, false, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		lock.Release()
+		return nil, false, err
+	}
+
+	return lock, true, nil
 }
 
 func (pdb *pipelineDB) GetResourceVersions(resourceName string, page Page) ([]SavedVersionedResource, Pagination, bool, error) {
@@ -585,15 +667,21 @@ func (pdb *pipelineDB) GetResourceVersions(resourceName string, page Page) ([]Sa
 }
 
 func (pdb *pipelineDB) getResource(tx Tx, name string) (SavedResource, bool, error) {
-	var checkErr sql.NullString
-	var resource SavedResource
-
-	err := tx.QueryRow(`
-			SELECT id, name, check_error, paused
+	return pdb.scanResource(tx.QueryRow(`
+			SELECT id, name, config, check_error, paused
 			FROM resources
 			WHERE name = $1
 				AND pipeline_id = $2
-		`, name, pdb.ID).Scan(&resource.ID, &resource.Name, &checkErr, &resource.Paused)
+				AND active = true
+		`, name, pdb.ID))
+}
+
+func (pdb *pipelineDB) scanResource(row scannable) (SavedResource, bool, error) {
+	var checkErr sql.NullString
+	var resource SavedResource
+	var configBlob []byte
+
+	err := row.Scan(&resource.ID, &resource.Name, &configBlob, &checkErr, &resource.Paused)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return SavedResource{}, false, nil
@@ -603,6 +691,13 @@ func (pdb *pipelineDB) getResource(tx Tx, name string) (SavedResource, bool, err
 	}
 
 	resource.PipelineName = pdb.GetPipelineName()
+
+	var config atc.ResourceConfig
+	err = json.Unmarshal(configBlob, &config)
+	if err != nil {
+		return SavedResource{}, false, err
+	}
+	resource.Config = config
 
 	if checkErr.Valid {
 		resource.CheckError = errors.New(checkErr.String)
@@ -634,13 +729,15 @@ func (pdb *pipelineDB) GetResourceType(name string) (SavedResourceType, bool, er
 
 func (pdb *pipelineDB) getResourceType(tx Tx, name string) (SavedResourceType, bool, error) {
 	var savedResourceType SavedResourceType
-	var versionJSON interface{}
+	var versionJSON []byte
+	var configBlob []byte
 	err := tx.QueryRow(`
-			SELECT id, name, type, version
+			SELECT id, name, type, version, config
 			FROM resource_types
 			WHERE name = $1
 				AND pipeline_id = $2
-		`, name, pdb.ID).Scan(&savedResourceType.ID, &savedResourceType.Name, &savedResourceType.Type, &versionJSON)
+				AND active = true
+		`, name, pdb.ID).Scan(&savedResourceType.ID, &savedResourceType.Name, &savedResourceType.Type, &versionJSON, &configBlob)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return SavedResourceType{}, false, nil
@@ -648,12 +745,17 @@ func (pdb *pipelineDB) getResourceType(tx Tx, name string) (SavedResourceType, b
 		return SavedResourceType{}, false, err
 	}
 
+	var config atc.ResourceType
+	err = json.Unmarshal(configBlob, &config)
+	if err != nil {
+		return SavedResourceType{}, false, err
+	}
+	savedResourceType.Config = config
+
 	if versionJSON != nil {
-		if version, ok := versionJSON.([]byte); ok {
-			err = json.Unmarshal(version, &savedResourceType.Version)
-			if err != nil {
-				return SavedResourceType{}, false, err
-			}
+		err := json.Unmarshal(versionJSON, &savedResourceType.Version)
+		if err != nil {
+			return SavedResourceType{}, false, err
 		}
 	}
 
@@ -773,6 +875,7 @@ func (pdb *pipelineDB) SaveResourceTypeVersion(resourceType atc.ResourceType, ve
 		WHERE name = $2
 		AND type = $3
 		AND pipeline_id = $4
+		AND active = true
 	`, string(versionJSON), resourceType.Name, resourceType.Type, pdb.ID)
 	if err != nil {
 		return err
@@ -816,7 +919,8 @@ func (pdb *pipelineDB) GetLatestEnabledVersionedResource(resourceName string) (S
 
 	svr := SavedVersionedResource{
 		VersionedResource: VersionedResource{
-			Resource: resourceName,
+			Resource:   resourceName,
+			PipelineID: pdb.GetPipelineID(),
 		},
 	}
 
@@ -856,7 +960,8 @@ func (pdb *pipelineDB) GetLatestVersionedResource(resourceName string) (SavedVer
 
 	svr := SavedVersionedResource{
 		VersionedResource: VersionedResource{
-			Resource: resourceName,
+			Resource:   resourceName,
+			PipelineID: pdb.ID,
 		},
 	}
 
@@ -1023,102 +1128,62 @@ func (pdb *pipelineDB) saveVersionedResource(tx Tx, savedResource SavedResource,
 	}, created, nil
 }
 
-func (pdb *pipelineDB) GetJob(jobName string) (SavedJob, error) {
+func (pdb *pipelineDB) GetJob(jobName string) (SavedJob, bool, error) {
 	tx, err := pdb.conn.Begin()
 	if err != nil {
-		return SavedJob{}, err
+		return SavedJob{}, false, err
 	}
 
 	defer tx.Rollback()
 
 	dbJob, err := pdb.getJob(tx, jobName)
 	if err != nil {
-		return SavedJob{}, err
+		if err == sql.ErrNoRows {
+			return SavedJob{}, false, nil
+		}
+		return SavedJob{}, false, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return SavedJob{}, err
+		return SavedJob{}, false, err
 	}
 
-	return dbJob, nil
+	return dbJob, true, nil
 }
 
 func (pdb *pipelineDB) GetJobBuild(job string, name string) (Build, bool, error) {
 	tx, err := pdb.conn.Begin()
 	if err != nil {
-		return Build{}, false, err
+		return nil, false, err
 	}
 
 	defer tx.Rollback()
 
 	dbJob, err := pdb.getJob(tx, job)
 	if err != nil {
-		return Build{}, false, err
+		return nil, false, err
 	}
 
-	build, found, err := scanBuild(tx.QueryRow(`
+	build, found, err := pdb.buildFactory.ScanBuild(tx.QueryRow(`
 		SELECT `+qualifiedBuildColumns+`
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		WHERE b.job_id = $1
 		AND b.name = $2
 	`, dbJob.ID, name))
 	if err != nil {
-		return Build{}, false, err
+		return nil, false, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return Build{}, false, err
+		return nil, false, err
 	}
 
 	return build, found, nil
-}
-
-func (pdb *pipelineDB) CreateJobBuildForCandidateInputs(jobName string) (Build, bool, error) {
-	tx, err := pdb.conn.Begin()
-	if err != nil {
-		return Build{}, false, err
-	}
-
-	defer tx.Rollback()
-
-	var x int
-	err = tx.QueryRow(`
-		SELECT 1
-		FROM builds b
-			INNER JOIN jobs j ON b.job_id = j.id
-			INNER JOIN pipelines p ON j.pipeline_id = p.id
-		WHERE j.name = $1
-			AND p.id = $2
-			AND b.inputs_determined = false
-			AND b.status IN ('pending', 'started')
-	`, jobName, pdb.ID).Scan(&x)
-
-	if err == sql.ErrNoRows {
-		build, err := pdb.createJobBuild(jobName, tx)
-		if err != nil {
-			return Build{}, false, err
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			return Build{}, false, err
-		}
-
-		return build, true, nil
-	} else if err != nil {
-		return Build{}, false, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return Build{}, false, err
-	}
-
-	return Build{}, false, nil
 }
 
 func (pdb *pipelineDB) UseInputsForBuild(buildID int, inputs []BuildInput) error {
@@ -1129,7 +1194,7 @@ func (pdb *pipelineDB) UseInputsForBuild(buildID int, inputs []BuildInput) error
 
 	defer tx.Rollback()
 
-	result, err := tx.Exec(`
+	_, err = tx.Exec(`
 		DELETE FROM build_inputs
 		WHERE build_id = $1
 	`, buildID)
@@ -1144,107 +1209,113 @@ func (pdb *pipelineDB) UseInputsForBuild(buildID int, inputs []BuildInput) error
 		}
 	}
 
-	result, err = tx.Exec(`
-		UPDATE builds b
-		SET inputs_determined = true
-		WHERE b.id = $1
-	`, buildID)
-	if err != nil {
-		return err
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rows != 1 {
-		return errors.New("multiple rows affected but expected only one when determining inputs")
-	}
-
 	return tx.Commit()
 }
 
 func (pdb *pipelineDB) CreateJobBuild(jobName string) (Build, error) {
 	tx, err := pdb.conn.Begin()
 	if err != nil {
-		return Build{}, err
+		return nil, err
 	}
 
 	defer tx.Rollback()
 
-	build, err := pdb.createJobBuild(jobName, tx)
+	buildName, jobID, err := getNewBuildNameForJob(tx, jobName, pdb.ID)
 	if err != nil {
-		return Build{}, err
+		return nil, err
+	}
+
+	// We had to resort to sub-selects here because you can't paramaterize a
+	// RETURNING statement in lib/pq... sorry
+	build, _, err := pdb.buildFactory.ScanBuild(tx.QueryRow(`
+		INSERT INTO builds (name, job_id, team_id, status)
+		VALUES ($1, $2, $3, 'pending')
+		RETURNING `+buildColumns+`,
+			(SELECT name FROM jobs WHERE id = $2),
+			(SELECT id FROM pipelines WHERE id = $4),
+			(SELECT name FROM pipelines WHERE id = $4),
+			(SELECT name FROM teams WHERE id = $3)
+	`, buildName, jobID, pdb.SavedPipeline.TeamID, pdb.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	err = createBuildEventSeq(tx, build.ID())
+	if err != nil {
+		return nil, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return Build{}, err
+		return nil, err
 	}
 
 	return build, nil
 }
 
-func (pdb *pipelineDB) createJobBuild(jobName string, tx Tx) (Build, error) {
-	dbJob, err := pdb.getJob(tx, jobName)
+func (pdb *pipelineDB) EnsurePendingBuildExists(jobName string) error {
+	tx, err := pdb.conn.Begin()
 	if err != nil {
-		return Build{}, err
+		return err
 	}
 
-	var name string
+	defer tx.Rollback()
 
-	err = tx.QueryRow(`
+	buildName, jobID, err := getNewBuildNameForJob(tx, jobName, pdb.ID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := tx.Query(`
+		INSERT INTO builds (name, job_id, team_id, status)
+		SELECT $1, $2, $3, 'pending'
+		WHERE NOT EXISTS
+			(SELECT id FROM builds WHERE job_id = $2 AND status = 'pending')
+		RETURNING id
+	`, buildName, jobID, pdb.SavedPipeline.TeamID)
+	if err != nil {
+		return err
+	}
+
+	defer rows.Close()
+
+	if rows.Next() {
+		var buildID int
+		err := rows.Scan(&buildID)
+		if err != nil {
+			return err
+		}
+
+		rows.Close()
+
+		err = createBuildEventSeq(tx, buildID)
+		if err != nil {
+			return err
+		}
+
+		return tx.Commit()
+	}
+
+	return nil
+}
+
+func getNewBuildNameForJob(tx Tx, jobName string, pipelineID int) (string, int, error) {
+	var buildName string
+	var jobID int
+	err := tx.QueryRow(`
 		UPDATE jobs
 		SET build_number_seq = build_number_seq + 1
-		WHERE id = $1
-		RETURNING build_number_seq
-	`, dbJob.ID).Scan(&name)
-	if err != nil {
-		return Build{}, err
-	}
+		WHERE name = $1 AND pipeline_id = $2
+		RETURNING build_number_seq, id
+	`, jobName, pipelineID).Scan(&buildName, &jobID)
+	return buildName, jobID, err
+}
 
-	// We had to resort to sub-selects here because you can't paramaterize a
-	// RETURNING statement in lib/pq... sorry
-
-	build, _, err := scanBuild(tx.QueryRow(`
-		INSERT INTO builds (name, job_id, status)
-		VALUES ($1, $2, 'pending')
-		RETURNING `+buildColumns+`,
-			(
-				SELECT j.name
-				FROM jobs j
-				WHERE j.id = job_id
-			),
-			(
-				SELECT j.pipeline_id
-				FROM jobs j
-				WHERE j.id = job_id
-			),
-			(
-				SELECT p.name
-				FROM jobs j
-				INNER JOIN pipelines p ON j.pipeline_id = p.id
-				WHERE j.id = job_id
-			)
-	`, name, dbJob.ID))
-	if err != nil {
-		return Build{}, err
-	}
-
-	_, err = tx.Exec(fmt.Sprintf(`
+func createBuildEventSeq(tx Tx, buildID int) error {
+	_, err := tx.Exec(fmt.Sprintf(`
 		CREATE SEQUENCE %s MINVALUE 0
-	`, buildEventSeq(build.ID)))
-	if err != nil {
-		return Build{}, err
-	}
-
-	err = pdb.buildPrepHelper.CreateBuildPreparation(tx, build.ID)
-	if err != nil {
-		return Build{}, err
-	}
-
-	return build, nil
+	`, buildEventSeq(buildID)))
+	return err
 }
 
 func (pdb *pipelineDB) GetBuildsWithVersionAsInput(versionedResourceID int) ([]Build, error) {
@@ -1253,6 +1324,7 @@ func (pdb *pipelineDB) GetBuildsWithVersionAsInput(versionedResourceID int) ([]B
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		INNER JOIN build_inputs bi ON bi.build_id = b.id
 		WHERE bi.versioned_resource_id = $1
 	`, versionedResourceID)
@@ -1263,11 +1335,10 @@ func (pdb *pipelineDB) GetBuildsWithVersionAsInput(versionedResourceID int) ([]B
 
 	builds := []Build{}
 	for rows.Next() {
-		build, _, err := scanBuild(rows)
+		build, _, err := pdb.buildFactory.ScanBuild(rows)
 		if err != nil {
 			return nil, err
 		}
-
 		builds = append(builds, build)
 	}
 
@@ -1280,6 +1351,7 @@ func (pdb *pipelineDB) GetBuildsWithVersionAsOutput(versionedResourceID int) ([]
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		INNER JOIN build_outputs bo ON bo.build_id = b.id
 		WHERE bo.versioned_resource_id = $1
 	`, versionedResourceID)
@@ -1290,7 +1362,7 @@ func (pdb *pipelineDB) GetBuildsWithVersionAsOutput(versionedResourceID int) ([]
 
 	builds := []Build{}
 	for rows.Next() {
-		build, _, err := scanBuild(rows)
+		build, _, err := pdb.buildFactory.ScanBuild(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -1301,7 +1373,7 @@ func (pdb *pipelineDB) GetBuildsWithVersionAsOutput(versionedResourceID int) ([]
 	return builds, err
 }
 
-func (pdb *pipelineDB) SaveBuildInput(buildID int, input BuildInput) (SavedVersionedResource, error) {
+func (pdb *pipelineDB) SaveInput(buildID int, input BuildInput) (SavedVersionedResource, error) {
 	tx, err := pdb.conn.Begin()
 	if err != nil {
 		return SavedVersionedResource{}, err
@@ -1358,7 +1430,7 @@ func (pdb *pipelineDB) saveBuildInput(tx Tx, buildID int, input BuildInput) (Sav
 	return svr, nil
 }
 
-func (pdb *pipelineDB) SaveBuildOutput(buildID int, vr VersionedResource, explicit bool) (SavedVersionedResource, error) {
+func (pdb *pipelineDB) SaveOutput(buildID int, vr VersionedResource, explicit bool) (SavedVersionedResource, error) {
 	tx, err := pdb.conn.Begin()
 	if err != nil {
 		return SavedVersionedResource{}, err
@@ -1408,114 +1480,78 @@ func (pdb *pipelineDB) SaveBuildOutput(buildID int, vr VersionedResource, explic
 	return svr, nil
 }
 
-func (pdb *pipelineDB) GetJobBuildForInputs(job string, inputs []BuildInput) (Build, bool, error) {
+func (pdb *pipelineDB) GetNextPendingBuildForJob(jobName string) (Build, bool, error) {
 	tx, err := pdb.conn.Begin()
 	if err != nil {
-		return Build{}, false, err
+		return nil, false, err
 	}
 
 	defer tx.Rollback()
 
-	dbJob, err := pdb.getJob(tx, job)
+	dbJob, err := pdb.getJob(tx, jobName)
 	if err != nil {
-		return Build{}, false, err
+		return nil, false, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return Build{}, false, err
+		return nil, false, err
 	}
 
-	from := []string{"builds b"}
-	from = append(from, "jobs j")
-	from = append(from, "pipelines p")
-	conditions := []string{"job_id = $1"}
-	conditions = append(conditions, "b.job_id = j.id")
-	conditions = append(conditions, "j.pipeline_id = p.id")
-	params := []interface{}{dbJob.ID}
-
-	for i, input := range inputs {
-		vr := input.VersionedResource
-		dbResource, found, err := pdb.GetResource(vr.Resource)
-		if err != nil {
-			return Build{}, false, err
-		}
-
-		if !found {
-			return Build{}, false, ResourceNotFoundError{Name: vr.Resource}
-		}
-
-		versionBytes, err := json.Marshal(vr.Version)
-		if err != nil {
-			return Build{}, false, err
-		}
-
-		var id int
-
-		err = pdb.conn.QueryRow(`
-			SELECT id
-			FROM versioned_resources
-			WHERE resource_id = $1
-			AND type = $2
-			AND version = $3
-		`, dbResource.ID, vr.Type, string(versionBytes)).Scan(&id)
-		if err == sql.ErrNoRows {
-			return Build{}, false, nil
-		}
-
-		if err != nil {
-			return Build{}, false, err
-		}
-
-		from = append(from, fmt.Sprintf("build_inputs i%d", i+1))
-		params = append(params, id, input.Name)
-
-		conditions = append(conditions,
-			fmt.Sprintf("i%d.build_id = b.id", i+1),
-			fmt.Sprintf("i%d.versioned_resource_id = $%d", i+1, len(params)-1),
-			fmt.Sprintf("i%d.name = $%d", i+1, len(params)),
-		)
-	}
-
-	return scanBuild(pdb.conn.QueryRow(fmt.Sprintf(`
-		SELECT `+qualifiedBuildColumns+`
-		FROM %s
-		WHERE %s
-		`,
-		strings.Join(from, ", "),
-		strings.Join(conditions, "\nAND ")),
-		params...,
-	))
-}
-
-func (pdb *pipelineDB) GetNextPendingBuild(job string) (Build, bool, error) {
-	tx, err := pdb.conn.Begin()
-	if err != nil {
-		return Build{}, false, err
-	}
-
-	defer tx.Rollback()
-
-	dbJob, err := pdb.getJob(tx, job)
-	if err != nil {
-		return Build{}, false, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return Build{}, false, err
-	}
-
-	return scanBuild(pdb.conn.QueryRow(`
+	return pdb.buildFactory.ScanBuild(pdb.conn.QueryRow(`
 		SELECT `+qualifiedBuildColumns+`
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		WHERE b.job_id = $1
 		AND b.status = 'pending'
+		AND (
+			b.id <= j.resource_check_waiver_end
+			OR j.resource_checking = false
+		)
 		ORDER BY b.id ASC
 		LIMIT 1
 	`, dbJob.ID))
+}
+
+func (pdb *pipelineDB) GetAllPendingBuilds() (map[string][]Build, error) {
+	builds := map[string][]Build{}
+
+	rows, err := pdb.conn.Query(`
+		SELECT b.id, b.name, b.job_id, b.team_id, b.status, b.scheduled, b.engine, b.engine_metadata, b.start_time, b.end_time, b.reap_time, j.name as job_name, p.id as pipeline_id, p.name as pipeline_name, t.name as team_name
+		FROM builds b
+		JOIN jobs j ON b.job_id = j.id
+		JOIN pipelines p ON j.pipeline_id = p.id
+		JOIN teams t ON b.team_id = t.id
+		WHERE b.status = 'pending'
+		AND j.active = true
+		AND p.id = $1
+		AND (
+			b.id <= j.resource_check_waiver_end
+			OR j.resource_checking = false
+	  )
+	  ORDER BY b.id
+	`, pdb.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		build, found, err := pdb.buildFactory.ScanBuild(rows)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			continue
+		}
+
+		builds[build.JobName()] = append(builds[build.JobName()], build)
+	}
+
+	return builds, nil
 }
 
 func (pdb *pipelineDB) updateSerialGroupsForJob(jobName string, serialGroups []string) error {
@@ -1563,15 +1599,16 @@ func (pdb *pipelineDB) GetNextPendingBuildBySerialGroup(jobName string, serialGr
 		refs[i] = fmt.Sprintf("$%d", i+2)
 	}
 
-	return scanBuild(pdb.conn.QueryRow(`
+	return pdb.buildFactory.ScanBuild(pdb.conn.QueryRow(`
 		SELECT DISTINCT `+qualifiedBuildColumns+`
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		INNER JOIN jobs_serial_groups jsg ON j.id = jsg.job_id
 				AND jsg.serial_group IN (`+strings.Join(refs, ",")+`)
 		WHERE b.status = 'pending'
-			AND b.inputs_determined = true
+			AND j.inputs_determined = true
 			AND j.pipeline_id = $1
 		ORDER BY b.id ASC
 		LIMIT 1
@@ -1594,6 +1631,7 @@ func (pdb *pipelineDB) GetRunningBuildsBySerialGroup(jobName string, serialGroup
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		INNER JOIN jobs_serial_groups jsg ON j.id = jsg.job_id
 				AND jsg.serial_group IN (`+strings.Join(refs, ",")+`)
 		WHERE (
@@ -1613,7 +1651,7 @@ func (pdb *pipelineDB) GetRunningBuildsBySerialGroup(jobName string, serialGroup
 	bs := []Build{}
 
 	for rows.Next() {
-		build, _, err := scanBuild(rows)
+		build, _, err := pdb.buildFactory.ScanBuild(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -1622,32 +1660,6 @@ func (pdb *pipelineDB) GetRunningBuildsBySerialGroup(jobName string, serialGroup
 	}
 
 	return bs, nil
-}
-
-func (pdb *pipelineDB) GetBuild(buildID int) (Build, bool, error) {
-	return scanBuild(pdb.conn.QueryRow(`
-		SELECT `+qualifiedBuildColumns+`
-		FROM builds b
-		INNER JOIN jobs j ON b.job_id = j.id
-		INNER JOIN pipelines p ON j.pipeline_id = p.id
-		WHERE b.id = $1
-	`, buildID))
-}
-
-func (pdb *pipelineDB) UpdateBuildPreparation(prep BuildPreparation) error {
-	tx, err := pdb.conn.Begin()
-	if err != nil {
-		return err
-	}
-
-	defer tx.Rollback()
-
-	err = pdb.buildPrepHelper.UpdateBuildPreparation(tx, prep)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
 }
 
 func (pdb *pipelineDB) IsPaused() (bool, error) {
@@ -1682,52 +1694,6 @@ func (pdb *pipelineDB) UpdateBuildToScheduled(buildID int) (bool, error) {
 	}
 
 	return rows == 1, nil
-}
-
-func (pdb *pipelineDB) GetCurrentBuild(job string) (Build, bool, error) {
-	rows, err := pdb.conn.Query(`
-		SELECT `+qualifiedBuildColumns+`
-		FROM builds b
-		INNER JOIN jobs j ON b.job_id = j.id
-		INNER JOIN pipelines p ON j.pipeline_id = p.id
-		WHERE j.name = $1
-		AND j.pipeline_id = $2
-		AND b.status != 'pending'
-		ORDER BY b.id DESC
-		LIMIT 1
-	`, job, pdb.ID)
-	if err != nil {
-		return Build{}, false, err
-	}
-
-	defer rows.Close()
-
-	if rows.Next() {
-		return scanBuild(rows)
-	}
-
-	pendingRows, err := pdb.conn.Query(`
-		SELECT `+qualifiedBuildColumns+`
-		FROM builds b
-		INNER JOIN jobs j ON b.job_id = j.id
-		INNER JOIN pipelines p ON j.pipeline_id = p.id
-		WHERE j.name = $1
-		AND j.pipeline_id = $2
-		AND b.status = 'pending'
-		ORDER BY b.id ASC
-		LIMIT 1
-		`, job, pdb.ID)
-	if err != nil {
-		return Build{}, false, err
-	}
-
-	defer pendingRows.Close()
-
-	if pendingRows.Next() {
-		return scanBuild(pendingRows)
-	}
-
-	return Build{}, false, nil
 }
 
 func (pdb *pipelineDB) getLatestModifiedTime() (time.Time, error) {
@@ -1813,7 +1779,7 @@ func (pdb *pipelineDB) LoadVersionsDB() (*algorithm.VersionsDB, error) {
 	}
 
 	rows, err = pdb.conn.Query(`
-    SELECT v.id, v.check_order, r.id, i.build_id, j.id
+    SELECT v.id, v.check_order, r.id, i.build_id, i.name, j.id
     FROM build_inputs i, builds b, versioned_resources v, jobs j, resources r
     WHERE v.id = i.versioned_resource_id
     AND b.id = i.build_id
@@ -1828,7 +1794,7 @@ func (pdb *pipelineDB) LoadVersionsDB() (*algorithm.VersionsDB, error) {
 
 	for rows.Next() {
 		var input algorithm.BuildInput
-		err := rows.Scan(&input.VersionID, &input.CheckOrder, &input.ResourceID, &input.BuildID, &input.JobID)
+		err := rows.Scan(&input.VersionID, &input.CheckOrder, &input.ResourceID, &input.BuildID, &input.InputName, &input.JobID)
 		if err != nil {
 			return nil, err
 		}
@@ -1904,101 +1870,245 @@ func (pdb *pipelineDB) LoadVersionsDB() (*algorithm.VersionsDB, error) {
 	return db, nil
 }
 
-func (pdb *pipelineDB) GetNextInputVersions(db *algorithm.VersionsDB, jobName string, inputs []config.JobInput) ([]BuildInput, bool, MissingInputReasons, error) {
-	if len(inputs) == 0 {
-		return []BuildInput{}, true, MissingInputReasons{}, nil
+func (pdb *pipelineDB) GetVersionedResourceByVersion(atcVersion atc.Version, resourceName string) (SavedVersionedResource, bool, error) {
+	var versionBytes, metadataBytes string
+
+	versionJSON, err := json.Marshal(atcVersion)
+	if err != nil {
+		return SavedVersionedResource{}, false, err
 	}
 
-	var inputConfigs algorithm.InputConfigs
-	missingInputReasons := algorithm.MissingInputReasons{}
+	svr := SavedVersionedResource{
+		VersionedResource: VersionedResource{
+			Resource:   resourceName,
+			PipelineID: pdb.GetPipelineID(),
+		},
+	}
 
-	for _, input := range inputs {
-		jobs := algorithm.JobSet{}
-		for _, jobName := range input.Passed {
-			jobs[db.JobIDs[jobName]] = struct{}{}
+	err = pdb.conn.QueryRow(`
+		SELECT v.id, v.enabled, v.type, v.version, v.metadata, v.check_order
+		FROM versioned_resources v
+		JOIN resources r ON r.id = v.resource_id
+		WHERE v.version = $1
+			AND r.name = $2
+			AND r.pipeline_id = $3
+			AND enabled = true
+	`, string(versionJSON), resourceName, pdb.ID).Scan(&svr.ID, &svr.Enabled, &svr.Type, &versionBytes, &metadataBytes, &svr.CheckOrder)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return SavedVersionedResource{}, false, nil
 		}
 
-		var pinnedVersionID int
-		if input.Version != nil && input.Version.Pinned != nil {
-			versionJSON, err := json.Marshal(input.Version.Pinned)
+		return SavedVersionedResource{}, false, err
+	}
+
+	err = json.Unmarshal([]byte(versionBytes), &svr.Version)
+	if err != nil {
+		return SavedVersionedResource{}, false, err
+	}
+
+	err = json.Unmarshal([]byte(metadataBytes), &svr.Metadata)
+	if err != nil {
+		return SavedVersionedResource{}, false, err
+	}
+
+	return svr, true, nil
+}
+
+func (pdb *pipelineDB) SaveIndependentInputMapping(inputMapping algorithm.InputMapping, jobName string) error {
+	return pdb.saveJobInputMapping("independent_build_inputs", inputMapping, jobName)
+}
+
+func (pdb *pipelineDB) GetIndependentBuildInputs(jobName string) ([]BuildInput, error) {
+	return pdb.getJobBuildInputs("independent_build_inputs", jobName)
+}
+
+func (pdb *pipelineDB) SaveNextInputMapping(inputMapping algorithm.InputMapping, jobName string) error {
+	return pdb.saveJobInputMapping("next_build_inputs", inputMapping, jobName)
+}
+
+func (pdb *pipelineDB) GetNextBuildInputs(jobName string) ([]BuildInput, bool, error) {
+	var found bool
+	err := pdb.conn.QueryRow(`
+			SELECT inputs_determined FROM jobs WHERE name = $1 AND pipeline_id = $2
+		`, jobName, pdb.ID).Scan(&found)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !found {
+		return nil, false, nil
+	}
+
+	// there is a possible race condition where found is true at first but the
+	// inputs are deleted by the time we get here
+	buildInputs, err := pdb.getJobBuildInputs("next_build_inputs", jobName)
+	return buildInputs, true, err
+}
+
+func (pdb *pipelineDB) DeleteNextInputMapping(jobName string) error {
+	tx, err := pdb.conn.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	var jobID int
+	err = tx.QueryRow(`
+		UPDATE jobs
+		SET inputs_determined = false
+		WHERE name = $1 AND pipeline_id = $2
+		RETURNING id
+		`, jobName, pdb.ID).Scan(&jobID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(`
+		DELETE FROM next_build_inputs WHERE job_id = $1
+		`, jobID)
+	if err != nil {
+		return err
+	}
+
+	tx.Commit()
+	return nil
+}
+
+func (pdb *pipelineDB) saveJobInputMapping(table string, inputMapping algorithm.InputMapping, jobName string) error {
+	tx, err := pdb.conn.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	var jobID int
+	switch table {
+	case "independent_build_inputs":
+		err = tx.QueryRow(`
+			SELECT id FROM jobs WHERE name = $1 AND pipeline_id = $2
+			`, jobName, pdb.ID).Scan(&jobID)
+	case "next_build_inputs":
+		err = tx.QueryRow(`
+			UPDATE jobs
+			SET inputs_determined = true
+			WHERE name = $1 AND pipeline_id = $2
+			RETURNING id
+			`, jobName, pdb.ID).Scan(&jobID)
+	default:
+		panic("unknown table " + table)
+	}
+	if err != nil {
+		return err
+	}
+
+	rows, err := tx.Query(`
+    SELECT input_name, version_id, first_occurrence
+		FROM `+table+`
+		WHERE job_id = $1
+  `, jobID)
+	if err != nil {
+		return err
+	}
+
+	oldInputMapping := algorithm.InputMapping{}
+	for rows.Next() {
+		var inputName string
+		var inputVersion algorithm.InputVersion
+		err := rows.Scan(&inputName, &inputVersion.VersionID, &inputVersion.FirstOccurrence)
+		if err != nil {
+			return err
+		}
+
+		oldInputMapping[inputName] = inputVersion
+	}
+
+	for inputName, oldInputVersion := range oldInputMapping {
+		inputVersion, found := inputMapping[inputName]
+		if !found || inputVersion != oldInputVersion {
+			_, err = tx.Exec(`
+				DELETE FROM `+table+` WHERE job_id = $1 AND input_name = $2
+			`, jobID, inputName)
 			if err != nil {
-				return []BuildInput{}, false, MissingInputReasons{}, err
+				return err
 			}
+		}
+	}
 
-			resourceID := db.ResourceIDs[input.Resource]
-			err = pdb.conn.QueryRow(`
-			SELECT id
-			  FROM versioned_resources
-			 WHERE version = $1 AND resource_id = $2
-		`, string(versionJSON), resourceID).Scan(&pinnedVersionID)
+	for inputName, inputVersion := range inputMapping {
+		oldInputVersion, found := oldInputMapping[inputName]
+		if !found || inputVersion != oldInputVersion {
+			_, err := tx.Exec(`
+				INSERT INTO `+table+` (job_id, input_name, version_id, first_occurrence)
+				VALUES ($1, $2, $3, $4)
+			`, jobID, inputName, inputVersion.VersionID, inputVersion.FirstOccurrence)
 			if err != nil {
-				if err == sql.ErrNoRows {
-					missingInputReasons.RegisterPinnedVersionUnavailable(input.Name, string(versionJSON))
-				} else {
-					return []BuildInput{}, false, MissingInputReasons{}, err
-				}
+				return err
 			}
 		}
-
-		useEveryVersion := input.Version != nil && input.Version.Every
-
-		inputConfigs = append(inputConfigs, algorithm.InputConfig{
-			Name:            input.Name,
-			UseEveryVersion: useEveryVersion,
-			PinnedVersionID: pinnedVersionID,
-			ResourceID:      db.ResourceIDs[input.Resource],
-			Passed:          jobs,
-			JobID:           db.JobIDs[jobName],
-		})
 	}
 
-	if len(missingInputReasons) > 0 {
-		return []BuildInput{}, false, MissingInputReasons(missingInputReasons), nil
+	return tx.Commit()
+}
+
+func (pdb *pipelineDB) getJobBuildInputs(table string, jobName string) ([]BuildInput, error) {
+	rows, err := pdb.conn.Query(`
+		SELECT i.input_name, i.first_occurrence, r.name, v.type, v.version, v.metadata
+		FROM `+table+` i
+		JOIN jobs j ON i.job_id = j.id
+		JOIN versioned_resources v ON v.id = i.version_id
+		JOIN resources r ON r.id = v.resource_id
+		WHERE j.name = $1
+		AND j.pipeline_id = $2
+		`, jobName, pdb.ID)
+
+	if err != nil {
+		return nil, err
 	}
 
-	resolved, ok, resolveMissingInputReasons := inputConfigs.Resolve(db)
-	if !ok {
-		missingInputReasons.Append(resolveMissingInputReasons)
-		return nil, false, MissingInputReasons(missingInputReasons), nil
-	}
+	buildInputs := []BuildInput{}
+	for rows.Next() {
+		var (
+			inputName       string
+			firstOccurrence bool
+			resourceName    string
+			resourceType    string
+			versionBlob     string
+			metadataBlob    string
+			version         Version
+			metadata        []MetadataField
+		)
 
-	var buildInputs []BuildInput
-
-	for name, id := range resolved {
-		svr := SavedVersionedResource{
-			ID:      id,
-			Enabled: true, // this is inherent with the following query
+		err := rows.Scan(&inputName, &firstOccurrence, &resourceName, &resourceType, &versionBlob, &metadataBlob)
+		if err != nil {
+			return nil, err
 		}
 
-		var version, metadata string
-
-		err := pdb.conn.QueryRow(`
-			SELECT r.name, vr.type, vr.version, vr.metadata
-			FROM versioned_resources vr, resources r
-			WHERE vr.id = $1
-				AND vr.resource_id = r.id
-		`, id).Scan(&svr.Resource, &svr.Type, &version, &metadata)
+		err = json.Unmarshal([]byte(versionBlob), &version)
 		if err != nil {
-			return nil, false, MissingInputReasons{}, err
+			return nil, err
 		}
 
-		err = json.Unmarshal([]byte(version), &svr.Version)
+		err = json.Unmarshal([]byte(metadataBlob), &metadata)
 		if err != nil {
-			return nil, false, MissingInputReasons{}, err
-		}
-
-		err = json.Unmarshal([]byte(metadata), &svr.Metadata)
-		if err != nil {
-			return nil, false, MissingInputReasons{}, err
+			return nil, err
 		}
 
 		buildInputs = append(buildInputs, BuildInput{
-			Name:              name,
-			VersionedResource: svr.VersionedResource,
+			Name: inputName,
+			VersionedResource: VersionedResource{
+				Resource:   resourceName,
+				Type:       resourceType,
+				Version:    version,
+				Metadata:   metadata,
+				PipelineID: pdb.ID,
+			},
+			FirstOccurrence: firstOccurrence,
 		})
 	}
-
-	return buildInputs, true, MissingInputReasons{}, nil
+	return buildInputs, nil
 }
 
 func (pdb *pipelineDB) PauseJob(job string) error {
@@ -2007,6 +2117,28 @@ func (pdb *pipelineDB) PauseJob(job string) error {
 
 func (pdb *pipelineDB) UnpauseJob(job string) error {
 	return pdb.updatePausedJob(job, false)
+}
+
+func (pdb *pipelineDB) SetMaxInFlightReached(jobName string, reached bool) error {
+	result, err := pdb.conn.Exec(`
+		UPDATE jobs
+		SET max_in_flight_reached = $1
+		WHERE name = $2 AND pipeline_id = $3
+	`, reached, jobName, pdb.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected != 1 {
+		return nonOneRowAffectedError{rowsAffected}
+	}
+
+	return nil
 }
 
 func (pdb *pipelineDB) UpdateFirstLoggedBuildID(job string, newFirstLoggedBuildID int) error {
@@ -2102,6 +2234,7 @@ func (pdb *pipelineDB) GetJobBuilds(jobName string, page Page) ([]Build, Paginat
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		WHERE j.name = $1
 			AND j.pipeline_id = $2
 	`)
@@ -2145,7 +2278,7 @@ func (pdb *pipelineDB) GetJobBuilds(jobName string, page Page) ([]Build, Paginat
 	builds := []Build{}
 
 	for rows.Next() {
-		build, _, err := scanBuild(rows)
+		build, _, err := pdb.buildFactory.ScanBuild(rows)
 		if err != nil {
 			return nil, Pagination{}, err
 		}
@@ -2172,16 +2305,16 @@ func (pdb *pipelineDB) GetJobBuilds(jobName string, page Page) ([]Build, Paginat
 	firstBuild = builds[0]
 	lastBuild = builds[len(builds)-1]
 
-	if firstBuild.ID < maxID {
+	if firstBuild.ID() < maxID {
 		pagination.Previous = &Page{
-			Until: firstBuild.ID,
+			Until: firstBuild.ID(),
 			Limit: page.Limit,
 		}
 	}
 
-	if lastBuild.ID > minID {
+	if lastBuild.ID() > minID {
 		pagination.Next = &Page{
-			Since: lastBuild.ID,
+			Since: lastBuild.ID(),
 			Limit: page.Limit,
 		}
 	}
@@ -2195,6 +2328,7 @@ func (pdb *pipelineDB) GetAllJobBuilds(job string) ([]Build, error) {
 		FROM builds b
 		INNER JOIN jobs j ON b.job_id = j.id
 		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN teams t ON b.team_id = t.id
 		WHERE j.name = $1
 			AND j.pipeline_id = $2
 		ORDER BY b.id DESC
@@ -2208,7 +2342,7 @@ func (pdb *pipelineDB) GetAllJobBuilds(job string) ([]Build, error) {
 	bs := []Build{}
 
 	for rows.Next() {
-		build, _, err := scanBuild(rows)
+		build, _, err := pdb.buildFactory.ScanBuild(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -2219,15 +2353,13 @@ func (pdb *pipelineDB) GetAllJobBuilds(job string) ([]Build, error) {
 	return bs, nil
 }
 
-func (pdb *pipelineDB) GetJobFinishedAndNextBuild(job string) (*Build, *Build, error) {
-	var finished *Build
-	var next *Build
-
-	finishedBuild, foundFinished, err := scanBuild(pdb.conn.QueryRow(`
+func (pdb *pipelineDB) GetJobFinishedAndNextBuild(job string) (Build, Build, error) {
+	finished, _, err := pdb.buildFactory.ScanBuild(pdb.conn.QueryRow(`
 		SELECT `+qualifiedBuildColumns+`
 		FROM builds b
 			INNER JOIN jobs j ON b.job_id = j.id
 			INNER JOIN pipelines p ON j.pipeline_id = p.id
+			INNER JOIN teams t ON b.team_id = t.id
  		WHERE j.name = $1
 			AND j.pipeline_id = $2
 			AND b.status NOT IN ('pending', 'started')
@@ -2238,15 +2370,12 @@ func (pdb *pipelineDB) GetJobFinishedAndNextBuild(job string) (*Build, *Build, e
 		return nil, nil, err
 	}
 
-	if foundFinished {
-		finished = &finishedBuild
-	}
-
-	nextBuild, foundNext, err := scanBuild(pdb.conn.QueryRow(`
+	next, _, err := pdb.buildFactory.ScanBuild(pdb.conn.QueryRow(`
 		SELECT `+qualifiedBuildColumns+`
 		FROM builds b
 			INNER JOIN jobs j ON b.job_id = j.id
 			INNER JOIN pipelines p ON j.pipeline_id = p.id
+			INNER JOIN teams t ON b.team_id = t.id
  		WHERE j.name = $1
 			AND j.pipeline_id = $2
 			AND status IN ('pending', 'started')
@@ -2257,19 +2386,14 @@ func (pdb *pipelineDB) GetJobFinishedAndNextBuild(job string) (*Build, *Build, e
 		return nil, nil, err
 	}
 
-	if foundNext {
-		next = &nextBuild
-	}
-
 	return finished, next, nil
 }
 
-func (pdb *pipelineDB) GetDashboard() (Dashboard, atc.GroupConfigs, error) {
-	pipelineConfig, _, _, err := pdb.GetConfig()
-	if err != nil {
-		return nil, nil, err
-	}
+func (pdb *pipelineDB) GetJobs() (map[string]SavedJob, error) {
+	return pdb.getJobs()
+}
 
+func (pdb *pipelineDB) GetDashboard() (Dashboard, atc.GroupConfigs, error) {
 	dashboard := Dashboard{}
 
 	savedJobs, err := pdb.getJobs()
@@ -2292,38 +2416,52 @@ func (pdb *pipelineDB) GetDashboard() (Dashboard, atc.GroupConfigs, error) {
 		return nil, nil, err
 	}
 
-	for _, job := range pipelineConfig.Jobs {
-		savedJob, found := savedJobs[job.Name]
-		if !found {
-			return nil, nil, fmt.Errorf("found job in pipeline configuration but not in database: %s", job.Name)
-		}
-
+	for _, job := range savedJobs {
 		dashboardJob := DashboardJob{
-			Job:       savedJob,
-			JobConfig: job,
+			Job: job,
 		}
 
 		if startedBuild, found := startedBuilds[job.Name]; found {
-			dashboardJob.NextBuild = &startedBuild
+			dashboardJob.NextBuild = startedBuild
 		} else if pendingBuild, found := pendingBuilds[job.Name]; found {
-			dashboardJob.NextBuild = &pendingBuild
+			dashboardJob.NextBuild = pendingBuild
 		}
 
 		if finishedBuild, found := finishedBuilds[job.Name]; found {
-			dashboardJob.FinishedBuild = &finishedBuild
+			dashboardJob.FinishedBuild = finishedBuild
 		}
 
 		dashboard = append(dashboard, dashboardJob)
 	}
 
-	return dashboard, pipelineConfig.Groups, nil
+	return dashboard, pdb.SavedPipeline.Config.Groups, nil
+}
+
+func (pdb *pipelineDB) Expose() error {
+	_, err := pdb.conn.Exec(`
+		UPDATE pipelines
+		SET public = true
+		WHERE id = $1
+	`, pdb.ID)
+	return err
+}
+
+func (pdb *pipelineDB) Hide() error {
+	_, err := pdb.conn.Exec(`
+		UPDATE pipelines
+		SET public = false
+		WHERE id = $1
+	`, pdb.ID)
+	return err
 }
 
 func (pdb *pipelineDB) getJobs() (map[string]SavedJob, error) {
 	rows, err := pdb.conn.Query(`
-	SELECT id, name, paused, first_logged_build_id
-  	FROM jobs
-  	WHERE pipeline_id = $1
+	SELECT j.id, j.name, j.config, j.paused, j.first_logged_build_id, p.team_id
+  	FROM jobs j, pipelines p
+		WHERE j.pipeline_id = p.id
+  		AND pipeline_id = $1
+			AND active = true
   `, pdb.ID)
 	if err != nil {
 		return nil, err
@@ -2334,14 +2472,10 @@ func (pdb *pipelineDB) getJobs() (map[string]SavedJob, error) {
 	savedJobs := make(map[string]SavedJob)
 
 	for rows.Next() {
-		var savedJob SavedJob
-
-		err := rows.Scan(&savedJob.ID, &savedJob.Name, &savedJob.Paused, &savedJob.FirstLoggedBuildID)
+		savedJob, err := pdb.scanJob(rows)
 		if err != nil {
 			return nil, err
 		}
-
-		savedJob.PipelineName = pdb.Name
 
 		savedJobs[savedJob.Name] = savedJob
 	}
@@ -2352,7 +2486,7 @@ func (pdb *pipelineDB) getJobs() (map[string]SavedJob, error) {
 func (pdb *pipelineDB) getLastJobBuildsSatisfying(bRequirement string) (map[string]Build, error) {
 	rows, err := pdb.conn.Query(`
 		 SELECT `+qualifiedBuildColumns+`
-		 FROM builds b, jobs j, pipelines p,
+		 FROM builds b, jobs j, pipelines p, teams t,
 			 (
 				 SELECT b.job_id AS job_id, MAX(b.id) AS id
 				 FROM builds b, jobs j
@@ -2365,6 +2499,7 @@ func (pdb *pipelineDB) getLastJobBuildsSatisfying(bRequirement string) (map[stri
 			 AND b.id = max.id
 			 AND p.id = $1
 			 AND j.pipeline_id = p.id
+			 AND b.team_id = t.id
   `, pdb.ID)
 	if err != nil {
 		return nil, err
@@ -2375,9 +2510,7 @@ func (pdb *pipelineDB) getLastJobBuildsSatisfying(bRequirement string) (map[stri
 	nextBuilds := make(map[string]Build)
 
 	for rows.Next() {
-		var build Build
-
-		build, scanned, err := scanBuild(rows)
+		build, scanned, err := pdb.buildFactory.ScanBuild(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -2386,26 +2519,58 @@ func (pdb *pipelineDB) getLastJobBuildsSatisfying(bRequirement string) (map[stri
 			return nil, errors.New("row could not be scanned")
 		}
 
-		nextBuilds[build.JobName] = build
+		nextBuilds[build.JobName()] = build
 	}
 
 	return nextBuilds, nil
 }
 
 func (pdb *pipelineDB) getJob(tx Tx, name string) (SavedJob, error) {
-	var job SavedJob
+	return pdb.scanJob(tx.QueryRow(`
+ 	SELECT j.id, j.name, j.config, j.paused, j.first_logged_build_id, p.team_id
+  	FROM jobs j, pipelines p
+  	WHERE j.active = true
+			AND j.pipeline_id = p.id
+			AND j.name = $1
+  		AND j.pipeline_id = $2
+  	`, name, pdb.ID))
+}
 
-	err := tx.QueryRow(`
- 	SELECT id, name, paused, first_logged_build_id
-  	FROM jobs
-  	WHERE name = $1
-  		AND pipeline_id = $2
-  `, name, pdb.ID).Scan(&job.ID, &job.Name, &job.Paused, &job.FirstLoggedBuildID)
+func (pdb *pipelineDB) scanJob(row scannable) (SavedJob, error) {
+	var job SavedJob
+	var configBlob []byte
+
+	err := row.Scan(&job.ID, &job.Name, &configBlob, &job.Paused, &job.FirstLoggedBuildID, &job.TeamID)
 	if err != nil {
 		return SavedJob{}, err
 	}
 
 	job.PipelineName = pdb.Name
 
+	var config atc.JobConfig
+	err = json.Unmarshal(configBlob, &config)
+	if err != nil {
+		return SavedJob{}, err
+	}
+	job.Config = config
+
 	return job, nil
+}
+
+func checkIfRowsUpdated(tx Tx, query string, params ...interface{}) (bool, error) {
+	result, err := tx.Exec(query, params...)
+	if err != nil {
+		return false, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	if rows == 0 {
+		return false, nil
+	}
+
+	return true, nil
 }

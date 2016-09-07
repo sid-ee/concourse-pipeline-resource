@@ -3,12 +3,12 @@ package worker
 import (
 	"net/http"
 
-	gconn "github.com/cloudfoundry-incubator/garden/client/connection"
-	"github.com/cloudfoundry-incubator/garden/routes"
+	"code.cloudfoundry.org/clock"
+	gconn "code.cloudfoundry.org/garden/client/connection"
+	"code.cloudfoundry.org/garden/routes"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/worker/transport"
 	"github.com/concourse/retryhttp"
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/rata"
 )
 
@@ -21,6 +21,7 @@ type gardenConnectionFactory struct {
 	db          transport.TransportDB
 	logger      lager.Logger
 	workerName  string
+	workerHost  string
 	retryPolicy transport.RetryPolicy
 }
 
@@ -28,12 +29,14 @@ func NewGardenConnectionFactory(
 	db transport.TransportDB,
 	logger lager.Logger,
 	workerName string,
+	workerHost string,
 	retryPolicy transport.RetryPolicy,
 ) GardenConnectionFactory {
 	return &gardenConnectionFactory{
 		db:          db,
 		logger:      logger,
 		workerName:  workerName,
+		workerHost:  workerHost,
 		retryPolicy: retryPolicy,
 	}
 }
@@ -44,7 +47,7 @@ func (gcf *gardenConnectionFactory) BuildConnection() gconn.Connection {
 			Logger:       gcf.logger.Session("retryable-http-client"),
 			Sleeper:      clock.NewClock(),
 			RetryPolicy:  gcf.retryPolicy,
-			RoundTripper: transport.NewRoundTripper(gcf.workerName, gcf.db, &http.Transport{DisableKeepAlives: true}),
+			RoundTripper: transport.NewRoundTripper(gcf.workerName, gcf.workerHost, gcf.db, &http.Transport{DisableKeepAlives: true}),
 		},
 	}
 

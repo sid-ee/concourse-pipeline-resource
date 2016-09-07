@@ -3,13 +3,12 @@ package github
 import (
 	"net/http"
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 type OrganizationVerifier struct {
 	organizations []string
 	gitHubClient  Client
-	gitHubAPIURL  string
 }
 
 func NewOrganizationVerifier(

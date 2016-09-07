@@ -7,52 +7,77 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/concourse/atc"
-	"github.com/pivotal-golang/lager"
+	"github.com/concourse/atc/db"
+
+	"code.cloudfoundry.org/lager"
 )
 
 const OAuthStateCookie = "_concourse_oauth_state"
 
 type OAuthState struct {
 	Redirect string `json:"redirect"`
+	TeamName string `json:"team_name"`
 }
 
 type OAuthBeginHandler struct {
 	logger          lager.Logger
 	providerFactory ProviderFactory
 	privateKey      *rsa.PrivateKey
+	teamDBFactory   db.TeamDBFactory
+	expire          time.Duration
 }
 
 func NewOAuthBeginHandler(
 	logger lager.Logger,
 	providerFactory ProviderFactory,
 	privateKey *rsa.PrivateKey,
+	teamDBFactory db.TeamDBFactory,
+	expire time.Duration,
 ) http.Handler {
 	return &OAuthBeginHandler{
 		logger:          logger,
 		providerFactory: providerFactory,
 		privateKey:      privateKey,
+		teamDBFactory:   teamDBFactory,
+		expire:          expire,
 	}
 }
 
 func (handler *OAuthBeginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	hLog := handler.logger.Session("oauth-begin")
 	providerName := r.FormValue(":provider")
-	teamName := atc.DefaultTeamName
+	teamName := r.FormValue("team_name")
 
-	providers, err := handler.providerFactory.GetProviders(teamName)
+	teamDB := handler.teamDBFactory.GetTeamDB(teamName)
+	team, found, err := teamDB.GetTeam()
 	if err != nil {
-		handler.logger.Error("unknown-provider", err, lager.Data{
-			"provider": providerName,
+		hLog.Error("failed-to-get-team", err, lager.Data{
 			"teamName": teamName,
 		})
-
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		hLog.Info("failed-to-find-team", lager.Data{
+			"teamName": teamName,
+		})
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	provider, found := providers[providerName]
+	provider, found, err := handler.providerFactory.GetProvider(team, providerName)
+	if err != nil {
+		handler.logger.Error("failed-to-get-provider", err, lager.Data{
+			"provider": providerName,
+			"teamName": teamName,
+		})
+
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	if !found {
-		handler.logger.Info("unknown-provider", lager.Data{
+		handler.logger.Info("team-does-not-have-auth-provider", lager.Data{
 			"provider": providerName,
 		})
 
@@ -62,6 +87,7 @@ func (handler *OAuthBeginHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	oauthState, err := json.Marshal(OAuthState{
 		Redirect: r.FormValue("redirect"),
+		TeamName: teamName,
 	})
 	if err != nil {
 		handler.logger.Error("failed-to-marshal-state", err)
@@ -77,7 +103,7 @@ func (handler *OAuthBeginHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		Name:    OAuthStateCookie,
 		Value:   encodedState,
 		Path:    "/",
-		Expires: time.Now().Add(CookieAge),
+		Expires: time.Now().Add(handler.expire),
 	})
 
 	http.Redirect(w, r, authCodeURL, http.StatusTemporaryRedirect)

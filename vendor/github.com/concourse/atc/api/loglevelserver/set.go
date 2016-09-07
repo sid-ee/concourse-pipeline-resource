@@ -4,8 +4,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
-	"github.com/pivotal-golang/lager"
 )
 
 func (s *Server) SetMinLevel(w http.ResponseWriter, r *http.Request) {

@@ -2,11 +2,12 @@ package exec
 
 import (
 	"io"
+	"time"
 
+	"code.cloudfoundry.org/clock"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/worker"
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . Factory
@@ -23,9 +24,12 @@ type Factory interface {
 		GetDelegate,
 		atc.ResourceConfig,
 		atc.Tags,
+		int,
 		atc.Params,
 		atc.Version,
 		atc.ResourceTypes,
+		time.Duration,
+		time.Duration,
 	) StepFactory
 
 	// Put constructs a PutStep factory.
@@ -37,8 +41,11 @@ type Factory interface {
 		PutDelegate,
 		atc.ResourceConfig,
 		atc.Tags,
+		int,
 		atc.Params,
 		atc.ResourceTypes,
+		time.Duration,
+		time.Duration,
 	) StepFactory
 
 	// DependentGet constructs a GetStep factory whose version is determined by
@@ -52,8 +59,11 @@ type Factory interface {
 		GetDelegate,
 		atc.ResourceConfig,
 		atc.Tags,
+		int,
 		atc.Params,
 		atc.ResourceTypes,
+		time.Duration,
+		time.Duration,
 	) StepFactory
 
 	// Task constructs a TaskStep factory.
@@ -65,12 +75,15 @@ type Factory interface {
 		TaskDelegate,
 		Privileged,
 		atc.Tags,
+		int,
 		TaskConfigSource,
 		atc.ResourceTypes,
 		map[string]string,
 		map[string]string,
 		string,
 		clock.Clock,
+		time.Duration,
+		time.Duration,
 	) StepFactory
 }
 

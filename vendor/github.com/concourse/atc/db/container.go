@@ -43,6 +43,7 @@ type ContainerMetadata struct {
 	ResourceName         string
 	PipelineID           int
 	PipelineName         string
+	TeamID               int
 	JobName              string
 	StepName             string
 	Type                 ContainerType
@@ -62,6 +63,7 @@ type SavedContainer struct {
 
 	TTL       time.Duration
 	ExpiresIn time.Duration
+	ID        int
 }
 
 type ContainerType string

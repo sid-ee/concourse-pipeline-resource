@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/bigdatadev/goryman"
-	"github.com/pivotal-golang/lager"
 )
 
 type eventEmission struct {
@@ -32,7 +32,6 @@ func Initialize(logger lager.Logger, riemannAddr string, host string, tags []str
 	eventAttributes = attributes
 
 	go emitLoop()
-	go periodicallyEmit(logger.Session("periodic"), 10*time.Second)
 }
 
 func emit(logger lager.Logger, event goryman.Event) {

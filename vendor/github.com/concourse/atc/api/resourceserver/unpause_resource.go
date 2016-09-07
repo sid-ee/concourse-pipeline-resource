@@ -3,8 +3,8 @@ package resourceserver
 import (
 	"net/http"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/rata"
 )
 

@@ -1,19 +1,23 @@
 package worker
 
 import (
+	"errors"
+
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/baggageclaim"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . VolumeClient
 
 type VolumeClient interface {
 	FindVolume(lager.Logger, VolumeSpec) (Volume, bool, error)
-	CreateVolume(lager.Logger, VolumeSpec) (Volume, error)
+	CreateVolume(logger lager.Logger, vs VolumeSpec, teamID int) (Volume, error)
 	ListVolumes(lager.Logger, VolumeProperties) ([]Volume, error)
 	LookupVolume(lager.Logger, string) (Volume, bool, error)
 }
+
+var ErrVolumeExpiredImmediately = errors.New("volume expired immediately after saving")
 
 type volumeClient struct {
 	baggageclaimClient baggageclaim.Client
@@ -51,19 +55,18 @@ func (c *volumeClient) FindVolume(
 	}
 
 	if len(savedVolumes) == 0 {
-		err = ErrMissingVolume
-		logger.Error("failed-to-find-volume-in-db", err)
-		return nil, false, err
+		return nil, false, nil
 	}
 
-	if len(savedVolumes) > 1 {
-		for i := 1; i < len(savedVolumes); i++ {
-			handle := savedVolumes[i].Volume.Handle
-			c.expireVolume(logger, handle) // note that we are ignoring the error here
+	var savedVolume db.SavedVolume
+	if len(savedVolumes) == 1 {
+		savedVolume = savedVolumes[0]
+	} else {
+		savedVolume, err = c.selectLowestAlphabeticalVolume(logger, savedVolumes)
+		if err != nil {
+			return nil, false, err
 		}
 	}
-
-	savedVolume := savedVolumes[0]
 
 	return c.LookupVolume(logger, savedVolume.Handle)
 }
@@ -71,6 +74,7 @@ func (c *volumeClient) FindVolume(
 func (c *volumeClient) CreateVolume(
 	logger lager.Logger,
 	volumeSpec VolumeSpec,
+	teamID int,
 ) (Volume, error) {
 	if c.baggageclaimClient == nil {
 		return nil, ErrNoVolumeManager
@@ -87,10 +91,12 @@ func (c *volumeClient) CreateVolume(
 
 	err = c.db.InsertVolume(db.Volume{
 		Handle:     bcVolume.Handle(),
+		TeamID:     teamID,
 		WorkerName: c.workerName,
 		TTL:        volumeSpec.TTL,
 		Identifier: volumeSpec.Strategy.dbIdentifier(),
 	})
+
 	if err != nil {
 		logger.Error("failed-to-save-volume-to-db", err)
 		return nil, err
@@ -103,7 +109,7 @@ func (c *volumeClient) CreateVolume(
 	}
 
 	if !found {
-		err = ErrMissingVolume
+		err = ErrVolumeExpiredImmediately
 		logger.Error("volume-expired-immediately", err)
 		return nil, err
 	}
@@ -154,31 +160,50 @@ func (c *volumeClient) LookupVolume(logger lager.Logger, handle string) (Volume,
 	}
 
 	if !found {
-		err = c.db.ReapVolume(handle)
-		if err != nil {
-			logger.Error("failed-to-reap-volume", err)
-			return nil, false, err
-		}
-
 		return nil, false, nil
 	}
 
 	return c.volumeFactory.Build(logger, bcVolume)
 }
 
+func (c *volumeClient) selectLowestAlphabeticalVolume(logger lager.Logger, volumes []db.SavedVolume) (db.SavedVolume, error) {
+	var lowestVolume db.SavedVolume
+
+	for _, v := range volumes {
+		if lowestVolume.ID == 0 {
+			lowestVolume = v
+		} else if v.ID < lowestVolume.ID {
+			lowestVolume = v
+		}
+	}
+
+	for _, v := range volumes {
+		if v != lowestVolume {
+			expLog := logger.Session("expiring-redundant-volume", lager.Data{
+				"volume-handle": v.Handle,
+			})
+
+			err := c.expireVolume(expLog, v.Handle)
+			if err != nil {
+				return db.SavedVolume{}, err
+			}
+		}
+	}
+
+	return lowestVolume, nil
+}
+
 func (c *volumeClient) expireVolume(logger lager.Logger, handle string) error {
+	logger.Info("expiring")
+
 	wVol, found, err := c.LookupVolume(logger, handle)
 	if err != nil {
-		logger.Debug("failed-to-look-up-volume", lager.Data{
-			"handle": handle,
-		})
+		logger.Error("failed-to-look-up-volume", err)
 		return err
 	}
 
 	if !found {
-		logger.Debug("volume-not-found", lager.Data{
-			"handle": handle,
-		})
+		logger.Debug("volume-already-gone")
 		return nil
 	}
 

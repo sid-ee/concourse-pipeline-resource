@@ -1,24 +1,41 @@
 package github
 
 import (
+	"net/http"
+
+	"code.cloudfoundry.org/lager"
+
+	"github.com/concourse/atc/auth/verifier"
 	"github.com/concourse/atc/db"
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
 
 const ProviderName = "github"
+const DisplayName = "GitHub"
 
 var Scopes = []string{"read:org"}
 
-type AuthorizationMethod struct {
-	Organization string
-	Team         string
+type Provider interface {
+	PreTokenClient() (*http.Client, error)
 
-	User string
+	OAuthClient
+	Verifier
+}
+
+type OAuthClient interface {
+	AuthCodeURL(string, ...oauth2.AuthCodeOption) string
+	Exchange(context.Context, string) (*oauth2.Token, error)
+	Client(context.Context, *oauth2.Token) *http.Client
+}
+
+type Verifier interface {
+	Verify(lager.Logger, *http.Client) (bool, error)
 }
 
 func NewProvider(
-	gitHubAuth db.GitHubAuth,
+	gitHubAuth *db.GitHubAuth,
 	redirectURL string,
 ) Provider {
 	client := NewClient(gitHubAuth.APIURL)
@@ -29,8 +46,8 @@ func NewProvider(
 		endpoint.TokenURL = gitHubAuth.TokenURL
 	}
 
-	return Provider{
-		Verifier: NewVerifierBasket(
+	return gitHubProvider{
+		Verifier: verifier.NewVerifierBasket(
 			NewTeamVerifier(dbTeamsToGitHubTeams(gitHubAuth.Teams), client),
 			NewOrganizationVerifier(gitHubAuth.Organizations, client),
 			NewUserVerifier(gitHubAuth.Users, client),
@@ -45,14 +62,14 @@ func NewProvider(
 	}
 }
 
-type Provider struct {
+type gitHubProvider struct {
 	*oauth2.Config
 	// oauth2.Config implements the required Provider methods:
 	// AuthCodeURL(string, ...oauth2.AuthCodeOption) string
 	// Exchange(context.Context, string) (*oauth2.Token, error)
 	// Client(context.Context, *oauth2.Token) *http.Client
 
-	Verifier
+	verifier.Verifier
 }
 
 func dbTeamsToGitHubTeams(dbteams []db.GitHubTeam) []Team {
@@ -66,6 +83,10 @@ func dbTeamsToGitHubTeams(dbteams []db.GitHubTeam) []Team {
 	return teams
 }
 
-func (Provider) DisplayName() string {
-	return "GitHub"
+func (gitHubProvider) PreTokenClient() (*http.Client, error) {
+	return &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}, nil
 }

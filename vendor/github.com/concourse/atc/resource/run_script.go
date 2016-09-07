@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
 	"github.com/tedsuo/ifrit"
 )
 
@@ -155,20 +154,8 @@ func (resource *resource) runScript(
 			return json.Unmarshal(stdout.Bytes(), output)
 
 		case <-signals:
-			go process.Signal(garden.SignalTerminate)
-
-			timer := resource.clock.NewTimer(10 * time.Second)
-
-		OUT:
-			for {
-				select {
-				case <-timer.C():
-					process.Signal(garden.SignalKill)
-				case <-processExited:
-					break OUT
-				}
-			}
-
+			resource.container.Stop(false)
+			<-processExited
 			return ErrAborted
 		}
 	})

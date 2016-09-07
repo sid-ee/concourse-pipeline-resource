@@ -1,10 +1,9 @@
 package resource
 
 import (
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/worker"
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 )
 
 type ResourceType string
@@ -19,9 +18,8 @@ type Session struct {
 //go:generate counterfeiter . Tracker
 
 type Tracker interface {
-	Init(lager.Logger, Metadata, Session, ResourceType, atc.Tags, atc.ResourceTypes, worker.ImageFetchingDelegate) (Resource, error)
-	InitWithCache(lager.Logger, Metadata, Session, ResourceType, atc.Tags, CacheIdentifier, atc.ResourceTypes, worker.ImageFetchingDelegate) (Resource, Cache, error)
-	InitWithSources(lager.Logger, Metadata, Session, ResourceType, atc.Tags, map[string]ArtifactSource, atc.ResourceTypes, worker.ImageFetchingDelegate) (Resource, []string, error)
+	Init(lager.Logger, Metadata, Session, ResourceType, atc.Tags, int, atc.ResourceTypes, worker.ImageFetchingDelegate) (Resource, error)
+	InitWithSources(lager.Logger, Metadata, Session, ResourceType, atc.Tags, int, map[string]ArtifactSource, atc.ResourceTypes, worker.ImageFetchingDelegate) (Resource, []string, error)
 }
 
 //go:generate counterfeiter . Cache
@@ -29,6 +27,7 @@ type Tracker interface {
 type Cache interface {
 	IsInitialized() (bool, error)
 	Initialize() error
+	Volume() worker.Volume
 }
 
 type Metadata interface {
@@ -37,19 +36,23 @@ type Metadata interface {
 
 type tracker struct {
 	workerClient worker.Client
-	clock        clock.Clock
 }
 
-type TrackerFactory struct{}
+type trackerFactory struct{}
 
-func (factory TrackerFactory) TrackerFor(client worker.Client) Tracker {
-	return NewTracker(client)
+//go:generate counterfeiter . TrackerFactory
+
+type TrackerFactory interface {
+	TrackerFor(client worker.Client) Tracker
 }
 
-func NewTracker(workerClient worker.Client) Tracker {
+func NewTrackerFactory() TrackerFactory {
+	return &trackerFactory{}
+}
+
+func (factory *trackerFactory) TrackerFor(client worker.Client) Tracker {
 	return &tracker{
-		workerClient: workerClient,
-		clock:        clock.NewClock(),
+		workerClient: client,
 	}
 }
 
@@ -64,6 +67,7 @@ func (tracker *tracker) InitWithSources(
 	session Session,
 	typ ResourceType,
 	tags atc.Tags,
+	teamID int,
 	sources map[string]ArtifactSource,
 	resourceTypes atc.ResourceTypes,
 	imageFetchingDelegate worker.ImageFetchingDelegate,
@@ -75,7 +79,7 @@ func (tracker *tracker) InitWithSources(
 
 	container, found, err := tracker.workerClient.FindContainerForIdentifier(logger, session.ID)
 	if err != nil {
-		logger.Error("failed-to-look-for-existing-container", err)
+		logger.Error("failed-to-look-for-existing-container", err, lager.Data{"id": session.ID})
 		return nil, nil, err
 	}
 
@@ -88,7 +92,7 @@ func (tracker *tracker) InitWithSources(
 			missingNames = append(missingNames, name)
 		}
 
-		return NewResource(container, tracker.clock), missingNames, nil
+		return NewResource(container), missingNames, nil
 	}
 
 	resourceSpec := worker.ContainerSpec{
@@ -98,6 +102,7 @@ func (tracker *tracker) InitWithSources(
 		},
 		Ephemeral: session.Ephemeral,
 		Tags:      tags,
+		TeamID:    teamID,
 		Env:       metadata.Env(),
 	}
 
@@ -148,6 +153,8 @@ func (tracker *tracker) InitWithSources(
 
 	resourceSpec.Inputs = mounts
 
+	logger.Debug("tracker-init-with-resources-creating-container", lager.Data{"container-id": session.ID})
+
 	container, err = chosenWorker.CreateContainer(
 		logger,
 		nil,
@@ -168,7 +175,7 @@ func (tracker *tracker) InitWithSources(
 		mount.Volume.Release(nil)
 	}
 
-	return NewResource(container, tracker.clock), missingSources, nil
+	return NewResource(container), missingSources, nil
 }
 
 func (tracker *tracker) Init(
@@ -177,6 +184,7 @@ func (tracker *tracker) Init(
 	session Session,
 	typ ResourceType,
 	tags atc.Tags,
+	teamID int,
 	resourceTypes atc.ResourceTypes,
 	imageFetchingDelegate worker.ImageFetchingDelegate,
 ) (Resource, error) {
@@ -193,10 +201,10 @@ func (tracker *tracker) Init(
 
 	if found {
 		logger.Debug("found-existing-container", lager.Data{"container": container.Handle()})
-		return NewResource(container, tracker.clock), nil
+		return NewResource(container), nil
 	}
 
-	logger.Debug("creating-container")
+	logger.Debug("tracker-init-creating-container", lager.Data{"container-id": session.ID})
 
 	container, err = tracker.workerClient.CreateContainer(
 		logger,
@@ -211,6 +219,7 @@ func (tracker *tracker) Init(
 			},
 			Ephemeral: session.Ephemeral,
 			Tags:      tags,
+			TeamID:    teamID,
 			Env:       metadata.Env(),
 		},
 		resourceTypes,
@@ -221,125 +230,5 @@ func (tracker *tracker) Init(
 
 	logger.Info("created", lager.Data{"container": container.Handle()})
 
-	return NewResource(container, tracker.clock), nil
-}
-
-func (tracker *tracker) InitWithCache(
-	logger lager.Logger,
-	metadata Metadata,
-	session Session,
-	typ ResourceType,
-	tags atc.Tags,
-	cacheIdentifier CacheIdentifier,
-	resourceTypes atc.ResourceTypes,
-	imageFetchingDelegate worker.ImageFetchingDelegate,
-) (Resource, Cache, error) {
-	logger = logger.Session("init-with-cache")
-
-	logger.Debug("start")
-	defer logger.Debug("done")
-
-	container, found, err := tracker.workerClient.FindContainerForIdentifier(logger, session.ID)
-	if err != nil {
-		logger.Error("failed-to-look-for-existing-container", err)
-		return nil, nil, err
-	}
-
-	if found {
-		logger.Debug("found-existing-container", lager.Data{"container": container.Handle()})
-
-		resource := NewResource(container, tracker.clock)
-
-		var cache Cache
-		cacheVolume, found := resource.CacheVolume()
-		if found {
-			logger.Debug("found-cache")
-			cache = volumeCache{cacheVolume}
-		} else {
-			logger.Debug("no-cache")
-			cache = noopCache{}
-		}
-
-		return resource, cache, nil
-	}
-
-	logger.Debug("no-existing-container")
-
-	resourceSpec := worker.WorkerSpec{
-		ResourceType: string(typ),
-		Tags:         tags,
-	}
-
-	chosenWorker, err := tracker.workerClient.Satisfying(resourceSpec, resourceTypes)
-	if err != nil {
-		logger.Info("no-workers-satisfying-spec", lager.Data{
-			"error": err.Error(),
-		})
-		return nil, nil, err
-	}
-
-	containerSpec := worker.ContainerSpec{
-		ImageSpec: worker.ImageSpec{
-			ResourceType: string(typ),
-			Privileged:   true,
-		},
-		Ephemeral: session.Ephemeral,
-		Tags:      tags,
-		Env:       metadata.Env(),
-	}
-
-	cachedVolume, cacheFound, err := cacheIdentifier.FindOn(logger, chosenWorker)
-	if err != nil {
-		logger.Error("failed-to-look-for-cache", err)
-		return nil, nil, err
-	}
-
-	if cacheFound {
-		logger.Debug("found-cache", lager.Data{"volume": cachedVolume.Handle()})
-	} else {
-		logger.Debug("no-cache-found")
-
-		cachedVolume, err = cacheIdentifier.CreateOn(logger, chosenWorker)
-		if err == worker.ErrNoVolumeManager {
-			logger.Info("worker-has-no-volume-manager")
-		} else if err != nil {
-			logger.Error("failed-to-create-cache", err)
-			return nil, nil, err
-		}
-	}
-
-	if cachedVolume == nil {
-		logger.Debug("creating-container-without-cache")
-	} else {
-		logger.Debug("creating-container-with-cache", lager.Data{
-			"cache-handle": cachedVolume.Handle(),
-		})
-
-		defer cachedVolume.Release(nil)
-
-		containerSpec.Outputs = []worker.VolumeMount{
-			{
-				Volume:    cachedVolume,
-				MountPath: ResourcesDir("get"),
-			},
-		}
-	}
-
-	container, err = chosenWorker.CreateContainer(
-		logger,
-		nil,
-		imageFetchingDelegate,
-		session.ID,
-		session.Metadata,
-		containerSpec,
-		resourceTypes,
-	)
-	if err != nil {
-		logger.Error("failed-to-create-container", err)
-		return nil, nil, err
-	}
-
-	logger.Info("created", lager.Data{"container": container.Handle()})
-
-	return NewResource(container, tracker.clock), volumeCache{cachedVolume}, nil
+	return NewResource(container), nil
 }

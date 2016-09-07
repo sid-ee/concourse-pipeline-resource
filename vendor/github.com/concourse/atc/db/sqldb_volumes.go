@@ -3,11 +3,17 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 )
+
+const volumeJoins = `
+LEFT JOIN containers c
+	ON v.container_id = c.id
+LEFT JOIN teams t
+	ON v.team_id = t.id
+`
 
 func (db *SQLDB) InsertVolume(data Volume) error {
 	tx, err := db.conn.Begin()
@@ -30,6 +36,12 @@ func (db *SQLDB) InsertVolume(data Volume) error {
 		columns = append(columns, "expires_at")
 		params = append(params, fmt.Sprintf("%d second", int(data.TTL.Seconds())))
 		values = append(values, fmt.Sprintf("NOW() + $%d::INTERVAL", len(params)))
+	}
+
+	if data.TeamID != 0 {
+		columns = append(columns, "team_id")
+		params = append(params, data.TeamID)
+		values = append(values, fmt.Sprintf("$%d", len(params)))
 	}
 
 	switch {
@@ -101,28 +113,27 @@ func (db *SQLDB) ReapVolume(handle string) error {
 }
 
 func (db *SQLDB) GetVolumes() ([]SavedVolume, error) {
-	err := db.expireVolumes()
-	if err != nil {
-		return nil, err
-	}
-
 	rows, err := db.conn.Query(`
 		SELECT
-			worker_name,
-			ttl,
-			EXTRACT(epoch FROM expires_at - NOW()),
-			handle,
-			resource_version,
-			resource_hash,
-			id,
-			original_volume_handle,
-			output_name,
-			replicated_from,
-			path,
-			host_path_version,
-			size
-		FROM volumes
-	`)
+			v.worker_name,
+			v.ttl,
+			EXTRACT(epoch FROM v.expires_at - NOW()),
+			v.handle,
+			v.resource_version,
+			v.resource_hash,
+			v.id,
+			v.original_volume_handle,
+			v.output_name,
+			v.replicated_from,
+			v.path,
+			v.host_path_version,
+			v.size_in_bytes,
+			c.ttl,
+			v.team_id
+		FROM volumes v
+		` + volumeJoins + `
+		WHERE (v.expires_at IS NULL OR v.expires_at > NOW())
+		`)
 	if err != nil {
 		return nil, err
 	}
@@ -132,16 +143,11 @@ func (db *SQLDB) GetVolumes() ([]SavedVolume, error) {
 }
 
 func (db *SQLDB) GetVolumesByIdentifier(id VolumeIdentifier) ([]SavedVolume, error) {
-	err := db.expireVolumes()
-	if err != nil {
-		return nil, err
-	}
-
-	conditions := []string{}
+	conditions := []string{"(v.expires_at IS NULL OR v.expires_at > NOW())"}
 	params := []interface{}{}
 
 	addParam := func(column string, param interface{}) {
-		conditions = append(conditions, fmt.Sprintf("%s = $%d", column, len(params)+1))
+		conditions = append(conditions, fmt.Sprintf("v.%s = $%d", column, len(params)+1))
 		params = append(params, param)
 	}
 
@@ -169,21 +175,22 @@ func (db *SQLDB) GetVolumesByIdentifier(id VolumeIdentifier) ([]SavedVolume, err
 
 	statement := `
 		SELECT
-			worker_name,
-			ttl,
-			EXTRACT(epoch FROM expires_at - NOW()),
-			handle,
-			resource_version,
-			resource_hash,
-			id,
-			original_volume_handle,
-			output_name,
-			replicated_from,
-			path,
-			host_path_version,
-			size
-		FROM volumes
-		`
+			v.worker_name,
+			v.ttl,
+			EXTRACT(epoch FROM v.expires_at - NOW()),
+			v.handle,
+			v.resource_version,
+			v.resource_hash,
+			v.id,
+			v.original_volume_handle,
+			v.output_name,
+			v.replicated_from,
+			v.path,
+			v.host_path_version,
+			v.size_in_bytes,
+			c.ttl,
+			v.team_id
+		FROM volumes v` + volumeJoins
 
 	statement += "WHERE " + strings.Join(conditions, " AND ")
 	statement += "ORDER BY id ASC"
@@ -204,11 +211,6 @@ func (db *SQLDB) GetVolumesByIdentifier(id VolumeIdentifier) ([]SavedVolume, err
 }
 
 func (db *SQLDB) GetVolumesForOneOffBuildImageResources() ([]SavedVolume, error) {
-	err := db.expireVolumes()
-	if err != nil {
-		return nil, err
-	}
-
 	rows, err := db.conn.Query(`
 		SELECT DISTINCT
 			v.worker_name,
@@ -223,14 +225,17 @@ func (db *SQLDB) GetVolumesForOneOffBuildImageResources() ([]SavedVolume, error)
 			v.replicated_from,
 			v.path,
 			v.host_path_version,
-			v.size
-		FROM volumes v
+			v.size_in_bytes,
+			c.ttl,
+			v.team_id
+		FROM volumes v ` + volumeJoins + `
 			INNER JOIN image_resource_versions i
 				ON i.version = v.resource_version
 				AND i.resource_hash = v.resource_hash
 			INNER JOIN builds b
 				ON b.id = i.build_id
 		WHERE b.job_id IS NULL
+		AND (v.expires_at IS NULL OR v.expires_at > NOW())
 	`)
 	if err != nil {
 		return nil, err
@@ -238,6 +243,30 @@ func (db *SQLDB) GetVolumesForOneOffBuildImageResources() ([]SavedVolume, error)
 
 	volumes, err := scanVolumes(rows)
 	return volumes, err
+}
+
+func (db *SQLDB) SetVolumeTTLAndSizeInBytes(handle string, ttl time.Duration, sizeInBytes int64) error {
+	if ttl == 0 {
+		_, err := db.conn.Exec(`
+			UPDATE volumes
+			SET expires_at = null, ttl = 0, size_in_bytes = $2
+			WHERE handle = $1
+		`, handle, sizeInBytes)
+
+		return err
+	}
+
+	interval := fmt.Sprintf("%d second", int(ttl.Seconds()))
+
+	_, err := db.conn.Exec(`
+		UPDATE volumes
+		SET expires_at = NOW() + $1::INTERVAL,
+		ttl = $2,
+		size_in_bytes = $3
+		WHERE handle = $4
+	`, interval, ttl, sizeInBytes, handle)
+
+	return err
 }
 
 func (db *SQLDB) SetVolumeTTL(handle string, ttl time.Duration) error {
@@ -280,60 +309,7 @@ func (db *SQLDB) GetVolumeTTL(handle string) (time.Duration, bool, error) {
 	return ttl, true, nil
 }
 
-func (db *SQLDB) SetVolumeSize(handle string, size uint) error {
-	_, err := db.conn.Exec(`
-		UPDATE volumes
-		SET size = $1
-		WHERE handle = $2
-	`, size, handle)
-
-	return err
-}
-
-func (db *SQLDB) getVolume(originalVolumeHandle string) (SavedVolume, error) {
-	err := db.expireVolumes()
-	if err != nil {
-		return SavedVolume{}, err
-	}
-
-	rows, err := db.conn.Query(`
-		SELECT
-			worker_name,
-			ttl,
-			EXTRACT(epoch FROM expires_at - NOW()),
-			handle,
-			resource_version,
-			resource_hash,
-			id,
-			original_volume_handle,
-			output_name,
-			replicated_from,
-			path,
-			host_path_version,
-			size
-		FROM volumes
-		WHERE handle = $1
-	`, originalVolumeHandle)
-	if err != nil {
-		return SavedVolume{}, err
-	}
-
-	volumes, err := scanVolumes(rows)
-	if err != nil {
-		return SavedVolume{}, err
-	}
-
-	switch len(volumes) {
-	case 0:
-		return SavedVolume{}, errors.New(fmt.Sprintf("unable to find volume handle %s", originalVolumeHandle))
-	case 1:
-		return volumes[0], nil
-	default:
-		return SavedVolume{}, errors.New(fmt.Sprintf("%d volumes found for handle %s", len(volumes), originalVolumeHandle))
-	}
-}
-
-func (db *SQLDB) expireVolumes() error {
+func (db *SQLDB) ReapExpiredVolumes() error {
 	_, err := db.conn.Exec(`
 		DELETE FROM volumes
 		WHERE expires_at IS NOT NULL
@@ -358,6 +334,7 @@ func scanVolumes(rows *sql.Rows) ([]SavedVolume, error) {
 			replicationName      sql.NullString
 			path                 sql.NullString
 			hostPathVersion      sql.NullString
+			teamID               sql.NullInt64
 		)
 
 		err := rows.Scan(
@@ -373,7 +350,9 @@ func scanVolumes(rows *sql.Rows) ([]SavedVolume, error) {
 			&replicationName,
 			&path,
 			&hostPathVersion,
-			&volume.Size,
+			&volume.SizeInBytes,
+			&volume.ContainerTTL,
+			&teamID,
 		)
 		if err != nil {
 			return []SavedVolume{}, err
@@ -381,6 +360,10 @@ func scanVolumes(rows *sql.Rows) ([]SavedVolume, error) {
 
 		if ttlSeconds != nil {
 			volume.ExpiresIn = time.Duration(*ttlSeconds) * time.Second
+		}
+
+		if teamID.Valid {
+			volume.TeamID = int(teamID.Int64)
 		}
 
 		switch {

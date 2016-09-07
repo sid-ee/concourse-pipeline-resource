@@ -1,14 +1,15 @@
 package volumeserver
 
 import (
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 )
 
 type Server struct {
 	logger lager.Logger
 
-	db VolumesDB
+	db            VolumesDB
+	teamDBFactory db.TeamDBFactory
 }
 
 //go:generate counterfeiter . VolumesDB
@@ -20,9 +21,11 @@ type VolumesDB interface {
 func NewServer(
 	logger lager.Logger,
 	db VolumesDB,
+	teamDBFactory db.TeamDBFactory,
 ) *Server {
 	return &Server{
-		logger: logger,
-		db:     db,
+		logger:        logger,
+		db:            db,
+		teamDBFactory: teamDBFactory,
 	}
 }

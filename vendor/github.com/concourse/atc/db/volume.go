@@ -10,11 +10,13 @@ import (
 )
 
 type Volume struct {
-	Handle     string
-	WorkerName string
-	TTL        time.Duration
-	Size       uint
-	Identifier VolumeIdentifier
+	Handle       string
+	WorkerName   string
+	TeamID       int
+	ContainerTTL *time.Duration
+	TTL          time.Duration
+	SizeInBytes  int64
+	Identifier   VolumeIdentifier
 }
 
 // pls gib algebraic data types

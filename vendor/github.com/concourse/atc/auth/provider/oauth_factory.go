@@ -1,61 +1,64 @@
 package provider
 
 import (
-	"errors"
-
-	"github.com/cloudfoundry/gunk/urljoiner"
+	"code.cloudfoundry.org/gunk/urljoiner"
+	"code.cloudfoundry.org/lager"
+	"github.com/concourse/atc/auth/genericoauth"
 	"github.com/concourse/atc/auth/github"
+	"github.com/concourse/atc/auth/uaa"
 	"github.com/concourse/atc/db"
 	"github.com/tedsuo/rata"
 )
 
-//go:generate counterfeiter . FactoryDB
-
-type FactoryDB interface {
-	GetTeamByName(teamName string) (db.SavedTeam, bool, error)
-}
-
 type OAuthFactory struct {
-	db             FactoryDB
+	logger         lager.Logger
 	atcExternalURL string
 	routes         rata.Routes
 	callback       string
 }
 
-func NewOAuthFactory(db FactoryDB, atcExternalURL string, routes rata.Routes, callback string) OAuthFactory {
+func NewOAuthFactory(logger lager.Logger, atcExternalURL string, routes rata.Routes, callback string) OAuthFactory {
 	return OAuthFactory{
-		db:             db,
+		logger:         logger,
 		atcExternalURL: atcExternalURL,
 		routes:         routes,
 		callback:       callback,
 	}
 }
 
-func (of OAuthFactory) GetProviders(teamName string) (Providers, error) {
-	team, found, err := of.db.GetTeamByName(teamName)
+func (of OAuthFactory) GetProvider(team db.SavedTeam, providerName string) (Provider, bool, error) {
+	redirectURL, err := of.routes.CreatePathForRoute(of.callback, rata.Params{
+		"provider": providerName,
+	})
 	if err != nil {
-		return Providers{}, err
-	}
-	if !found {
-		return Providers{}, errors.New("team not found")
+		of.logger.Error("failed-to-construct-redirect-url", err, lager.Data{"provider": providerName})
+		return nil, false, err
 	}
 
-	providers := Providers{}
-
-	if len(team.GitHubAuth.Organizations) > 0 ||
-		len(team.GitHubAuth.Teams) > 0 ||
-		len(team.GitHubAuth.Users) > 0 {
-
-		redirectURL, err := of.routes.CreatePathForRoute(of.callback, rata.Params{
-			"provider": github.ProviderName,
-		})
-		if err != nil {
-			return Providers{}, err
+	switch providerName {
+	case github.ProviderName:
+		if team.GitHubAuth == nil {
+			return nil, false, nil
 		}
-		gitHubAuthProvider := github.NewProvider(team.GitHubAuth, urljoiner.Join(of.atcExternalURL, redirectURL))
 
-		providers[github.ProviderName] = gitHubAuthProvider
+		return github.NewProvider(team.GitHubAuth, urljoiner.Join(of.atcExternalURL, redirectURL)), true, nil
+
+	case uaa.ProviderName:
+		if team.UAAAuth == nil {
+			of.logger.Error("failed-to-construct-redirect-url", err, lager.Data{"provider": providerName})
+			return nil, false, nil
+		}
+
+		return uaa.NewProvider(team.UAAAuth, urljoiner.Join(of.atcExternalURL, redirectURL)), true, nil
+
+	case genericoauth.ProviderName:
+		if team.GenericOAuth == nil {
+			return nil, false, nil
+		}
+
+		return genericoauth.NewProvider(team.GenericOAuth, urljoiner.Join(of.atcExternalURL, redirectURL)), true, nil
+
 	}
 
-	return providers, err
+	return nil, false, nil
 }

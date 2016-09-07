@@ -2,11 +2,13 @@ package workerserver
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/metric"
@@ -21,10 +23,35 @@ func (i IntMetric) String() string {
 func (s *Server) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 	logger := s.logger.Session("register-worker")
 	var registration atc.Worker
+
+	isSystem, present := r.Context().Value("system").(bool)
+
+	if !present || !isSystem {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
 	err := json.NewDecoder(r.Body).Decode(&registration)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	var teamID int
+	if registration.Team != "" {
+		team, found, err := s.teamDBFactory.GetTeamDB(registration.Team).GetTeam()
+		if err != nil {
+			logger.Error("failed-to-get-team", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if !found {
+			logger.Error("team-not-found", errors.New("team-not-found"), lager.Data{"team-name": registration.Team})
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		teamID = team.ID
 	}
 
 	if len(registration.GardenAddr) == 0 {
@@ -64,6 +91,7 @@ func (s *Server) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 		ResourceTypes:    registration.ResourceTypes,
 		Platform:         registration.Platform,
 		Tags:             registration.Tags,
+		TeamID:           teamID,
 		Name:             registration.Name,
 		StartTime:        registration.StartTime,
 	}, ttl)

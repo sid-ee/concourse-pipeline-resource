@@ -1,9 +1,10 @@
 package jobserver
 
 import (
+	"code.cloudfoundry.org/lager"
+	"github.com/concourse/atc/auth"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/scheduler"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . SchedulerFactory
@@ -17,6 +18,7 @@ type Server struct {
 
 	schedulerFactory SchedulerFactory
 	externalURL      string
+	rejector         auth.Rejector
 }
 
 func NewServer(
@@ -28,5 +30,6 @@ func NewServer(
 		logger:           logger,
 		schedulerFactory: schedulerFactory,
 		externalURL:      externalURL,
+		rejector:         auth.UnauthorizedRejector{},
 	}
 }

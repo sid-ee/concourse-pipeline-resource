@@ -3,37 +3,35 @@ package auth
 import (
 	"net/http"
 
-	"github.com/concourse/atc"
+	"github.com/concourse/atc/db"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-type BasicAuthValidator struct {
-	DB AuthDB
+type basicAuthValidator struct {
+	team db.SavedTeam
 }
 
-// IsAuthenticated
-// basic authentication for login
-func (validator BasicAuthValidator) IsAuthenticated(r *http.Request) bool {
-	auth := r.Header.Get("Authorization")
+func NewBasicAuthValidator(team db.SavedTeam) Validator {
+	return basicAuthValidator{
+		team: team,
+	}
+}
 
+func (v basicAuthValidator) IsAuthenticated(r *http.Request) bool {
+	auth := r.Header.Get("Authorization")
 	username, password, err := extractUsernameAndPassword(auth)
 	if err != nil {
 		return false
 	}
 
-	team, found, err := validator.DB.GetTeamByName(atc.DefaultTeamName)
-	if err != nil || !found {
-		return false
-	}
-
-	return validator.correctCredentials(
-		team.BasicAuthUsername, team.BasicAuthPassword,
+	return v.correctCredentials(
+		v.team.BasicAuth.BasicAuthUsername, v.team.BasicAuth.BasicAuthPassword,
 		username, password,
 	)
 }
 
-func (validator BasicAuthValidator) correctCredentials(
+func (v basicAuthValidator) correctCredentials(
 	teamUsername string, teamPassword string,
 	checkUsername string, checkPassword string,
 ) bool {

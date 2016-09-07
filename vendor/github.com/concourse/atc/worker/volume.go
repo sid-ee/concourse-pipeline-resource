@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
+	"code.cloudfoundry.org/clock"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/metric"
 	"github.com/concourse/baggageclaim"
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 )
 
 const volumeKeepalive = 30 * time.Second
@@ -17,8 +17,8 @@ const volumeKeepalive = 30 * time.Second
 type VolumeFactoryDB interface {
 	GetVolumeTTL(volumeHandle string) (time.Duration, bool, error)
 	ReapVolume(handle string) error
-	SetVolumeTTL(string, time.Duration) error
-	SetVolumeSize(string, uint) error
+	SetVolumeTTLAndSizeInBytes(handle string, ttl time.Duration, sizeInBytes int64) error
+	SetVolumeTTL(handle string, ttl time.Duration) error
 }
 
 //go:generate counterfeiter . VolumeFactory
@@ -124,7 +124,7 @@ func (v *volume) heartbeatContinuously(logger lager.Logger, pacemaker clock.Tick
 		case <-pacemaker.C():
 			ttl, found, err := v.db.GetVolumeTTL(v.Handle())
 			if err != nil {
-				logger.Error("failed-to-lookup-ttl", err)
+				logger.Error("failed-to-lookup-volume-ttl", err)
 			} else {
 				if !found {
 					logger.Info("volume-expired-from-database")
@@ -153,23 +153,28 @@ func (v *volume) heartbeat(logger lager.Logger, ttl time.Duration) {
 	err := v.SetTTL(ttl)
 	if err != nil {
 		if err == baggageclaim.ErrVolumeNotFound {
-			v.db.ReapVolume(v.Handle())
+			err = v.db.ReapVolume(v.Handle())
+			if err != nil {
+				logger.Error("failed-to-delete-volume-from-database", err)
+			}
 		}
 		logger.Error("failed-to-heartbeat-to-volume", err)
 	}
 
-	err = v.db.SetVolumeTTL(v.Handle(), ttl)
-	if err != nil {
-		logger.Error("failed-to-heartbeat-to-database", err)
-	}
-
-	size, err := v.Size()
+	size, err := v.SizeInBytes()
 	if err != nil {
 		logger.Error("failed-to-get-volume-size", err)
-	} else {
-		err := v.db.SetVolumeSize(v.Handle(), size)
+
+		err = v.db.SetVolumeTTL(v.Handle(), ttl)
 		if err != nil {
-			logger.Error("failed-to-store-volume-size", err)
+			logger.Error("failed-to-set-volume-ttl", err)
 		}
+
+		return
+	}
+
+	err = v.db.SetVolumeTTLAndSizeInBytes(v.Handle(), ttl, size)
+	if err != nil {
+		logger.Error("failed-to-set-volume-ttl-and-size", err)
 	}
 }

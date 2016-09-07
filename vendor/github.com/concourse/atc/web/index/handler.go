@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"net/url"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/web"
 	"github.com/concourse/atc/web/pipeline"
-	"github.com/pivotal-golang/lager"
 )
 
 type TemplateData struct{}
@@ -58,6 +58,7 @@ func (handler *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) error 
 		r.Form = url.Values{}
 	}
 
+	r.Form[":team_name"] = []string{pipelines[0].TeamName}
 	r.Form[":pipeline"] = []string{pipelines[0].Name}
 
 	return handler.pipelineHandler.ServeHTTP(w, r)

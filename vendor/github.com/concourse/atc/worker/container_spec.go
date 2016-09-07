@@ -12,11 +12,13 @@ type WorkerSpec struct {
 	Platform     string
 	ResourceType string
 	Tags         []string
+	TeamID       int
 }
 
 type ContainerSpec struct {
 	Platform  string
 	Tags      []string
+	TeamID    int
 	ImageSpec ImageSpec
 	Ephemeral bool
 	Env       []string
@@ -26,6 +28,9 @@ type ContainerSpec struct {
 
 	// Copy-on-Write. Used for mounting multiple resources into a Put container.
 	Outputs []VolumeMount
+
+	// Optional user to run processes as. Overwrites the one specified in the docker image.
+	User string
 }
 
 type ImageSpec struct {
@@ -46,6 +51,7 @@ func (spec ContainerSpec) WorkerSpec() WorkerSpec {
 		ResourceType: spec.ImageSpec.ResourceType,
 		Platform:     spec.Platform,
 		Tags:         spec.Tags,
+		TeamID:       spec.TeamID,
 	}
 }
 

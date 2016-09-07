@@ -7,12 +7,16 @@ import (
 	"github.com/tedsuo/rata"
 )
 
-func Resource(resource atc.ResourceConfig, groups atc.GroupConfigs, dbResource db.SavedResource, showCheckError bool) atc.Resource {
+func Resource(resource db.SavedResource, groups atc.GroupConfigs, showCheckError bool, teamName string) atc.Resource {
 	generator := rata.NewRequestGenerator("", web.Routes)
 
 	req, err := generator.CreateRequest(
 		web.GetResource,
-		rata.Params{"resource": resource.Name, "pipeline_name": dbResource.PipelineName},
+		rata.Params{
+			"resource":      resource.Name,
+			"team_name":     teamName,
+			"pipeline_name": resource.PipelineName,
+		},
 		nil,
 	)
 	if err != nil {
@@ -29,19 +33,19 @@ func Resource(resource atc.ResourceConfig, groups atc.GroupConfigs, dbResource d
 	}
 
 	var checkErrString string
-	if dbResource.CheckError != nil && showCheckError {
-		checkErrString = dbResource.CheckError.Error()
+	if resource.CheckError != nil && showCheckError {
+		checkErrString = resource.CheckError.Error()
 	}
 
 	return atc.Resource{
 		Name:   resource.Name,
-		Type:   resource.Type,
+		Type:   resource.Config.Type,
 		Groups: groupNames,
 		URL:    req.URL.String(),
 
-		Paused: dbResource.Paused,
+		Paused: resource.Paused,
 
-		FailingToCheck: dbResource.FailingToCheck(),
+		FailingToCheck: resource.FailingToCheck(),
 		CheckError:     checkErrString,
 	}
 }

@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/clock"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/metric"
 	"github.com/concourse/baggageclaim"
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 )
 
 var ErrMissingVolume = errors.New("volume mounted to container is missing")
@@ -32,6 +32,8 @@ type gardenWorkerContainer struct {
 	heartbeating *sync.WaitGroup
 
 	releaseOnce sync.Once
+
+	workerName string
 }
 
 func newGardenWorkerContainer(
@@ -42,6 +44,7 @@ func newGardenWorkerContainer(
 	db GardenWorkerDB,
 	clock clock.Clock,
 	volumeFactory VolumeFactory,
+	workerName string,
 ) (Container, error) {
 	logger = logger.WithData(lager.Data{"container": container.Handle()})
 
@@ -55,6 +58,7 @@ func newGardenWorkerContainer(
 
 		heartbeating: new(sync.WaitGroup),
 		release:      make(chan *time.Duration, 1),
+		workerName:   workerName,
 	}
 
 	workerContainer.heartbeat(logger.Session("initial-heartbeat"), ContainerTTL)
@@ -91,6 +95,10 @@ func newGardenWorkerContainer(
 func (container *gardenWorkerContainer) Destroy() error {
 	container.Release(nil)
 	return container.gardenClient.Destroy(container.Handle())
+}
+
+func (container *gardenWorkerContainer) WorkerName() string {
+	return container.workerName
 }
 
 func (container *gardenWorkerContainer) Release(finalTTL *time.Duration) {

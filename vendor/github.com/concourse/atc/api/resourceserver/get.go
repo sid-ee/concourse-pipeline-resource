@@ -4,36 +4,17 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/api/present"
 	"github.com/concourse/atc/auth"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 )
 
 func (s *Server) GetResource(pipelineDB db.PipelineDB) http.Handler {
 	logger := s.logger.Session("get-resource")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		config, _, found, err := pipelineDB.GetConfig()
-		if err != nil {
-			logger.Error("failed-to-get-config", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		if !found {
-			logger.Info("config-not-found")
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
 		resourceName := r.FormValue(":resource_name")
-
-		resourceConfig, resourceFound := config.Resources.Lookup(resourceName)
-		if !resourceFound {
-			logger.Info("resource-not-in-config")
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+		teamName := r.FormValue(":team_name")
 
 		dbResource, found, err := pipelineDB.GetResource(resourceName)
 		if err != nil {
@@ -49,10 +30,10 @@ func (s *Server) GetResource(pipelineDB db.PipelineDB) http.Handler {
 		}
 
 		resource := present.Resource(
-			resourceConfig,
-			config.Groups,
 			dbResource,
+			pipelineDB.Config().Groups,
 			auth.IsAuthenticated(r),
+			teamName,
 		)
 
 		w.WriteHeader(http.StatusOK)

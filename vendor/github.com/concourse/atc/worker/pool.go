@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . WorkerProvider
@@ -65,6 +65,10 @@ func shuffleWorkers(slice []Worker) {
 	}
 }
 
+func (pool *pool) Workers() ([]Worker, error) {
+	return pool.provider.Workers()
+}
+
 func (pool *pool) GetWorker(workerName string) (Worker, error) {
 	worker, found, err := pool.provider.GetWorker(workerName)
 	if err != nil {
@@ -88,24 +92,33 @@ func (pool *pool) AllSatisfying(spec WorkerSpec, resourceTypes atc.ResourceTypes
 		return nil, ErrNoWorkers
 	}
 
-	compatibleWorkers := []Worker{}
+	compatibleTeamWorkers := []Worker{}
+	compatibleGeneralWorkers := []Worker{}
 	for _, worker := range workers {
 		satisfyingWorker, err := worker.Satisfying(spec, resourceTypes)
 		if err == nil {
-			compatibleWorkers = append(compatibleWorkers, satisfyingWorker)
+			if worker.IsOwnedByTeam() {
+				compatibleTeamWorkers = append(compatibleTeamWorkers, satisfyingWorker)
+			} else {
+				compatibleGeneralWorkers = append(compatibleGeneralWorkers, satisfyingWorker)
+			}
 		}
 	}
 
-	if len(compatibleWorkers) == 0 {
-		return nil, NoCompatibleWorkersError{
-			Spec:    spec,
-			Workers: workers,
-		}
+	if len(compatibleTeamWorkers) != 0 {
+		shuffleWorkers(compatibleTeamWorkers)
+		return compatibleTeamWorkers, nil
 	}
 
-	shuffleWorkers(compatibleWorkers)
+	if len(compatibleGeneralWorkers) != 0 {
+		shuffleWorkers(compatibleGeneralWorkers)
+		return compatibleGeneralWorkers, nil
+	}
 
-	return compatibleWorkers, nil
+	return nil, NoCompatibleWorkersError{
+		Spec:    spec,
+		Workers: workers,
+	}
 }
 
 func (pool *pool) Satisfying(spec WorkerSpec, resourceTypes atc.ResourceTypes) (Worker, error) {
@@ -153,6 +166,21 @@ func (pool *pool) FindContainerForIdentifier(logger lager.Logger, id Identifier)
 		})
 
 		return nil, false, ErrMissingWorker
+	}
+
+	valid, err := worker.ValidateResourceCheckVersion(containerInfo)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !valid {
+		logger.Info("check-container-version-outdated", lager.Data{
+			"container-handle": containerInfo.Handle,
+			"worker-name":      containerInfo.WorkerName,
+		})
+
+		return nil, false, nil
 	}
 
 	container, found, err := worker.LookupContainer(logger, containerInfo.Handle)
@@ -224,6 +252,10 @@ func (pool *pool) LookupContainer(logger lager.Logger, handle string) (Container
 	return container, true, nil
 }
 
+func (*pool) ValidateResourceCheckVersion(container db.SavedContainer) (bool, error) {
+	return false, errors.New("ValidateResourceCheckVersion not implemented for pool")
+}
+
 func (*pool) FindResourceTypeByPath(string) (atc.WorkerResourceType, bool) {
 	return atc.WorkerResourceType{}, false
 }
@@ -232,7 +264,7 @@ func (*pool) FindVolume(lager.Logger, VolumeSpec) (Volume, bool, error) {
 	return nil, false, errors.New("FindVolume not implemented for pool")
 }
 
-func (*pool) CreateVolume(lager.Logger, VolumeSpec) (Volume, error) {
+func (*pool) CreateVolume(lager.Logger, VolumeSpec, int) (Volume, error) {
 	return nil, errors.New("CreateVolume not implemented for pool")
 }
 

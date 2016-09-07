@@ -8,6 +8,7 @@ import (
 
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/api/present"
+	"github.com/concourse/atc/auth"
 	"github.com/concourse/atc/db"
 )
 
@@ -34,7 +35,18 @@ func (s *Server) ListBuilds(w http.ResponseWriter, r *http.Request) {
 		limit = atc.PaginationAPIDefaultLimit
 	}
 
-	builds, pagination, err := s.db.GetBuilds(db.Page{Until: until, Since: since, Limit: limit})
+	page := db.Page{Until: until, Since: since, Limit: limit}
+	var builds []db.Build
+	var pagination db.Pagination
+
+	authTeam, authTeamFound := auth.GetTeam(r)
+	if authTeamFound {
+		teamDB := s.teamDBFactory.GetTeamDB(authTeam.Name())
+		builds, pagination, err = teamDB.GetPrivateAndPublicBuilds(page)
+	} else {
+		builds, pagination, err = s.buildsDB.GetPublicBuilds(page)
+	}
+
 	if err != nil {
 		logger.Error("failed-to-get-all-builds", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -53,7 +65,8 @@ func (s *Server) ListBuilds(w http.ResponseWriter, r *http.Request) {
 
 	atc := make([]atc.Build, len(builds))
 	for i := 0; i < len(builds); i++ {
-		atc[i] = present.Build(builds[i])
+		build := builds[i]
+		atc[i] = present.Build(build)
 	}
 
 	json.NewEncoder(w).Encode(atc)

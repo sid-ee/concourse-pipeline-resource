@@ -1,9 +1,11 @@
 package authserver
 
 import (
+	"time"
+
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc/auth"
 	"github.com/concourse/atc/db"
-	"github.com/pivotal-golang/lager"
 )
 
 type Server struct {
@@ -12,13 +14,8 @@ type Server struct {
 	oAuthBaseURL    string
 	tokenGenerator  auth.TokenGenerator
 	providerFactory auth.ProviderFactory
-	db              AuthDB
-}
-
-//go:generate counterfeiter . AuthDB
-
-type AuthDB interface {
-	GetTeamByName(teamName string) (db.SavedTeam, bool, error)
+	teamDBFactory   db.TeamDBFactory
+	expire          time.Duration
 }
 
 func NewServer(
@@ -27,7 +24,8 @@ func NewServer(
 	oAuthBaseURL string,
 	tokenGenerator auth.TokenGenerator,
 	providerFactory auth.ProviderFactory,
-	db AuthDB,
+	teamDBFactory db.TeamDBFactory,
+	expire time.Duration,
 ) *Server {
 	return &Server{
 		logger:          logger,
@@ -35,6 +33,7 @@ func NewServer(
 		oAuthBaseURL:    oAuthBaseURL,
 		tokenGenerator:  tokenGenerator,
 		providerFactory: providerFactory,
-		db:              db,
+		teamDBFactory:   teamDBFactory,
+		expire:          expire,
 	}
 }

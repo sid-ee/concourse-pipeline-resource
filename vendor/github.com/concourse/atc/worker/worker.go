@@ -11,18 +11,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/clock"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/baggageclaim"
-	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 )
 
 var ErrUnsupportedResourceType = errors.New("unsupported resource type")
 var ErrIncompatiblePlatform = errors.New("incompatible platform")
 var ErrMismatchedTags = errors.New("mismatched tags")
 var ErrNoVolumeManager = errors.New("worker does not support volume management")
+var ErrTeamMismatch = errors.New("mismatched team")
 
 type MalformedMetadataError struct {
 	UnmarshalError error
@@ -34,6 +35,7 @@ func (err MalformedMetadataError) Error() string {
 
 const containerKeepalive = 30 * time.Second
 const ContainerTTL = 5 * time.Minute
+
 const VolumeTTL = 5 * time.Minute
 
 const ephemeralPropertyName = "concourse:ephemeral"
@@ -52,19 +54,21 @@ type Worker interface {
 	Description() string
 	Name() string
 	Uptime() time.Duration
+	IsOwnedByTeam() bool
 }
 
 //go:generate counterfeiter . GardenWorkerDB
 
 type GardenWorkerDB interface {
-	CreateContainer(db.Container, time.Duration, time.Duration) (db.SavedContainer, error)
+	CreateContainer(container db.Container, ttl time.Duration, maxLifetime time.Duration, volumeHandles []string) (db.SavedContainer, error)
+	GetContainer(handle string) (db.SavedContainer, bool, error)
 	UpdateExpiresAtOnContainer(handle string, ttl time.Duration) error
-
+	ReapContainer(string) error
+	GetPipelineByID(pipelineID int) (db.SavedPipeline, error)
 	InsertVolume(db.Volume) error
-	SetVolumeTTL(string, time.Duration) error
+	SetVolumeTTLAndSizeInBytes(string, time.Duration, int64) error
 	GetVolumeTTL(string) (time.Duration, bool, error)
 	GetVolumesByIdentifier(db.VolumeIdentifier) ([]db.SavedVolume, error)
-	ReapVolume(string) error
 }
 
 type gardenWorker struct {
@@ -72,8 +76,8 @@ type gardenWorker struct {
 	baggageclaimClient baggageclaim.Client
 	volumeClient       VolumeClient
 	volumeFactory      VolumeFactory
-
-	imageFetcher ImageFetcher
+	pipelineDBFactory  db.PipelineDBFactory
+	imageFactory       ImageFactory
 
 	db       GardenWorkerDB
 	provider WorkerProvider
@@ -84,6 +88,7 @@ type gardenWorker struct {
 	resourceTypes    []atc.WorkerResourceType
 	platform         string
 	tags             atc.Tags
+	teamID           int
 	name             string
 	startTime        int64
 	httpProxyURL     string
@@ -96,7 +101,8 @@ func NewGardenWorker(
 	baggageclaimClient baggageclaim.Client,
 	volumeClient VolumeClient,
 	volumeFactory VolumeFactory,
-	imageFetcher ImageFetcher,
+	imageFactory ImageFactory,
+	pipelineDBFactory db.PipelineDBFactory,
 	db GardenWorkerDB,
 	provider WorkerProvider,
 	clock clock.Clock,
@@ -104,6 +110,7 @@ func NewGardenWorker(
 	resourceTypes []atc.WorkerResourceType,
 	platform string,
 	tags atc.Tags,
+	teamID int,
 	name string,
 	startTime int64,
 	httpProxyURL string,
@@ -115,20 +122,21 @@ func NewGardenWorker(
 		baggageclaimClient: baggageclaimClient,
 		volumeClient:       volumeClient,
 		volumeFactory:      volumeFactory,
-		imageFetcher:       imageFetcher,
+		imageFactory:       imageFactory,
 		db:                 db,
 		provider:           provider,
 		clock:              clock,
-
-		activeContainers: activeContainers,
-		resourceTypes:    resourceTypes,
-		platform:         platform,
-		tags:             tags,
-		name:             name,
-		startTime:        startTime,
-		httpProxyURL:     httpProxyURL,
-		httpsProxyURL:    httpsProxyURL,
-		noProxy:          noProxy,
+		pipelineDBFactory:  pipelineDBFactory,
+		activeContainers:   activeContainers,
+		resourceTypes:      resourceTypes,
+		platform:           platform,
+		tags:               tags,
+		teamID:             teamID,
+		name:               name,
+		startTime:          startTime,
+		httpProxyURL:       httpProxyURL,
+		httpsProxyURL:      httpsProxyURL,
+		noProxy:            noProxy,
 	}
 }
 
@@ -146,8 +154,8 @@ func (worker *gardenWorker) FindVolume(logger lager.Logger, volumeSpec VolumeSpe
 	return worker.volumeClient.FindVolume(logger, volumeSpec)
 }
 
-func (worker *gardenWorker) CreateVolume(logger lager.Logger, volumeSpec VolumeSpec) (Volume, error) {
-	return worker.volumeClient.CreateVolume(logger, volumeSpec)
+func (worker *gardenWorker) CreateVolume(logger lager.Logger, volumeSpec VolumeSpec, teamID int) (Volume, error) {
+	return worker.volumeClient.CreateVolume(logger, volumeSpec, teamID)
 }
 
 func (worker *gardenWorker) ListVolumes(logger lager.Logger, properties VolumeProperties) ([]Volume, error) {
@@ -161,6 +169,7 @@ func (worker *gardenWorker) LookupVolume(logger lager.Logger, handle string) (Vo
 func (worker *gardenWorker) getImage(
 	logger lager.Logger,
 	imageSpec ImageSpec,
+	teamID int,
 	cancel <-chan os.Signal,
 	delegate ImageFetchingDelegate,
 	id Identifier,
@@ -187,18 +196,21 @@ func (worker *gardenWorker) getImage(
 	// 'image_resource:' in task
 	if imageResource != nil {
 		var err error
-		imageVolume, imageMetadataReader, version, err = worker.imageFetcher.FetchImage(
-			logger,
-			*imageResource,
+		image := worker.imageFactory.NewImage(
+			logger.Session("image"),
 			cancel,
+			*imageResource,
 			id,
 			metadata,
-			delegate,
-			worker,
 			worker.tags,
+			teamID,
 			updatedResourceTypes,
+			worker,
+			delegate,
 			imageSpec.Privileged,
 		)
+
+		imageVolume, imageMetadataReader, version, err = image.Fetch()
 		if err != nil {
 			return nil, ImageMetadata{}, nil, "", err
 		}
@@ -221,22 +233,56 @@ func (worker *gardenWorker) getImage(
 
 	// built-in resource type specified in step
 	if imageSpec.ResourceType != "" {
-		rootFSURL, volume, err := worker.getBuiltInResourceTypeImage(logger, imageSpec.ResourceType)
+		rootFSURL, volume, resourceTypeVersion, err := worker.getBuiltInResourceTypeImage(logger, imageSpec.ResourceType, teamID)
 		if err != nil {
 			return nil, ImageMetadata{}, nil, "", err
 		}
 
-		return volume, ImageMetadata{}, nil, rootFSURL, nil
+		return volume, ImageMetadata{}, resourceTypeVersion, rootFSURL, nil
 	}
 
 	// 'image:' in task
 	return nil, ImageMetadata{}, nil, imageSpec.ImageURL, nil
 }
 
+func (worker *gardenWorker) ValidateResourceCheckVersion(container db.SavedContainer) (bool, error) {
+	if container.Type != db.ContainerTypeCheck || container.CheckType == "" || container.ResourceTypeVersion == nil {
+		return true, nil
+	}
+
+	if container.PipelineID > 0 {
+		savedPipeline, err := worker.db.GetPipelineByID(container.PipelineID)
+		if err != nil {
+			return false, err
+		}
+
+		pipelineDB := worker.pipelineDBFactory.Build(savedPipeline)
+
+		_, found, err := pipelineDB.GetResourceType(container.CheckType)
+		if err != nil {
+			return false, err
+		}
+
+		// this is custom resource type, do not validate version on worker
+		if found {
+			return true, nil
+		}
+	}
+
+	for _, workerResourceType := range worker.resourceTypes {
+		if container.CheckType == workerResourceType.Type && workerResourceType.Version == container.ResourceTypeVersion[container.CheckType] {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (worker *gardenWorker) getBuiltInResourceTypeImage(
 	logger lager.Logger,
 	resourceTypeName string,
-) (string, Volume, error) {
+	teamID int,
+) (string, Volume, atc.Version, error) {
 	for _, t := range worker.resourceTypes {
 		if t.Type == resourceTypeName {
 			importVolumeSpec := VolumeSpec{
@@ -251,12 +297,17 @@ func (worker *gardenWorker) getBuiltInResourceTypeImage(
 			}
 
 			importVolume, found, err := worker.FindVolume(logger, importVolumeSpec)
-			if !found || err != nil {
-				importVolume, err = worker.CreateVolume(logger, importVolumeSpec)
+			if err != nil {
+				return "", nil, atc.Version{}, err
+			}
+
+			if !found {
+				importVolume, err = worker.CreateVolume(logger, importVolumeSpec, 0)
 				if err != nil {
-					return "", nil, err
+					return "", nil, atc.Version{}, err
 				}
 			}
+
 			defer importVolume.Release(nil)
 
 			cowVolume, err := worker.CreateVolume(logger, VolumeSpec{
@@ -266,9 +317,9 @@ func (worker *gardenWorker) getBuiltInResourceTypeImage(
 				Privileged: true,
 				Properties: VolumeProperties{},
 				TTL:        VolumeTTL,
-			})
+			}, teamID)
 			if err != nil {
-				return "", nil, err
+				return "", nil, atc.Version{}, err
 			}
 
 			rootFSURL := url.URL{
@@ -276,11 +327,11 @@ func (worker *gardenWorker) getBuiltInResourceTypeImage(
 				Path:   cowVolume.Path(),
 			}
 
-			return rootFSURL.String(), cowVolume, nil
+			return rootFSURL.String(), cowVolume, atc.Version{resourceTypeName: t.Version}, nil
 		}
 	}
 
-	return "", nil, ErrUnsupportedResourceType
+	return "", nil, atc.Version{}, ErrUnsupportedResourceType
 }
 
 func loadMetadata(tarReader io.ReadCloser) (ImageMetadata, error) {
@@ -305,9 +356,10 @@ func (worker *gardenWorker) CreateContainer(
 	spec ContainerSpec,
 	resourceTypes atc.ResourceTypes,
 ) (Container, error) {
-	imageVolume, imageMetadata, imageVersion, imageURL, err := worker.getImage(
+	imageVolume, imageMetadata, resourceTypeVersion, imageURL, err := worker.getImage(
 		logger,
 		spec.ImageSpec,
+		spec.TeamID,
 		cancel,
 		delegate,
 		id,
@@ -329,7 +381,7 @@ func (worker *gardenWorker) CreateContainer(
 			},
 			Privileged: spec.ImageSpec.Privileged,
 			TTL:        VolumeTTL,
-		})
+		}, spec.TeamID)
 		if err != nil {
 			return nil, err
 		}
@@ -365,6 +417,9 @@ func (worker *gardenWorker) CreateContainer(
 	}
 
 	gardenProperties := garden.Properties{userPropertyName: imageMetadata.User}
+	if spec.User != "" {
+		gardenProperties = garden.Properties{userPropertyName: spec.User}
+	}
 
 	if len(volumeHandles) > 0 {
 		volumesJSON, err := json.Marshal(volumeHandles)
@@ -417,7 +472,7 @@ func (worker *gardenWorker) CreateContainer(
 	metadata.Handle = gardenContainer.Handle()
 	metadata.User = gardenSpec.Properties["user"]
 
-	id.ResourceTypeVersion = imageVersion
+	id.ResourceTypeVersion = resourceTypeVersion
 
 	_, err = worker.db.CreateContainer(
 		db.Container{
@@ -426,6 +481,7 @@ func (worker *gardenWorker) CreateContainer(
 		},
 		ContainerTTL,
 		worker.maxContainerLifetime(metadata),
+		volumeHandles,
 	)
 	if err != nil {
 		return nil, err
@@ -439,6 +495,7 @@ func (worker *gardenWorker) CreateContainer(
 		worker.db,
 		worker.clock,
 		worker.volumeFactory,
+		worker.name,
 	)
 }
 
@@ -466,6 +523,21 @@ func (worker *gardenWorker) FindContainerForIdentifier(logger lager.Logger, id I
 
 	if !found {
 		return nil, found, nil
+	}
+
+	valid, err := worker.ValidateResourceCheckVersion(containerInfo)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !valid {
+		logger.Debug("check-container-version-outdated", lager.Data{
+			"container-handle": containerInfo.Handle,
+			"worker-name":      containerInfo.WorkerName,
+		})
+
+		return nil, false, nil
 	}
 
 	container, found, err := worker.LookupContainer(logger, containerInfo.Handle)
@@ -510,7 +582,9 @@ func (worker *gardenWorker) LookupContainer(logger lager.Logger, handle string) 
 		worker.db,
 		worker.clock,
 		worker.volumeFactory,
+		worker.name,
 	)
+
 	if err != nil {
 		logger.Error("failed-to-construct-container", err)
 		return nil, false, err
@@ -524,6 +598,10 @@ func (worker *gardenWorker) ActiveContainers() int {
 }
 
 func (worker *gardenWorker) Satisfying(spec WorkerSpec, resourceTypes atc.ResourceTypes) (Worker, error) {
+	if spec.TeamID != worker.teamID && worker.teamID != 0 {
+		return nil, ErrTeamMismatch
+	}
+
 	if spec.ResourceType != "" {
 		underlyingType := determineUnderlyingTypeName(spec.ResourceType, resourceTypes)
 
@@ -572,6 +650,10 @@ func (worker *gardenWorker) AllSatisfying(spec WorkerSpec, resourceTypes atc.Res
 	return nil, errors.New("Not implemented")
 }
 
+func (worker *gardenWorker) Workers() ([]Worker, error) {
+	return nil, errors.New("Not implemented")
+}
+
 func (worker *gardenWorker) GetWorker(name string) (Worker, error) {
 	return nil, errors.New("Not implemented")
 }
@@ -590,6 +672,10 @@ func (worker *gardenWorker) Description() string {
 
 func (worker *gardenWorker) Name() string {
 	return worker.name
+}
+
+func (worker *gardenWorker) IsOwnedByTeam() bool {
+	return worker.teamID != 0
 }
 
 func (worker *gardenWorker) Uptime() time.Duration {

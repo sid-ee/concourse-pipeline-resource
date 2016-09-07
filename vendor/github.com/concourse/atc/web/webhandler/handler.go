@@ -3,11 +3,13 @@ package webhandler
 import (
 	"html/template"
 	"net/http"
+	"time"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/elazarl/go-bindata-assetfs"
-	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/rata"
 
+	"github.com/concourse/atc/mainredirect"
 	"github.com/concourse/atc/web"
 	"github.com/concourse/atc/web/authredirect"
 	"github.com/concourse/atc/web/getbuild"
@@ -18,6 +20,7 @@ import (
 	"github.com/concourse/atc/web/index"
 	"github.com/concourse/atc/web/login"
 	"github.com/concourse/atc/web/pipeline"
+	"github.com/concourse/atc/web/robotstxt"
 	"github.com/concourse/atc/web/triggerbuild"
 	"github.com/concourse/atc/wrappa"
 )
@@ -26,6 +29,7 @@ func NewHandler(
 	logger lager.Logger,
 	wrapper wrappa.Wrappa,
 	clientFactory web.ClientFactory,
+	expire time.Duration,
 ) (http.Handler, error) {
 	tfuncs := &templateFuncs{
 		assetIDs: map[string]string{},
@@ -37,7 +41,7 @@ func NewHandler(
 		"withRedirect": tfuncs.withRedirect,
 	}
 
-	indexTemplate, err := loadTemplate("index.html", funcs)
+	noPipelinesTemplate, err := loadTemplate("no_pipelines.html", funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -52,12 +56,12 @@ func NewHandler(
 		return nil, err
 	}
 
-	buildsTemplate, err := loadTemplateWithoutPipeline("builds/index.html", funcs)
+	joblessBuildTemplate, err := loadTemplateWithoutPipeline("build.html", funcs)
 	if err != nil {
 		return nil, err
 	}
 
-	joblessBuildTemplate, err := loadTemplateWithoutPipeline("builds/show.html", funcs)
+	buildsTemplate, err := loadTemplateWithoutPipeline("builds.html", funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -86,17 +90,24 @@ func NewHandler(
 	pipelineHandler := pipeline.NewHandler(logger, clientFactory, pipelineTemplate)
 
 	handlers := map[string]http.Handler{
-		web.Index:           authredirect.Handler{index.NewHandler(logger, clientFactory, pipelineHandler, indexTemplate)},
-		web.Pipeline:        authredirect.Handler{pipelineHandler},
-		web.Public:          CacheNearlyForever(http.FileServer(publicFS)),
-		web.GetJob:          authredirect.Handler{getjob.NewHandler(logger, clientFactory, jobTemplate)},
-		web.GetResource:     authredirect.Handler{getresource.NewHandler(logger, clientFactory, resourceTemplate)},
-		web.GetBuild:        authredirect.Handler{getbuild.NewHandler(logger, clientFactory, buildTemplate)},
-		web.GetBuilds:       authredirect.Handler{getbuilds.NewHandler(logger, clientFactory, buildsTemplate)},
-		web.GetJoblessBuild: authredirect.Handler{getjoblessbuild.NewHandler(logger, clientFactory, joblessBuildTemplate)},
-		web.TriggerBuild:    authredirect.Handler{triggerbuild.NewHandler(logger, clientFactory)},
-		web.LogIn:           login.NewHandler(logger, clientFactory, logInTemplate),
-		web.BasicAuth:       login.NewBasicAuthHandler(logger),
+		web.Index:                 authredirect.Handler{index.NewHandler(logger, clientFactory, pipelineHandler, noPipelinesTemplate)},
+		web.RobotsTxt:             robotstxt.Handler{},
+		web.Pipeline:              authredirect.Handler{pipelineHandler},
+		web.Public:                CacheNearlyForever(http.FileServer(publicFS)),
+		web.GetJob:                authredirect.Handler{getjob.NewHandler(logger, clientFactory, jobTemplate)},
+		web.GetResource:           authredirect.Handler{getresource.NewHandler(logger, clientFactory, resourceTemplate)},
+		web.GetBuild:              authredirect.Handler{getbuild.NewHandler(logger, clientFactory, buildTemplate)},
+		web.GetBuilds:             authredirect.Handler{getbuilds.NewHandler(logger, clientFactory, buildsTemplate)},
+		web.GetJoblessBuild:       authredirect.Handler{getjoblessbuild.NewHandler(logger, clientFactory, joblessBuildTemplate)},
+		web.TriggerBuild:          authredirect.Handler{triggerbuild.NewHandler(logger, clientFactory)},
+		web.TeamLogIn:             login.NewHandler(logger, logInTemplate),
+		web.LogIn:                 login.NewHandler(logger, logInTemplate),
+		web.ProcessBasicAuthLogIn: login.NewProcessBasicAuthHandler(logger, clientFactory, expire),
+
+		web.MainPipeline:    mainredirect.Handler{web.Routes, web.Pipeline},
+		web.MainGetJob:      mainredirect.Handler{web.Routes, web.GetJob},
+		web.MainGetResource: mainredirect.Handler{web.Routes, web.GetResource},
+		web.MainGetBuild:    mainredirect.Handler{web.Routes, web.GetBuild},
 	}
 
 	handler, err := rata.NewRouter(web.Routes, wrapper.Wrap(handlers))

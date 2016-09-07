@@ -3,8 +3,8 @@ package radar
 import (
 	"time"
 
+	"code.cloudfoundry.org/clock"
 	"github.com/concourse/atc/resource"
-	"github.com/pivotal-golang/clock"
 )
 
 type ScannerFactory interface {

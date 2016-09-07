@@ -3,14 +3,18 @@ package pipelines
 import (
 	"time"
 
+	"code.cloudfoundry.org/clock"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/engine"
 	"github.com/concourse/atc/radar"
 	"github.com/concourse/atc/resource"
 	"github.com/concourse/atc/scheduler"
+	"github.com/concourse/atc/scheduler/buildstarter"
+	"github.com/concourse/atc/scheduler/buildstarter/maxinflight"
 	"github.com/concourse/atc/scheduler/factory"
-	"github.com/pivotal-golang/clock"
+	"github.com/concourse/atc/scheduler/inputmapper"
+	"github.com/concourse/atc/scheduler/inputmapper/inputconfig"
 )
 
 //go:generate counterfeiter . RadarSchedulerFactory
@@ -24,20 +28,17 @@ type radarSchedulerFactory struct {
 	tracker  resource.Tracker
 	interval time.Duration
 	engine   engine.Engine
-	db       db.DB
 }
 
 func NewRadarSchedulerFactory(
 	tracker resource.Tracker,
 	interval time.Duration,
 	engine engine.Engine,
-	db db.DB,
 ) RadarSchedulerFactory {
 	return &radarSchedulerFactory{
 		tracker:  tracker,
 		interval: interval,
 		engine:   engine,
-		db:       db,
 	}
 }
 
@@ -54,13 +55,20 @@ func (rsf *radarSchedulerFactory) BuildScheduler(pipelineDB db.PipelineDB, exter
 		externalURL,
 	)
 	return &scheduler.Scheduler{
-		PipelineDB: pipelineDB,
-		BuildsDB:   rsf.db,
-		Factory: factory.NewBuildFactory(
-			pipelineDB.GetPipelineID(),
-			atc.NewPlanFactory(time.Now().Unix()),
+		DB: pipelineDB,
+		InputMapper: inputmapper.NewInputMapper(
+			pipelineDB,
+			inputconfig.NewTransformer(pipelineDB),
 		),
-		Engine:  rsf.engine,
+		BuildStarter: buildstarter.NewBuildStarter(
+			pipelineDB,
+			maxinflight.NewUpdater(pipelineDB),
+			factory.NewBuildFactory(
+				pipelineDB.GetPipelineID(),
+				atc.NewPlanFactory(time.Now().Unix()),
+			),
+			rsf.engine,
+		),
 		Scanner: scanner,
 	}
 }

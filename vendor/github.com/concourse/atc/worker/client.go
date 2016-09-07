@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/lager"
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/baggageclaim"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . Client
@@ -28,15 +28,16 @@ type Client interface {
 
 	FindContainerForIdentifier(lager.Logger, Identifier) (Container, bool, error)
 	LookupContainer(lager.Logger, string) (Container, bool, error)
-
+	ValidateResourceCheckVersion(container db.SavedContainer) (bool, error)
 	FindResourceTypeByPath(path string) (atc.WorkerResourceType, bool)
 	FindVolume(lager.Logger, VolumeSpec) (Volume, bool, error)
-	CreateVolume(lager.Logger, VolumeSpec) (Volume, error)
+	CreateVolume(logger lager.Logger, vs VolumeSpec, teamID int) (Volume, error)
 	ListVolumes(lager.Logger, VolumeProperties) ([]Volume, error)
 	LookupVolume(lager.Logger, string) (Volume, bool, error)
 
 	Satisfying(WorkerSpec, atc.ResourceTypes) (Worker, error)
 	AllSatisfying(WorkerSpec, atc.ResourceTypes) ([]Worker, error)
+	Workers() ([]Worker, error)
 	GetWorker(workerName string) (Worker, error)
 }
 
@@ -162,6 +163,8 @@ type Container interface {
 
 	Volumes() []Volume
 	VolumeMounts() []VolumeMount
+
+	WorkerName() string
 }
 
 type VolumeProperties map[string]string
