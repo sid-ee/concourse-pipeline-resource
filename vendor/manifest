@@ -339,7 +339,7 @@
 			"importpath": "github.com/concourse/go-concourse",
 			"repository": "https://github.com/concourse/go-concourse",
 			"vcs": "git",
-			"revision": "1eae515495e3938a7be17a8e1da9b13948a083c6",
+			"revision": "2b5d587e331e66d7f5e3f4dc21d8f7d69bb36a86",
 			"branch": "master",
 			"notests": true
 		},
