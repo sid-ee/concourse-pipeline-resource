@@ -20,7 +20,8 @@ type FakePipelineSetter struct {
 	setPipelineReturns struct {
 		result1 error
 	}
-	invocations map[string][][]interface{}
+	invocations      map[string][][]interface{}
+	invocationsMutex sync.RWMutex
 }
 
 func (fake *FakePipelineSetter) SetPipeline(pipelineName string, configPath string, templateVariables template.Variables, templateVariablesFiles []string) error {
@@ -36,8 +37,7 @@ func (fake *FakePipelineSetter) SetPipeline(pipelineName string, configPath stri
 		templateVariables      template.Variables
 		templateVariablesFiles []string
 	}{pipelineName, configPath, templateVariables, templateVariablesFilesCopy})
-	fake.guard("SetPipeline")
-	fake.invocations["SetPipeline"] = append(fake.invocations["SetPipeline"], []interface{}{pipelineName, configPath, templateVariables, templateVariablesFilesCopy})
+	fake.recordInvocation("SetPipeline", []interface{}{pipelineName, configPath, templateVariables, templateVariablesFilesCopy})
 	fake.setPipelineMutex.Unlock()
 	if fake.SetPipelineStub != nil {
 		return fake.SetPipelineStub(pipelineName, configPath, templateVariables, templateVariablesFiles)
@@ -66,16 +66,23 @@ func (fake *FakePipelineSetter) SetPipelineReturns(result1 error) {
 }
 
 func (fake *FakePipelineSetter) Invocations() map[string][][]interface{} {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	fake.setPipelineMutex.RLock()
+	defer fake.setPipelineMutex.RUnlock()
 	return fake.invocations
 }
 
-func (fake *FakePipelineSetter) guard(key string) {
+func (fake *FakePipelineSetter) recordInvocation(key string, args []interface{}) {
+	fake.invocationsMutex.Lock()
+	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
 	if fake.invocations[key] == nil {
 		fake.invocations[key] = [][]interface{}{}
 	}
+	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
 var _ helpers.PipelineSetter = new(FakePipelineSetter)

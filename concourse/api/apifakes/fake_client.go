@@ -16,7 +16,7 @@ type FakeClient struct {
 		result1 []api.Pipeline
 		result2 error
 	}
-	PipelineConfigStub        func(pipelineName string) (atc.Config, string, string, error)
+	PipelineConfigStub        func(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
 	pipelineConfigMutex       sync.RWMutex
 	pipelineConfigArgsForCall []struct {
 		pipelineName string
@@ -45,14 +45,14 @@ type FakeClient struct {
 	deletePipelineReturns struct {
 		result1 error
 	}
-	invocations map[string][][]interface{}
+	invocations      map[string][][]interface{}
+	invocationsMutex sync.RWMutex
 }
 
 func (fake *FakeClient) Pipelines() ([]api.Pipeline, error) {
 	fake.pipelinesMutex.Lock()
 	fake.pipelinesArgsForCall = append(fake.pipelinesArgsForCall, struct{}{})
-	fake.guard("Pipelines")
-	fake.invocations["Pipelines"] = append(fake.invocations["Pipelines"], []interface{}{})
+	fake.recordInvocation("Pipelines", []interface{}{})
 	fake.pipelinesMutex.Unlock()
 	if fake.PipelinesStub != nil {
 		return fake.PipelinesStub()
@@ -75,13 +75,12 @@ func (fake *FakeClient) PipelinesReturns(result1 []api.Pipeline, result2 error) 
 	}{result1, result2}
 }
 
-func (fake *FakeClient) PipelineConfig(pipelineName string) (atc.Config, string, string, error) {
+func (fake *FakeClient) PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error) {
 	fake.pipelineConfigMutex.Lock()
 	fake.pipelineConfigArgsForCall = append(fake.pipelineConfigArgsForCall, struct {
 		pipelineName string
 	}{pipelineName})
-	fake.guard("PipelineConfig")
-	fake.invocations["PipelineConfig"] = append(fake.invocations["PipelineConfig"], []interface{}{pipelineName})
+	fake.recordInvocation("PipelineConfig", []interface{}{pipelineName})
 	fake.pipelineConfigMutex.Unlock()
 	if fake.PipelineConfigStub != nil {
 		return fake.PipelineConfigStub(pipelineName)
@@ -119,8 +118,7 @@ func (fake *FakeClient) SetPipelineConfig(pipelineName string, configVersion str
 		configVersion string
 		passedConfig  atc.Config
 	}{pipelineName, configVersion, passedConfig})
-	fake.guard("SetPipelineConfig")
-	fake.invocations["SetPipelineConfig"] = append(fake.invocations["SetPipelineConfig"], []interface{}{pipelineName, configVersion, passedConfig})
+	fake.recordInvocation("SetPipelineConfig", []interface{}{pipelineName, configVersion, passedConfig})
 	fake.setPipelineConfigMutex.Unlock()
 	if fake.SetPipelineConfigStub != nil {
 		return fake.SetPipelineConfigStub(pipelineName, configVersion, passedConfig)
@@ -153,8 +151,7 @@ func (fake *FakeClient) DeletePipeline(pipelineName string) error {
 	fake.deletePipelineArgsForCall = append(fake.deletePipelineArgsForCall, struct {
 		pipelineName string
 	}{pipelineName})
-	fake.guard("DeletePipeline")
-	fake.invocations["DeletePipeline"] = append(fake.invocations["DeletePipeline"], []interface{}{pipelineName})
+	fake.recordInvocation("DeletePipeline", []interface{}{pipelineName})
 	fake.deletePipelineMutex.Unlock()
 	if fake.DeletePipelineStub != nil {
 		return fake.DeletePipelineStub(pipelineName)
@@ -183,16 +180,29 @@ func (fake *FakeClient) DeletePipelineReturns(result1 error) {
 }
 
 func (fake *FakeClient) Invocations() map[string][][]interface{} {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	fake.pipelinesMutex.RLock()
+	defer fake.pipelinesMutex.RUnlock()
+	fake.pipelineConfigMutex.RLock()
+	defer fake.pipelineConfigMutex.RUnlock()
+	fake.setPipelineConfigMutex.RLock()
+	defer fake.setPipelineConfigMutex.RUnlock()
+	fake.deletePipelineMutex.RLock()
+	defer fake.deletePipelineMutex.RUnlock()
 	return fake.invocations
 }
 
-func (fake *FakeClient) guard(key string) {
+func (fake *FakeClient) recordInvocation(key string, args []interface{}) {
+	fake.invocationsMutex.Lock()
+	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
 	if fake.invocations[key] == nil {
 		fake.invocations[key] = [][]interface{}{}
 	}
+	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
 var _ api.Client = new(FakeClient)

@@ -18,7 +18,8 @@ type FakeConfigDiffer struct {
 	diffReturns struct {
 		result1 error
 	}
-	invocations map[string][][]interface{}
+	invocations      map[string][][]interface{}
+	invocationsMutex sync.RWMutex
 }
 
 func (fake *FakeConfigDiffer) Diff(existingConfig atc.Config, newConfig atc.Config) error {
@@ -27,8 +28,7 @@ func (fake *FakeConfigDiffer) Diff(existingConfig atc.Config, newConfig atc.Conf
 		existingConfig atc.Config
 		newConfig      atc.Config
 	}{existingConfig, newConfig})
-	fake.guard("Diff")
-	fake.invocations["Diff"] = append(fake.invocations["Diff"], []interface{}{existingConfig, newConfig})
+	fake.recordInvocation("Diff", []interface{}{existingConfig, newConfig})
 	fake.diffMutex.Unlock()
 	if fake.DiffStub != nil {
 		return fake.DiffStub(existingConfig, newConfig)
@@ -57,16 +57,23 @@ func (fake *FakeConfigDiffer) DiffReturns(result1 error) {
 }
 
 func (fake *FakeConfigDiffer) Invocations() map[string][][]interface{} {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	fake.diffMutex.RLock()
+	defer fake.diffMutex.RUnlock()
 	return fake.invocations
 }
 
-func (fake *FakeConfigDiffer) guard(key string) {
+func (fake *FakeConfigDiffer) recordInvocation(key string, args []interface{}) {
+	fake.invocationsMutex.Lock()
+	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
 	if fake.invocations[key] == nil {
 		fake.invocations[key] = [][]interface{}{}
 	}
+	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
 var _ helpers.ConfigDiffer = new(FakeConfigDiffer)

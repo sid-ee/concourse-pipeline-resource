@@ -72,13 +72,20 @@ func main() {
 		}
 	}
 
-	httpClient := api.HTTPClient(
+	token, err := api.LoginWithBasicAuth(
+		input.Source.Target,
 		input.Source.Username,
 		input.Source.Password,
 		insecure,
 	)
+	if err != nil {
+		l.Debugf("Exiting with error: %v\n", err)
+		log.Fatalln(err)
+	}
 
+	httpClient := api.OAuthHTTPClient(token, insecure)
 	apiClient := api.NewClient(input.Source.Target, httpClient)
+
 	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), apiClient)
 	response, err := checkCommand.Run(input)
 	if err != nil {

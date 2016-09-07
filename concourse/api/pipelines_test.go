@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/gcfakes"
+	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
 
 	"github.com/concourse/atc"
 	gc "github.com/concourse/go-concourse/concourse"
@@ -15,8 +15,8 @@ import (
 
 var _ = Describe("Pipeline methods", func() {
 	var (
-		originalNewGCClientFunc func(target string, httpClient *http.Client) gc.Client
-		fakeGCClient            *gcfakes.FakeClient
+		originalNewGCClientFunc func(target string, httpClient *http.Client) api.ConcourseClient
+		fakeConcourseClient     *apifakes.FakeConcourseClient
 
 		client api.Client
 		target string
@@ -25,10 +25,10 @@ var _ = Describe("Pipeline methods", func() {
 	BeforeEach(func() {
 		originalNewGCClientFunc = api.NewGCClientFunc
 
-		fakeGCClient = &gcfakes.FakeClient{}
+		fakeConcourseClient = &apifakes.FakeConcourseClient{}
 
-		api.NewGCClientFunc = func(target string, httpClient *http.Client) gc.Client {
-			return fakeGCClient
+		api.NewGCClientFunc = func(target string, httpClient *http.Client) api.ConcourseClient {
+			return fakeConcourseClient
 		}
 
 		target = "some target"
@@ -56,7 +56,7 @@ var _ = Describe("Pipeline methods", func() {
 		})
 
 		JustBeforeEach(func() {
-			fakeGCClient.ListPipelinesReturns(atcPipelines, pipelinesErr)
+			fakeConcourseClient.ListPipelinesReturns(atcPipelines, pipelinesErr)
 		})
 
 		It("returns successfully", func() {
@@ -103,7 +103,7 @@ var _ = Describe("Pipeline methods", func() {
 		})
 
 		JustBeforeEach(func() {
-			fakeGCClient.PipelineConfigReturns(
+			fakeConcourseClient.PipelineConfigReturns(
 				atcConfig,
 				atcRawConfig,
 				configVersion,
@@ -175,7 +175,7 @@ var _ = Describe("Pipeline methods", func() {
 		})
 
 		JustBeforeEach(func() {
-			fakeGCClient.CreateOrUpdatePipelineConfigReturns(
+			fakeConcourseClient.CreateOrUpdatePipelineConfigReturns(
 				pipelineCreated,
 				pipelineUpdated,
 				warnings,
@@ -191,9 +191,9 @@ var _ = Describe("Pipeline methods", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(fakeGCClient.CreateOrUpdatePipelineConfigCallCount()).To(Equal(1))
+			Expect(fakeConcourseClient.CreateOrUpdatePipelineConfigCallCount()).To(Equal(1))
 			invokedPipelineName, invokedConfigVersion, invokedPassedConfig :=
-				fakeGCClient.CreateOrUpdatePipelineConfigArgsForCall(0)
+				fakeConcourseClient.CreateOrUpdatePipelineConfigArgsForCall(0)
 
 			Expect(invokedPipelineName).To(Equal(pipelineName))
 			Expect(invokedConfigVersion).To(Equal(configVersion))
@@ -255,15 +255,15 @@ var _ = Describe("Pipeline methods", func() {
 		})
 
 		JustBeforeEach(func() {
-			fakeGCClient.DeletePipelineReturns(pipelineExists, pipelineConfigErr)
+			fakeConcourseClient.DeletePipelineReturns(pipelineExists, pipelineConfigErr)
 		})
 
 		It("returns successfully", func() {
 			err := client.DeletePipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(fakeGCClient.DeletePipelineCallCount()).To(Equal(1))
-			Expect(fakeGCClient.DeletePipelineArgsForCall(0)).To(Equal(pipelineName))
+			Expect(fakeConcourseClient.DeletePipelineCallCount()).To(Equal(1))
+			Expect(fakeConcourseClient.DeletePipelineArgsForCall(0)).To(Equal(pipelineName))
 		})
 
 		Context("when getting pipelines returns an error", func() {
