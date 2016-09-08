@@ -96,7 +96,7 @@ var _ = BeforeSuite(func() {
 
 	httpClient := api.OAuthHTTPClient(token, insecure)
 
-	apiClient = api.NewClient(target, httpClient)
+	apiClient = api.NewClient(target, teamName, httpClient)
 })
 
 var _ = AfterSuite(func() {

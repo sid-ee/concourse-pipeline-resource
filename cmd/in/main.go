@@ -93,7 +93,7 @@ func main() {
 	}
 
 	httpClient := api.OAuthHTTPClient(token, insecure)
-	apiClient := api.NewClient(input.Source.Target, httpClient)
+	apiClient := api.NewClient(input.Source.Target, teamName, httpClient)
 
 	response, err := in.NewInCommand(version, l, apiClient, downloadDir).Run(input)
 	if err != nil {

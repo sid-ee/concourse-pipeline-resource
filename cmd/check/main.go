@@ -86,7 +86,7 @@ func main() {
 	}
 
 	httpClient := api.OAuthHTTPClient(token, insecure)
-	apiClient := api.NewClient(input.Source.Target, httpClient)
+	apiClient := api.NewClient(input.Source.Target, teamName, httpClient)
 
 	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), apiClient)
 	response, err := checkCommand.Run(input)

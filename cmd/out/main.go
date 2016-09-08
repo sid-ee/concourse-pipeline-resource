@@ -112,7 +112,7 @@ func main() {
 	}
 
 	httpClient := api.OAuthHTTPClient(token, insecure)
-	apiClient := api.NewClient(input.Source.Target, httpClient)
+	apiClient := api.NewClient(input.Source.Target, teamName, httpClient)
 
 	cd := helpers.NewConfigDiffer(sanitizer)
 	pipelineSetter := helpers.NewPipelineSetter(apiClient, cd)
