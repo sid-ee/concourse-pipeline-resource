@@ -6,7 +6,7 @@ import (
 	"github.com/concourse/atc"
 )
 
-func (c client) Pipelines() ([]Pipeline, error) {
+func (c Client) Pipelines() ([]Pipeline, error) {
 	atcPipelines, err := c.gcClient.ListPipelines()
 	if err != nil {
 		return nil, c.wrapErr(err)
@@ -15,7 +15,7 @@ func (c client) Pipelines() ([]Pipeline, error) {
 	return pipelinesFromATCPipelines(atcPipelines), nil
 }
 
-func (c client) PipelineConfig(pipelineName string) (atc.Config, string, string, error) {
+func (c Client) PipelineConfig(pipelineName string) (atc.Config, string, string, error) {
 	atcConfig, atcRawConfig, configVersion, exists, err :=
 		c.gcClient.PipelineConfig(pipelineName)
 	if err != nil {
@@ -30,7 +30,7 @@ func (c client) PipelineConfig(pipelineName string) (atc.Config, string, string,
 	return atcConfig, atcRawConfig.String(), configVersion, nil
 }
 
-func (c client) SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error {
+func (c Client) SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error {
 	created, updated, _, err := c.gcClient.CreateOrUpdatePipelineConfig(
 		pipelineName,
 		configVersion,
@@ -48,7 +48,7 @@ func (c client) SetPipelineConfig(pipelineName string, configVersion string, pas
 	return nil
 }
 
-func (c client) DeletePipeline(pipelineName string) error {
+func (c Client) DeletePipeline(pipelineName string) error {
 	exists, err := c.gcClient.DeletePipeline(pipelineName)
 	if err != nil {
 		return c.wrapErr(err)

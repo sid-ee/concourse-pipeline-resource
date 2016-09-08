@@ -18,7 +18,7 @@ var _ = Describe("Pipeline methods", func() {
 		originalNewGCClientFunc func(target string, httpClient *http.Client) api.ConcourseClient
 		fakeConcourseClient     *apifakes.FakeConcourseClient
 
-		client api.Client
+		client *api.Client
 		target string
 	)
 

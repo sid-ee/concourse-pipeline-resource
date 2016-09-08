@@ -15,14 +15,6 @@ func DefaultNewGCClientFunc(url string, httpClient *http.Client) ConcourseClient
 // Enables mocking out of the go-concourse client during tests.
 var NewGCClientFunc func(url string, httpClient *http.Client) ConcourseClient = DefaultNewGCClientFunc
 
-//go:generate counterfeiter . Client
-type Client interface {
-	Pipelines() ([]Pipeline, error)
-	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
-	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
-	DeletePipeline(pipelineName string) error
-}
-
 //go:generate counterfeiter . ConcourseClient
 type ConcourseClient interface {
 	DeletePipeline(pipelineName string) (bool, error)
@@ -31,18 +23,18 @@ type ConcourseClient interface {
 	CreateOrUpdatePipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) (bool, bool, []gc.ConfigWarning, error)
 }
 
-type client struct {
+type Client struct {
 	gcClient ConcourseClient
 	target   string
 }
 
-func NewClient(url string, httpClient *http.Client) Client {
+func NewClient(url string, httpClient *http.Client) *Client {
 	gcClient := NewGCClientFunc(url, httpClient)
 
-	return &client{gcClient: gcClient, target: url}
+	return &Client{gcClient: gcClient, target: url}
 }
 
-func (c client) wrapErr(err error) error {
+func (c Client) wrapErr(err error) error {
 	return fmt.Errorf(
 		"error from target: %s - %s",
 		c.target,

@@ -8,22 +8,29 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/concourse/atc"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )
 
+//go:generate counterfeiter . Client
+type Client interface {
+	Pipelines() ([]api.Pipeline, error)
+	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+}
+
 type InCommand struct {
 	logger        logger.Logger
 	binaryVersion string
-	apiClient     api.Client
+	apiClient     Client
 	downloadDir   string
 }
 
 func NewInCommand(
 	binaryVersion string,
 	logger logger.Logger,
-	apiClient api.Client,
+	apiClient Client,
 	downloadDir string,
 ) *InCommand {
 	return &InCommand{

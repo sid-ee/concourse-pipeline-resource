@@ -11,10 +11,10 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
 	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers/helpersfakes"
+	"github.com/robdimsdale/concourse-pipeline-resource/out/outfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 )
 
@@ -41,12 +41,12 @@ var _ = Describe("Out", func() {
 		outCommand *out.OutCommand
 
 		fakePipelineSetter *helpersfakes.FakePipelineSetter
-		fakeAPIClient      *apifakes.FakeClient
+		fakeAPIClient      *outfakes.FakeClient
 	)
 
 	BeforeEach(func() {
 		fakePipelineSetter = &helpersfakes.FakePipelineSetter{}
-		fakeAPIClient = &apifakes.FakeClient{}
+		fakeAPIClient = &outfakes.FakeClient{}
 
 		var err error
 		sourcesDir, err = ioutil.TempDir("", "")

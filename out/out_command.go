@@ -3,6 +3,7 @@ package out
 import (
 	"path/filepath"
 
+	"github.com/concourse/atc"
 	"github.com/concourse/fly/template"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
@@ -14,10 +15,17 @@ const (
 	apiPrefix = "/api/v1"
 )
 
+//go:generate counterfeiter . Client
+type Client interface {
+	Pipelines() ([]api.Pipeline, error)
+	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
+}
+
 type OutCommand struct {
 	logger         logger.Logger
 	binaryVersion  string
-	apiClient      api.Client
+	apiClient      Client
 	sourcesDir     string
 	pipelineSetter helpers.PipelineSetter
 }
@@ -26,7 +34,7 @@ func NewOutCommand(
 	binaryVersion string,
 	logger logger.Logger,
 	pipelineSetter helpers.PipelineSetter,
-	apiClient api.Client,
+	apiClient Client,
 	sourcesDir string,
 ) *OutCommand {
 	return &OutCommand{

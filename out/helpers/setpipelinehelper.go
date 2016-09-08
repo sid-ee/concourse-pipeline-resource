@@ -13,8 +13,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-//go:generate counterfeiter . PipelineSetter
+//go:generate counterfeiter . Client
+type Client interface {
+	Pipelines() ([]api.Pipeline, error)
+	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
+}
 
+//go:generate counterfeiter . PipelineSetter
 type PipelineSetter interface {
 	SetPipeline(
 		pipelineName string,
@@ -25,11 +31,11 @@ type PipelineSetter interface {
 }
 
 type pipelineSetter struct {
-	client       api.Client
+	client       Client
 	configDiffer ConfigDiffer
 }
 
-func NewPipelineSetter(client api.Client, configDiffer ConfigDiffer) PipelineSetter {
+func NewPipelineSetter(client Client, configDiffer ConfigDiffer) PipelineSetter {
 	return &pipelineSetter{
 		client:       client,
 		configDiffer: configDiffer,

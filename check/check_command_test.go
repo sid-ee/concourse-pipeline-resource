@@ -10,9 +10,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/check"
+	"github.com/robdimsdale/concourse-pipeline-resource/check/checkfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 )
@@ -39,11 +39,11 @@ var _ = Describe("Check", func() {
 		pipelines         []api.Pipeline
 		pipelineVersions  []string
 
-		fakeAPIClient *apifakes.FakeClient
+		fakeAPIClient *checkfakes.FakeClient
 	)
 
 	BeforeEach(func() {
-		fakeAPIClient = &apifakes.FakeClient{}
+		fakeAPIClient = &checkfakes.FakeClient{}
 
 		pipelinesErr = nil
 		pipelines = []api.Pipeline{

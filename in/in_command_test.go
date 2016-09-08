@@ -11,9 +11,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/in"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
+	"github.com/robdimsdale/concourse-pipeline-resource/out/outfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 )
 
@@ -30,7 +30,7 @@ var _ = Describe("In", func() {
 		inRequest concourse.InRequest
 		inCommand *in.InCommand
 
-		fakeAPIClient *apifakes.FakeClient
+		fakeAPIClient *outfakes.FakeClient
 
 		pipelines        []api.Pipeline
 		pipelineVersions []string
@@ -42,7 +42,7 @@ var _ = Describe("In", func() {
 	)
 
 	BeforeEach(func() {
-		fakeAPIClient = &apifakes.FakeClient{}
+		fakeAPIClient = &outfakes.FakeClient{}
 
 		var err error
 		downloadDir, err = ioutil.TempDir("", "")

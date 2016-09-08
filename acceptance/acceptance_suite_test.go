@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/concourse/atc"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -15,6 +16,13 @@ import (
 
 	"testing"
 )
+
+type Client interface {
+	Pipelines() ([]api.Pipeline, error)
+	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
+	DeletePipeline(pipelineName string) error
+}
 
 var (
 	inPath    string
@@ -26,7 +34,7 @@ var (
 	password string
 	insecure bool
 
-	apiClient api.Client
+	apiClient Client
 )
 
 func TestAcceptance(t *testing.T) {
