@@ -15,16 +15,17 @@ import (
 type VolumesCommand struct{}
 
 func (command *VolumesCommand) Execute([]string) error {
-	client, err := rc.TargetClient(Fly.Target)
-	if err != nil {
-		return err
-	}
-	err = rc.ValidateClient(client, Fly.Target, false)
+	target, err := rc.LoadTarget(Fly.Target)
 	if err != nil {
 		return err
 	}
 
-	volumes, err := client.ListVolumes()
+	err = target.Validate()
+	if err != nil {
+		return err
+	}
+
+	volumes, err := target.Client().ListVolumes()
 	if err != nil {
 		return err
 	}
@@ -44,6 +45,13 @@ func (command *VolumesCommand) Execute([]string) error {
 	sort.Sort(volumesByWorkerAndHandle(volumes))
 
 	for _, c := range volumes {
+		var size string
+		if c.SizeInBytes == 0 {
+			size = "unknown"
+		} else {
+			size = fmt.Sprintf("%.1f MiB", float64(c.SizeInBytes)/float64(1024*1024))
+		}
+
 		row := ui.TableRow{
 			{Contents: c.ID},
 			{Contents: formatTTL(c.TTLInSeconds)},
@@ -51,7 +59,7 @@ func (command *VolumesCommand) Execute([]string) error {
 			{Contents: c.WorkerName},
 			{Contents: c.Type},
 			{Contents: c.Identifier},
-			{Contents: fmt.Sprintf("%.1fM", float64(c.Size)/float64(1024*1024))},
+			{Contents: size},
 		}
 
 		table.Data = append(table.Data, row)

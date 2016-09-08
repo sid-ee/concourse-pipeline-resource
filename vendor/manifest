@@ -331,7 +331,7 @@
 			"importpath": "github.com/concourse/fly",
 			"repository": "https://github.com/concourse/fly",
 			"vcs": "git",
-			"revision": "0bae6a3966ac894a89e5356957e83e1a19eb8a61",
+			"revision": "482ec3de32ce1480af6954c45e0b4ee2c4231f9c",
 			"branch": "master",
 			"notests": true
 		},

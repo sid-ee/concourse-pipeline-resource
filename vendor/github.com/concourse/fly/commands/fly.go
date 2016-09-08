@@ -13,7 +13,7 @@ type FlyCommand struct {
 	Login LoginCommand `command:"login" alias:"l" description:"Authenticate with the target"`
 	Sync  SyncCommand  `command:"sync"  alias:"s" description:"Download and replace the current fly from the target"`
 
-	SetTeam SetTeamCommand `hidden:"yes" command:"set-team"  alias:"st" description:"Create or modify a team to have the given credentials"`
+	SetTeam SetTeamCommand `command:"set-team"  alias:"st" description:"Create or modify a team to have the given credentials"`
 
 	Checklist ChecklistCommand `command:"checklist" alias:"cl" description:"Print a Checkfile of the given pipeline"`
 
@@ -32,9 +32,13 @@ type FlyCommand struct {
 	SetPipeline     SetPipelineCommand     `command:"set-pipeline"     alias:"sp" description:"Create or update a pipeline's configuration"`
 	PausePipeline   PausePipelineCommand   `command:"pause-pipeline"   alias:"pp" description:"Pause a pipeline"`
 	UnpausePipeline UnpausePipelineCommand `command:"unpause-pipeline" alias:"up" description:"Un-pause a pipeline"`
+	ExposePipeline  ExposePipelineCommand  `command:"expose-pipeline"  alias:"ep" description:"Make a pipeline publicly viewable"`
+	HidePipeline    HidePipelineCommand    `command:"hide-pipeline"    alias:"hp" description:"Hide a pipeline from the public"`
 	RenamePipeline  RenamePipelineCommand  `command:"rename-pipeline"  alias:"rp" description:"Rename a pipeline"`
 
-	CheckResource CheckResourceCommand `command:"check-resource"  alias:"cr" description:"Check a resource"`
+	CheckResource   CheckResourceCommand   `command:"check-resource"    alias:"cr" description:"Check a resource"`
+	PauseResource   PauseResourceCommand   `command:"pause-resource"    alias:"pr" description:"Pause a resource"`
+	UnpauseResource UnpauseResourceCommand `command:"unpause-resource"  alias:"ur" description:"Unpause a resource"`
 
 	Builds     BuildsCommand     `command:"builds"      alias:"bs" description:"List builds data"`
 	AbortBuild AbortBuildCommand `command:"abort-build" alias:"ab" description:"Abort a build"`

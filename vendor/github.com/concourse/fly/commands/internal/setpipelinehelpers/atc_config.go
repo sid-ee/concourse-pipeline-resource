@@ -8,7 +8,6 @@ import (
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/web"
 	"github.com/concourse/fly/commands/internal/displayhelpers"
-	"github.com/concourse/fly/commands/internal/flaghelpers"
 	"github.com/concourse/fly/template"
 	"github.com/concourse/go-concourse/concourse"
 	"github.com/mitchellh/mapstructure"
@@ -20,7 +19,7 @@ import (
 
 type ATCConfig struct {
 	PipelineName        string
-	Client              concourse.Client
+	Team                concourse.Team
 	WebRequestGenerator *rata.RequestGenerator
 	SkipInteraction     bool
 }
@@ -39,9 +38,9 @@ func (atcConfig ATCConfig) ApplyConfigInteraction() bool {
 	return confirm
 }
 
-func (atcConfig ATCConfig) Set(configPath flaghelpers.PathFlag, templateVariables template.Variables, templateVariablesFiles []flaghelpers.PathFlag) error {
+func (atcConfig ATCConfig) Set(configPath atc.PathFlag, templateVariables template.Variables, templateVariablesFiles []atc.PathFlag) error {
 	newConfig := atcConfig.newConfig(configPath, templateVariablesFiles, templateVariables)
-	existingConfig, _, existingConfigVersion, _, err := atcConfig.Client.PipelineConfig(atcConfig.PipelineName)
+	existingConfig, _, existingConfigVersion, _, err := atcConfig.Team.PipelineConfig(atcConfig.PipelineName)
 	errorMessages := []string{}
 	if err != nil {
 		if configError, ok := err.(concourse.PipelineConfigError); ok {
@@ -61,7 +60,7 @@ func (atcConfig ATCConfig) Set(configPath flaghelpers.PathFlag, templateVariable
 		displayhelpers.Failf("bailing out")
 	}
 
-	created, updated, warnings, err := atcConfig.Client.CreateOrUpdatePipelineConfig(
+	created, updated, warnings, err := atcConfig.Team.CreateOrUpdatePipelineConfig(
 		atcConfig.PipelineName,
 		existingConfigVersion,
 		newConfig,
@@ -78,7 +77,7 @@ func (atcConfig ATCConfig) Set(configPath flaghelpers.PathFlag, templateVariable
 	return nil
 }
 
-func (atcConfig ATCConfig) newConfig(configPath flaghelpers.PathFlag, templateVariablesFiles []flaghelpers.PathFlag, templateVariables template.Variables) atc.Config {
+func (atcConfig ATCConfig) newConfig(configPath atc.PathFlag, templateVariablesFiles []atc.PathFlag, templateVariables template.Variables) atc.Config {
 	configFile, err := ioutil.ReadFile(string(configPath))
 	if err != nil {
 		displayhelpers.FailWithErrorf("could not read config file", err)
@@ -159,7 +158,10 @@ func (atcConfig ATCConfig) showHelpfulMessage(created bool, updated bool) {
 	} else if created {
 		pipelineWebReq, _ := atcConfig.WebRequestGenerator.CreateRequest(
 			web.Pipeline,
-			rata.Params{"pipeline": atcConfig.PipelineName},
+			rata.Params{
+				"pipeline":  atcConfig.PipelineName,
+				"team_name": atcConfig.Team.Name(),
+			},
 			nil,
 		)
 

@@ -17,7 +17,7 @@ import (
 )
 
 type ExecuteCommand struct {
-	TaskConfig     flaghelpers.PathFlag         `short:"c" long:"config" required:"true"                description:"The task config to execute"`
+	TaskConfig     atc.PathFlag                 `short:"c" long:"config" required:"true"                description:"The task config to execute"`
 	Privileged     bool                         `short:"p" long:"privileged"                            description:"Run the task with full privileges"`
 	ExcludeIgnored bool                         `short:"x" long:"exclude-ignored"                       description:"Skip uploading .gitignored paths. This uses the file paths that are in your Git index. Make sure it's up to date!"`
 	Inputs         []flaghelpers.InputPairFlag  `short:"i" long:"input"       value-name:"NAME=PATH"    description:"An input to provide to the task (can be specified multiple times)"`
@@ -27,11 +27,12 @@ type ExecuteCommand struct {
 }
 
 func (command *ExecuteCommand) Execute(args []string) error {
-	client, err := rc.TargetClient(Fly.Target)
+	target, err := rc.LoadTarget(Fly.Target)
 	if err != nil {
 		return err
 	}
-	err = rc.ValidateClient(client, Fly.Target, false)
+
+	err = target.Validate()
 	if err != nil {
 		return err
 	}
@@ -44,8 +45,10 @@ func (command *ExecuteCommand) Execute(args []string) error {
 		return err
 	}
 
+	client := target.Client()
 	inputs, err := executehelpers.DetermineInputs(
 		client,
+		target.Team(),
 		taskConfig.Inputs,
 		command.Inputs,
 		command.InputsFrom,
