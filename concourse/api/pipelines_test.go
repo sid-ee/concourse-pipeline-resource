@@ -15,7 +15,7 @@ import (
 
 var _ = Describe("Pipeline methods", func() {
 	var (
-		originalNewGCClientFunc func(target string, httpClient *http.Client) api.ConcourseClient
+		originalNewGCClientFunc func(target string, teamName string, httpClient *http.Client) api.ConcourseClient
 		fakeConcourseClient     *apifakes.FakeConcourseClient
 
 		client *api.Client
@@ -27,13 +27,14 @@ var _ = Describe("Pipeline methods", func() {
 
 		fakeConcourseClient = &apifakes.FakeConcourseClient{}
 
-		api.NewGCClientFunc = func(target string, httpClient *http.Client) api.ConcourseClient {
+		api.NewGCClientFunc = func(target string, teamName string, httpClient *http.Client) api.ConcourseClient {
 			return fakeConcourseClient
 		}
 
 		target = "some target"
 
-		client = api.NewClient(target, &http.Client{})
+		teamName := "main"
+		client = api.NewClient(target, teamName, &http.Client{})
 	})
 
 	AfterEach(func() {

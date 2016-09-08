@@ -18,12 +18,12 @@ type TargetToken struct {
 
 func LoginWithBasicAuth(
 	url string,
+	teamName string,
 	username string,
 	password string,
 	insecure bool,
 ) (TargetToken, error) {
 	var unusedTarget rc.TargetName
-	teamName := "main"
 	caCert := ""
 
 	target, err := rc.NewBasicAuthTarget(

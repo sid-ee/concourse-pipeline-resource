@@ -84,7 +84,14 @@ var _ = BeforeSuite(func() {
 	GinkgoWriter = sanitizer
 
 	By("Creating API Client")
-	token, err := api.LoginWithBasicAuth(target, username, password, insecure)
+	teamName := "main"
+	token, err := api.LoginWithBasicAuth(
+		target,
+		teamName,
+		username,
+		password,
+		insecure,
+	)
 	Expect(err).NotTo(HaveOccurred())
 
 	httpClient := api.OAuthHTTPClient(token, insecure)

@@ -8,12 +8,12 @@ import (
 	gc "github.com/concourse/go-concourse/concourse"
 )
 
-func DefaultNewGCClientFunc(url string, httpClient *http.Client) ConcourseClient {
-	return gc.NewClient(url, httpClient).Team("main")
+func DefaultNewGCClientFunc(url string, teamName string, httpClient *http.Client) ConcourseClient {
+	return gc.NewClient(url, httpClient).Team(teamName)
 }
 
 // Enables mocking out of the go-concourse client during tests.
-var NewGCClientFunc func(url string, httpClient *http.Client) ConcourseClient = DefaultNewGCClientFunc
+var NewGCClientFunc func(url string, teamName string, httpClient *http.Client) ConcourseClient = DefaultNewGCClientFunc
 
 //go:generate counterfeiter . ConcourseClient
 type ConcourseClient interface {
@@ -28,8 +28,8 @@ type Client struct {
 	target   string
 }
 
-func NewClient(url string, httpClient *http.Client) *Client {
-	gcClient := NewGCClientFunc(url, httpClient)
+func NewClient(url string, teamName string, httpClient *http.Client) *Client {
+	gcClient := NewGCClientFunc(url, teamName, httpClient)
 
 	return &Client{gcClient: gcClient, target: url}
 }

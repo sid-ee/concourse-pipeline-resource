@@ -98,8 +98,10 @@ func main() {
 		}
 	}
 
+	teamName := "main"
 	token, err := api.LoginWithBasicAuth(
 		input.Source.Target,
+		teamName,
 		input.Source.Username,
 		input.Source.Password,
 		insecure,
