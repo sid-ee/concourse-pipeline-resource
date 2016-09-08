@@ -28,16 +28,6 @@ type FakeClient struct {
 		result3 string
 		result4 error
 	}
-	SetPipelineConfigStub        func(pipelineName string, configVersion string, passedConfig atc.Config) error
-	setPipelineConfigMutex       sync.RWMutex
-	setPipelineConfigArgsForCall []struct {
-		pipelineName  string
-		configVersion string
-		passedConfig  atc.Config
-	}
-	setPipelineConfigReturns struct {
-		result1 error
-	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -104,41 +94,6 @@ func (fake *FakeClient) PipelineConfigReturns(result1 atc.Config, result2 string
 	}{result1, result2, result3, result4}
 }
 
-func (fake *FakeClient) SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error {
-	fake.setPipelineConfigMutex.Lock()
-	fake.setPipelineConfigArgsForCall = append(fake.setPipelineConfigArgsForCall, struct {
-		pipelineName  string
-		configVersion string
-		passedConfig  atc.Config
-	}{pipelineName, configVersion, passedConfig})
-	fake.recordInvocation("SetPipelineConfig", []interface{}{pipelineName, configVersion, passedConfig})
-	fake.setPipelineConfigMutex.Unlock()
-	if fake.SetPipelineConfigStub != nil {
-		return fake.SetPipelineConfigStub(pipelineName, configVersion, passedConfig)
-	} else {
-		return fake.setPipelineConfigReturns.result1
-	}
-}
-
-func (fake *FakeClient) SetPipelineConfigCallCount() int {
-	fake.setPipelineConfigMutex.RLock()
-	defer fake.setPipelineConfigMutex.RUnlock()
-	return len(fake.setPipelineConfigArgsForCall)
-}
-
-func (fake *FakeClient) SetPipelineConfigArgsForCall(i int) (string, string, atc.Config) {
-	fake.setPipelineConfigMutex.RLock()
-	defer fake.setPipelineConfigMutex.RUnlock()
-	return fake.setPipelineConfigArgsForCall[i].pipelineName, fake.setPipelineConfigArgsForCall[i].configVersion, fake.setPipelineConfigArgsForCall[i].passedConfig
-}
-
-func (fake *FakeClient) SetPipelineConfigReturns(result1 error) {
-	fake.SetPipelineConfigStub = nil
-	fake.setPipelineConfigReturns = struct {
-		result1 error
-	}{result1}
-}
-
 func (fake *FakeClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -146,8 +101,6 @@ func (fake *FakeClient) Invocations() map[string][][]interface{} {
 	defer fake.pipelinesMutex.RUnlock()
 	fake.pipelineConfigMutex.RLock()
 	defer fake.pipelineConfigMutex.RUnlock()
-	fake.setPipelineConfigMutex.RLock()
-	defer fake.setPipelineConfigMutex.RUnlock()
 	return fake.invocations
 }
 

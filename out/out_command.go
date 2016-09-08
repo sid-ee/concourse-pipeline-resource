@@ -19,7 +19,6 @@ const (
 type Client interface {
 	Pipelines() ([]api.Pipeline, error)
 	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
-	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
 }
 
 type OutCommand struct {
