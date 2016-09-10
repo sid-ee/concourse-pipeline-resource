@@ -17,7 +17,7 @@ var _ = Describe("Logger", func() {
 		tempDir     string
 		logFilepath string
 		logFile     *os.File
-		l           logger.Logger
+		l           *logger.Logger
 	)
 
 	BeforeEach(func() {

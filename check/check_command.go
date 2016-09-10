@@ -7,7 +7,6 @@ import (
 	"github.com/concourse/atc"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )
 
 //go:generate counterfeiter . Client
@@ -16,8 +15,13 @@ type Client interface {
 	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
 }
 
+//go:generate counterfeiter . Logger
+type Logger interface {
+	Debugf(format string, a ...interface{}) (n int, err error)
+}
+
 type CheckCommand struct {
-	logger        logger.Logger
+	logger        Logger
 	logFilePath   string
 	binaryVersion string
 	apiClient     Client
@@ -25,7 +29,7 @@ type CheckCommand struct {
 
 func NewCheckCommand(
 	binaryVersion string,
-	logger logger.Logger,
+	logger Logger,
 	logFilePath string,
 	apiClient Client,
 ) *CheckCommand {

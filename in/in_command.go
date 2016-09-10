@@ -11,7 +11,6 @@ import (
 	"github.com/concourse/atc"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )
 
 //go:generate counterfeiter . Client
@@ -20,8 +19,13 @@ type Client interface {
 	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
 }
 
+//go:generate counterfeiter . Logger
+type Logger interface {
+	Debugf(format string, a ...interface{}) (n int, err error)
+}
+
 type InCommand struct {
-	logger        logger.Logger
+	logger        Logger
 	binaryVersion string
 	apiClient     Client
 	downloadDir   string
@@ -29,7 +33,7 @@ type InCommand struct {
 
 func NewInCommand(
 	binaryVersion string,
-	logger logger.Logger,
+	logger Logger,
 	apiClient Client,
 	downloadDir string,
 ) *InCommand {

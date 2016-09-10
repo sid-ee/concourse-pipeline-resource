@@ -22,7 +22,7 @@ var _ = Describe("Check", func() {
 		tempDir     string
 		logFilePath string
 
-		ginkgoLogger logger.Logger
+		testLogger check.Logger
 
 		target   string
 		username string
@@ -101,7 +101,7 @@ pipeline2: foo
 		sanitized := concourse.SanitizedSource(checkRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 
-		ginkgoLogger = logger.NewLogger(sanitizer)
+		testLogger = logger.NewLogger(sanitizer)
 
 		expectedResponse = []concourse.Version{
 			{
@@ -112,7 +112,7 @@ pipeline2: foo
 
 		checkCommand = check.NewCheckCommand(
 			binaryVersion,
-			ginkgoLogger,
+			testLogger,
 			logFilePath,
 			fakeAPIClient,
 		)
@@ -128,7 +128,7 @@ pipeline2: foo
 
 		fakeAPIClient.PipelineConfigStub = func(teamName string, name string) (atc.Config, string, string, error) {
 			defer GinkgoRecover()
-			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
+			testLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			if pipelineConfigErr != nil {
 				return atc.Config{}, "", "", pipelineConfigErr

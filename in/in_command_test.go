@@ -21,7 +21,7 @@ var _ = Describe("In", func() {
 	var (
 		downloadDir string
 
-		ginkgoLogger logger.Logger
+		testLogger in.Logger
 
 		target   string
 		username string
@@ -99,7 +99,7 @@ pipeline2: foo
 
 		fakeAPIClient.PipelineConfigStub = func(teamName string, name string) (atc.Config, string, string, error) {
 			defer GinkgoRecover()
-			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
+			testLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			if pipelineConfigErr != nil {
 				return atc.Config{}, "", "", pipelineConfigErr
@@ -119,10 +119,10 @@ pipeline2: foo
 		sanitized := concourse.SanitizedSource(inRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 
-		ginkgoLogger = logger.NewLogger(sanitizer)
+		testLogger = logger.NewLogger(sanitizer)
 
 		binaryVersion := "v0.1.2-unit-tests"
-		inCommand = in.NewInCommand(binaryVersion, ginkgoLogger, fakeAPIClient, downloadDir)
+		inCommand = in.NewInCommand(binaryVersion, testLogger, fakeAPIClient, downloadDir)
 	})
 
 	AfterEach(func() {

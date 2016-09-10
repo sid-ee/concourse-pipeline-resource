@@ -28,7 +28,7 @@ var (
 	// version is deliberately left uninitialized so it can be set at compile-time
 	version string
 
-	l logger.Logger
+	l *logger.Logger
 )
 
 func main() {

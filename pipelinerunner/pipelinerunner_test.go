@@ -7,8 +7,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger/loggerfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner"
+	"github.com/robdimsdale/concourse-pipeline-resource/pipelinerunner/pipelinerunnerfakes"
 )
 
 var _ = Describe("PipelineRunner", func() {
@@ -17,14 +17,14 @@ var _ = Describe("PipelineRunner", func() {
 	)
 
 	var (
-		fakeLogger *loggerfakes.FakeLogger
+		fakeLogger *pipelinerunnerfakes.FakeLogger
 
 		aFunc     func(index int, pipeline api.Pipeline) (string, error)
 		pipelines []api.Pipeline
 	)
 
 	BeforeEach(func() {
-		fakeLogger = &loggerfakes.FakeLogger{}
+		fakeLogger = &pipelinerunnerfakes.FakeLogger{}
 
 		aFunc = func(index int, pipeline api.Pipeline) (string, error) {
 			time.Sleep(funcSleep)

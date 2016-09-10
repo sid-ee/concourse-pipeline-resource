@@ -7,7 +7,6 @@ import (
 	"github.com/concourse/fly/template"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )
 
 const (
@@ -18,6 +17,11 @@ const (
 type Client interface {
 	Pipelines(teamName string) ([]api.Pipeline, error)
 	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+}
+
+//go:generate counterfeiter . Logger
+type Logger interface {
+	Debugf(format string, a ...interface{}) (n int, err error)
 }
 
 //go:generate counterfeiter . PipelineSetter
@@ -32,7 +36,7 @@ type PipelineSetter interface {
 }
 
 type OutCommand struct {
-	logger         logger.Logger
+	logger         Logger
 	binaryVersion  string
 	apiClient      Client
 	sourcesDir     string
@@ -41,7 +45,7 @@ type OutCommand struct {
 
 func NewOutCommand(
 	binaryVersion string,
-	logger logger.Logger,
+	logger Logger,
 	pipelineSetter PipelineSetter,
 	apiClient Client,
 	sourcesDir string,

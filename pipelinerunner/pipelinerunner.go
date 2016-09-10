@@ -4,13 +4,17 @@ import (
 	"sync"
 
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )
+
+//go:generate counterfeiter . Logger
+type Logger interface {
+	Debugf(format string, a ...interface{}) (n int, err error)
+}
 
 func RunForAllPipelines(
 	function func(index int, pipeline api.Pipeline) (string, error),
 	pipelines []api.Pipeline,
-	logger logger.Logger,
+	logger Logger,
 ) ([]string, error) {
 	var wg sync.WaitGroup
 	wg.Add(len(pipelines))
