@@ -79,9 +79,14 @@ pipeline2: foo
 
 		inRequest = concourse.InRequest{
 			Source: concourse.Source{
-				Target:   target,
-				Username: username,
-				Password: password,
+				Target: target,
+				Teams: []concourse.Team{
+					{
+						Name:     teamName,
+						Username: username,
+						Password: password,
+					},
+				},
 			},
 			Version: concourse.Version{
 				pipelines[0].Name: pipelineVersions[0],
@@ -92,7 +97,7 @@ pipeline2: foo
 	JustBeforeEach(func() {
 		fakeAPIClient.PipelinesReturns(pipelines, pipelinesErr)
 
-		fakeAPIClient.PipelineConfigStub = func(name string) (atc.Config, string, string, error) {
+		fakeAPIClient.PipelineConfigStub = func(teamName string, name string) (atc.Config, string, string, error) {
 			defer GinkgoRecover()
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 

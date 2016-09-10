@@ -24,14 +24,18 @@ type ConcourseClient interface {
 }
 
 type Client struct {
-	gcClient ConcourseClient
-	target   string
+	gcClients map[string]ConcourseClient
+	target    string
 }
 
-func NewClient(url string, teamName string, httpClient *http.Client) *Client {
-	gcClient := NewGCClientFunc(url, teamName, httpClient)
+func NewClient(url string, teamClients map[string]*http.Client) *Client {
+	c := &Client{target: url, gcClients: make(map[string]ConcourseClient)}
 
-	return &Client{gcClient: gcClient, target: url}
+	for teamName, httpClient := range teamClients {
+		c.gcClients[teamName] = NewGCClientFunc(url, teamName, httpClient)
+	}
+
+	return c
 }
 
 func (c Client) wrapErr(err error) error {

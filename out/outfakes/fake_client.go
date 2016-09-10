@@ -10,16 +10,19 @@ import (
 )
 
 type FakeClient struct {
-	PipelinesStub        func() ([]api.Pipeline, error)
+	PipelinesStub        func(teamName string) ([]api.Pipeline, error)
 	pipelinesMutex       sync.RWMutex
-	pipelinesArgsForCall []struct{}
-	pipelinesReturns     struct {
+	pipelinesArgsForCall []struct {
+		teamName string
+	}
+	pipelinesReturns struct {
 		result1 []api.Pipeline
 		result2 error
 	}
-	PipelineConfigStub        func(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	PipelineConfigStub        func(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
 	pipelineConfigMutex       sync.RWMutex
 	pipelineConfigArgsForCall []struct {
+		teamName     string
 		pipelineName string
 	}
 	pipelineConfigReturns struct {
@@ -32,13 +35,15 @@ type FakeClient struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeClient) Pipelines() ([]api.Pipeline, error) {
+func (fake *FakeClient) Pipelines(teamName string) ([]api.Pipeline, error) {
 	fake.pipelinesMutex.Lock()
-	fake.pipelinesArgsForCall = append(fake.pipelinesArgsForCall, struct{}{})
-	fake.recordInvocation("Pipelines", []interface{}{})
+	fake.pipelinesArgsForCall = append(fake.pipelinesArgsForCall, struct {
+		teamName string
+	}{teamName})
+	fake.recordInvocation("Pipelines", []interface{}{teamName})
 	fake.pipelinesMutex.Unlock()
 	if fake.PipelinesStub != nil {
-		return fake.PipelinesStub()
+		return fake.PipelinesStub(teamName)
 	} else {
 		return fake.pipelinesReturns.result1, fake.pipelinesReturns.result2
 	}
@@ -50,6 +55,12 @@ func (fake *FakeClient) PipelinesCallCount() int {
 	return len(fake.pipelinesArgsForCall)
 }
 
+func (fake *FakeClient) PipelinesArgsForCall(i int) string {
+	fake.pipelinesMutex.RLock()
+	defer fake.pipelinesMutex.RUnlock()
+	return fake.pipelinesArgsForCall[i].teamName
+}
+
 func (fake *FakeClient) PipelinesReturns(result1 []api.Pipeline, result2 error) {
 	fake.PipelinesStub = nil
 	fake.pipelinesReturns = struct {
@@ -58,15 +69,16 @@ func (fake *FakeClient) PipelinesReturns(result1 []api.Pipeline, result2 error) 
 	}{result1, result2}
 }
 
-func (fake *FakeClient) PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error) {
+func (fake *FakeClient) PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error) {
 	fake.pipelineConfigMutex.Lock()
 	fake.pipelineConfigArgsForCall = append(fake.pipelineConfigArgsForCall, struct {
+		teamName     string
 		pipelineName string
-	}{pipelineName})
-	fake.recordInvocation("PipelineConfig", []interface{}{pipelineName})
+	}{teamName, pipelineName})
+	fake.recordInvocation("PipelineConfig", []interface{}{teamName, pipelineName})
 	fake.pipelineConfigMutex.Unlock()
 	if fake.PipelineConfigStub != nil {
-		return fake.PipelineConfigStub(pipelineName)
+		return fake.PipelineConfigStub(teamName, pipelineName)
 	} else {
 		return fake.pipelineConfigReturns.result1, fake.pipelineConfigReturns.result2, fake.pipelineConfigReturns.result3, fake.pipelineConfigReturns.result4
 	}
@@ -78,10 +90,10 @@ func (fake *FakeClient) PipelineConfigCallCount() int {
 	return len(fake.pipelineConfigArgsForCall)
 }
 
-func (fake *FakeClient) PipelineConfigArgsForCall(i int) string {
+func (fake *FakeClient) PipelineConfigArgsForCall(i int) (string, string) {
 	fake.pipelineConfigMutex.RLock()
 	defer fake.pipelineConfigMutex.RUnlock()
-	return fake.pipelineConfigArgsForCall[i].pipelineName
+	return fake.pipelineConfigArgsForCall[i].teamName, fake.pipelineConfigArgsForCall[i].pipelineName
 }
 
 func (fake *FakeClient) PipelineConfigReturns(result1 atc.Config, result2 string, result3 string, result4 error) {

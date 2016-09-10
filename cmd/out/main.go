@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 
@@ -98,21 +99,31 @@ func main() {
 		}
 	}
 
-	teamName := "main"
-	token, err := api.LoginWithBasicAuth(
-		input.Source.Target,
-		teamName,
-		input.Source.Username,
-		input.Source.Password,
-		insecure,
-	)
-	if err != nil {
-		l.Debugf("Exiting with error: %v\n", err)
-		log.Fatalln(err)
+	teamClients := make(map[string]*http.Client)
+	for _, t := range input.Source.Teams {
+		teamName := t.Name
+
+		if teamClients[teamName] != nil {
+			continue
+		}
+
+		token, err := api.LoginWithBasicAuth(
+			input.Source.Target,
+			t.Name,
+			t.Username,
+			t.Password,
+			insecure,
+		)
+		if err != nil {
+			l.Debugf("Exiting with error: %v\n", err)
+			log.Fatalln(err)
+		}
+
+		httpClient := api.OAuthHTTPClient(token, insecure)
+		teamClients[teamName] = httpClient
 	}
 
-	httpClient := api.OAuthHTTPClient(token, insecure)
-	apiClient := api.NewClient(input.Source.Target, teamName, httpClient)
+	apiClient := api.NewClient(input.Source.Target, teamClients)
 
 	cd := helpers.NewConfigDiffer(sanitizer)
 	pipelineSetter := helpers.NewPipelineSetter(apiClient, cd)

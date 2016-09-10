@@ -16,8 +16,8 @@ import (
 
 //go:generate counterfeiter . Client
 type Client interface {
-	Pipelines() ([]api.Pipeline, error)
-	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	Pipelines(teamName string) ([]api.Pipeline, error)
+	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
 }
 
 type InCommand struct {
@@ -52,7 +52,8 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 
 	c.logger.Debugf("Getting pipelines\n")
 
-	pipelines, err := c.apiClient.Pipelines()
+	teamName := input.Source.Teams[0].Name
+	pipelines, err := c.apiClient.Pipelines(teamName)
 	if err != nil {
 		return concourse.InResponse{}, err
 	}
@@ -69,7 +70,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 		go func(i int, p api.Pipeline) {
 			defer wg.Done()
 
-			_, config, _, err := c.apiClient.PipelineConfig(p.Name)
+			_, config, _, err := c.apiClient.PipelineConfig(teamName, p.Name)
 			if err != nil {
 				errChan <- err
 			}

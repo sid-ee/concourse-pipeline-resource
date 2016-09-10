@@ -3,6 +3,7 @@ package acceptance
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -17,11 +18,15 @@ import (
 	"testing"
 )
 
+const (
+	teamName = "main"
+)
+
 type Client interface {
-	Pipelines() ([]api.Pipeline, error)
-	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
-	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
-	DeletePipeline(pipelineName string) error
+	Pipelines(teamName string) ([]api.Pipeline, error)
+	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	SetPipelineConfig(teamName string, pipelineName string, configVersion string, passedConfig atc.Config) error
+	DeletePipeline(teamName string, pipelineName string) error
 }
 
 var (
@@ -84,7 +89,7 @@ var _ = BeforeSuite(func() {
 	GinkgoWriter = sanitizer
 
 	By("Creating API Client")
-	teamName := "main"
+	teamClients := make(map[string]*http.Client)
 	token, err := api.LoginWithBasicAuth(
 		target,
 		teamName,
@@ -95,8 +100,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	httpClient := api.OAuthHTTPClient(token, insecure)
+	teamClients[teamName] = httpClient
 
-	apiClient = api.NewClient(target, teamName, httpClient)
+	apiClient = api.NewClient(target, teamClients)
 })
 
 var _ = AfterSuite(func() {

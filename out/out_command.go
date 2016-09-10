@@ -8,7 +8,6 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers"
 )
 
 const (
@@ -17,8 +16,19 @@ const (
 
 //go:generate counterfeiter . Client
 type Client interface {
-	Pipelines() ([]api.Pipeline, error)
-	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	Pipelines(teamName string) ([]api.Pipeline, error)
+	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+}
+
+//go:generate counterfeiter . PipelineSetter
+type PipelineSetter interface {
+	SetPipeline(
+		teamName string,
+		pipelineName string,
+		configPath string,
+		templateVariables template.Variables,
+		templateVariablesFiles []string,
+	) error
 }
 
 type OutCommand struct {
@@ -26,13 +36,13 @@ type OutCommand struct {
 	binaryVersion  string
 	apiClient      Client
 	sourcesDir     string
-	pipelineSetter helpers.PipelineSetter
+	pipelineSetter PipelineSetter
 }
 
 func NewOutCommand(
 	binaryVersion string,
 	logger logger.Logger,
-	pipelineSetter helpers.PipelineSetter,
+	pipelineSetter PipelineSetter,
 	apiClient Client,
 	sourcesDir string,
 ) *OutCommand {
@@ -64,6 +74,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 		var templateVariables template.Variables
 		err := c.pipelineSetter.SetPipeline(
+			p.TeamName,
 			p.Name,
 			configFilepath,
 			templateVariables,
@@ -77,7 +88,8 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	c.logger.Debugf("Getting pipelines\n")
 
-	apiPipelines, err := c.apiClient.Pipelines()
+	teamName := input.Source.Teams[0].Name
+	apiPipelines, err := c.apiClient.Pipelines(teamName)
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}
@@ -88,7 +100,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	for _, pipeline := range apiPipelines {
 		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		_, _, version, err := c.apiClient.PipelineConfig(pipeline.Name)
+		_, _, version, err := c.apiClient.PipelineConfig(teamName, pipeline.Name)
 
 		if err != nil {
 			return concourse.OutResponse{}, err

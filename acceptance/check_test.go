@@ -33,9 +33,14 @@ var _ = Describe("Check", func() {
 		checkRequest = concourse.CheckRequest{
 			Source: concourse.Source{
 				Target:   target,
-				Username: username,
-				Password: password,
 				Insecure: fmt.Sprintf("%t", insecure),
+				Teams: []concourse.Team{
+					{
+						Name:     teamName,
+						Username: username,
+						Password: password,
+					},
+				},
 			},
 			Version: concourse.Version{},
 		}
@@ -93,7 +98,7 @@ var _ = Describe("Check", func() {
 
 	Context("when validation fails", func() {
 		BeforeEach(func() {
-			checkRequest.Source.Username = ""
+			checkRequest.Source.Teams = nil
 
 			var err error
 			stdinContents, err = json.Marshal(checkRequest)
@@ -106,7 +111,7 @@ var _ = Describe("Check", func() {
 
 			By("Validating command exited with error")
 			Eventually(session, checkTimeout).Should(gexec.Exit(1))
-			Expect(session.Err).Should(gbytes.Say(".*username.*provided"))
+			Expect(session.Err).Should(gbytes.Say(".*teams.*provided"))
 		})
 	})
 })

@@ -15,36 +15,54 @@ var _ = Describe("ValidateIn", func() {
 	BeforeEach(func() {
 		inRequest = concourse.InRequest{
 			Source: concourse.Source{
-				Target:   "some target",
-				Username: "some username",
-				Password: "some password",
+				Target: "some target",
+				Teams: []concourse.Team{
+					{
+						Name:     "some team",
+						Username: "some username",
+						Password: "some password",
+					},
+				},
 			},
 		}
 	})
 
-	Context("when no username is provided", func() {
+	Context("when no team name is provided", func() {
 		BeforeEach(func() {
-			inRequest.Source.Username = ""
+			inRequest.Source.Teams[0].Name = ""
 		})
 
 		It("returns an error", func() {
 			err := validator.ValidateIn(inRequest)
 			Expect(err).To(HaveOccurred())
 
-			Expect(err.Error()).To(MatchRegexp(".*username.*provided"))
+			Expect(err.Error()).To(MatchRegexp(".*name.*provided.*team.*0"))
 		})
 	})
 
-	Context("when no password is provided", func() {
+	Context("when no team username is provided", func() {
 		BeforeEach(func() {
-			inRequest.Source.Password = ""
+			inRequest.Source.Teams[0].Username = ""
 		})
 
 		It("returns an error", func() {
 			err := validator.ValidateIn(inRequest)
 			Expect(err).To(HaveOccurred())
 
-			Expect(err.Error()).To(MatchRegexp(".*password.*provided"))
+			Expect(err.Error()).To(MatchRegexp(".*username.*provided.*team.*%s", "some team"))
+		})
+	})
+
+	Context("when no team password is provided", func() {
+		BeforeEach(func() {
+			inRequest.Source.Teams[0].Password = ""
+		})
+
+		It("returns an error", func() {
+			err := validator.ValidateIn(inRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*password.*provided.*team.*%s", "some team"))
 		})
 	})
 })

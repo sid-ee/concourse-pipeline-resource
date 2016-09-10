@@ -15,13 +15,19 @@ var _ = Describe("ValidateOut", func() {
 	BeforeEach(func() {
 		outRequest = concourse.OutRequest{
 			Source: concourse.Source{
-				Target:   "some target",
-				Username: "some username",
-				Password: "some password",
+				Target: "some target",
+				Teams: []concourse.Team{
+					{
+						Name:     "some team",
+						Username: "some username",
+						Password: "some password",
+					},
+				},
 			},
 			Params: concourse.OutParams{
 				Pipelines: []concourse.Pipeline{
 					{
+						TeamName:   "some team",
 						Name:       "p1",
 						ConfigFile: "some config",
 						VarsFiles: []string{
@@ -37,9 +43,22 @@ var _ = Describe("ValidateOut", func() {
 		Expect(validator.ValidateOut(outRequest)).Should(Succeed())
 	})
 
-	Context("when no username is provided", func() {
+	Context("when no team name is provided", func() {
 		BeforeEach(func() {
-			outRequest.Source.Username = ""
+			outRequest.Source.Teams[0].Name = ""
+		})
+
+		It("returns an error", func() {
+			err := validator.ValidateOut(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*name.*provided.*team.*0"))
+		})
+	})
+
+	Context("when no team username is provided", func() {
+		BeforeEach(func() {
+			outRequest.Source.Teams[0].Username = ""
 		})
 
 		It("returns an error", func() {
@@ -50,9 +69,9 @@ var _ = Describe("ValidateOut", func() {
 		})
 	})
 
-	Context("when no password is provided", func() {
+	Context("when no team password is provided", func() {
 		BeforeEach(func() {
-			outRequest.Source.Password = ""
+			outRequest.Source.Teams[0].Password = ""
 		})
 
 		It("returns an error", func() {

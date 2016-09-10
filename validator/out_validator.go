@@ -7,12 +7,22 @@ import (
 )
 
 func ValidateOut(input concourse.OutRequest) error {
-	if input.Source.Username == "" {
-		return fmt.Errorf("%s must be provided", "username")
+	if input.Source.Teams == nil {
+		return fmt.Errorf("%s must be provided in source", "teams")
 	}
 
-	if input.Source.Password == "" {
-		return fmt.Errorf("%s must be provided", "password")
+	for i, team := range input.Source.Teams {
+		if team.Name == "" {
+			return fmt.Errorf("%s must be provided for team: %d", "name", i)
+		}
+
+		if team.Username == "" {
+			return fmt.Errorf("%s must be provided for team: %s", "username", team.Name)
+		}
+
+		if team.Password == "" {
+			return fmt.Errorf("%s must be provided for team: %s", "password", team.Name)
+		}
 	}
 
 	var pipelinesFilePresent bool
@@ -49,6 +59,10 @@ func ValidateOut(input concourse.OutRequest) error {
 
 		if p.ConfigFile == "" {
 			return fmt.Errorf("%s must be provided for pipeline[%d]", "config_file", i)
+		}
+
+		if p.TeamName == "" {
+			return fmt.Errorf("%s must be provided for pipeline[%d]", "team", i)
 		}
 
 		// vars files can be nil as it is optional.

@@ -42,9 +42,14 @@ var _ = Describe("In", func() {
 		inRequest = concourse.InRequest{
 			Source: concourse.Source{
 				Target:   target,
-				Username: username,
-				Password: password,
 				Insecure: fmt.Sprintf("%t", insecure),
+				Teams: []concourse.Team{
+					{
+						Name:     teamName,
+						Username: username,
+						Password: password,
+					},
+				},
 			},
 			Version: concourse.Version{
 				"some-pipeline":       "some-pipeline-version",
@@ -125,7 +130,7 @@ var _ = Describe("In", func() {
 
 	Context("when validation fails", func() {
 		BeforeEach(func() {
-			inRequest.Source.Username = ""
+			inRequest.Source.Teams = nil
 
 			var err error
 			stdinContents, err = json.Marshal(inRequest)
@@ -138,7 +143,7 @@ var _ = Describe("In", func() {
 
 			By("Validating command exited with error")
 			Eventually(session, inTimeout).Should(gexec.Exit(1))
-			Expect(session.Err).Should(gbytes.Say(".*username.*provided"))
+			Expect(session.Err).Should(gbytes.Say(".*teams.*provided"))
 		})
 	})
 })

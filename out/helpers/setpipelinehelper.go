@@ -9,40 +9,29 @@ import (
 	"github.com/concourse/fly/template"
 	"github.com/mitchellh/mapstructure"
 	"github.com/onsi/gomega/gexec"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"gopkg.in/yaml.v2"
 )
 
 //go:generate counterfeiter . Client
 type Client interface {
-	Pipelines() ([]api.Pipeline, error)
-	PipelineConfig(pipelineName string) (config atc.Config, rawConfig string, version string, err error)
-	SetPipelineConfig(pipelineName string, configVersion string, passedConfig atc.Config) error
+	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
+	SetPipelineConfig(teamName string, pipelineName string, configVersion string, passedConfig atc.Config) error
 }
 
-//go:generate counterfeiter . PipelineSetter
-type PipelineSetter interface {
-	SetPipeline(
-		pipelineName string,
-		configPath string,
-		templateVariables template.Variables,
-		templateVariablesFiles []string,
-	) error
-}
-
-type pipelineSetter struct {
+type PipelineSetter struct {
 	client       Client
 	configDiffer ConfigDiffer
 }
 
-func NewPipelineSetter(client Client, configDiffer ConfigDiffer) PipelineSetter {
-	return &pipelineSetter{
+func NewPipelineSetter(client Client, configDiffer ConfigDiffer) *PipelineSetter {
+	return &PipelineSetter{
 		client:       client,
 		configDiffer: configDiffer,
 	}
 }
 
-func (p pipelineSetter) SetPipeline(
+func (p PipelineSetter) SetPipeline(
+	teamName string,
 	pipelineName string,
 	configPath string,
 	templateVariables template.Variables,
@@ -58,7 +47,7 @@ func (p pipelineSetter) SetPipeline(
 	}
 
 	existingConfig, _, existingConfigVersion, err :=
-		p.client.PipelineConfig(pipelineName)
+		p.client.PipelineConfig(teamName, pipelineName)
 	if err != nil {
 		return err
 	}
@@ -66,6 +55,7 @@ func (p pipelineSetter) SetPipeline(
 	p.configDiffer.Diff(existingConfig, newConfig)
 
 	err = p.client.SetPipelineConfig(
+		teamName,
 		pipelineName,
 		existingConfigVersion,
 		newConfig,
@@ -77,7 +67,7 @@ func (p pipelineSetter) SetPipeline(
 	return nil
 }
 
-func (p pipelineSetter) newConfig(
+func (p PipelineSetter) newConfig(
 	configPath string,
 	templateVariablesFiles []string,
 	templateVariables template.Variables,

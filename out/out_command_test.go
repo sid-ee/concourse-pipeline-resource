@@ -13,7 +13,6 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
-	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers/helpersfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/out/outfakes"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 )
@@ -40,12 +39,12 @@ var _ = Describe("Out", func() {
 		outRequest concourse.OutRequest
 		outCommand *out.OutCommand
 
-		fakePipelineSetter *helpersfakes.FakePipelineSetter
+		fakePipelineSetter *outfakes.FakePipelineSetter
 		fakeAPIClient      *outfakes.FakeClient
 	)
 
 	BeforeEach(func() {
-		fakePipelineSetter = &helpersfakes.FakePipelineSetter{}
+		fakePipelineSetter = &outfakes.FakePipelineSetter{}
 		fakeAPIClient = &outfakes.FakeClient{}
 
 		var err error
@@ -108,9 +107,14 @@ pipeline3: foo
 
 		outRequest = concourse.OutRequest{
 			Source: concourse.Source{
-				Target:   target,
-				Username: username,
-				Password: password,
+				Target: target,
+				Teams: []concourse.Team{
+					{
+						Name:     teamName,
+						Username: username,
+						Password: password,
+					},
+				},
 			},
 			Params: concourse.OutParams{
 				Pipelines: concoursePipelines,
@@ -121,7 +125,7 @@ pipeline3: foo
 	JustBeforeEach(func() {
 		fakeAPIClient.PipelinesReturns(pipelines, getPipelinesErr)
 
-		fakeAPIClient.PipelineConfigStub = func(name string) (atc.Config, string, string, error) {
+		fakeAPIClient.PipelineConfigStub = func(teamName string, name string) (atc.Config, string, string, error) {
 			defer GinkgoRecover()
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
@@ -170,7 +174,8 @@ pipeline3: foo
 
 		Expect(fakePipelineSetter.SetPipelineCallCount()).To(Equal(len(concoursePipelines)))
 		for i, p := range concoursePipelines {
-			name, configFilepath, _, varsFilepaths := fakePipelineSetter.SetPipelineArgsForCall(i)
+			teamName, name, configFilepath, _, varsFilepaths := fakePipelineSetter.SetPipelineArgsForCall(i)
+			Expect(teamName).To(Equal(p.TeamName))
 			Expect(name).To(Equal(p.Name))
 			Expect(configFilepath).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
 

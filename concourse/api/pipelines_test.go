@@ -20,6 +20,8 @@ var _ = Describe("Pipeline methods", func() {
 
 		client *api.Client
 		target string
+
+		teamName string
 	)
 
 	BeforeEach(func() {
@@ -32,9 +34,10 @@ var _ = Describe("Pipeline methods", func() {
 		}
 
 		target = "some target"
+		teamName = "main"
 
-		teamName := "main"
-		client = api.NewClient(target, teamName, &http.Client{})
+		teamClients := map[string]*http.Client{teamName: &http.Client{}}
+		client = api.NewClient(target, teamClients)
 	})
 
 	AfterEach(func() {
@@ -61,7 +64,7 @@ var _ = Describe("Pipeline methods", func() {
 		})
 
 		It("returns successfully", func() {
-			returnedPipelines, err := client.Pipelines()
+			returnedPipelines, err := client.Pipelines(teamName)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(returnedPipelines).To(HaveLen(2))
@@ -73,7 +76,7 @@ var _ = Describe("Pipeline methods", func() {
 			})
 
 			It("returns error including target url", func() {
-				_, err := client.Pipelines()
+				_, err := client.Pipelines(teamName)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).Should(ContainSubstring(target))
@@ -114,7 +117,8 @@ var _ = Describe("Pipeline methods", func() {
 		})
 
 		It("returns successfully", func() {
-			returnedATCConfig, returnedConfig, returnedConfigVersion, err := client.PipelineConfig(pipelineName)
+			returnedATCConfig, returnedConfig, returnedConfigVersion, err :=
+				client.PipelineConfig(teamName, pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(returnedATCConfig).To(Equal(atcConfig))
@@ -128,7 +132,7 @@ var _ = Describe("Pipeline methods", func() {
 			})
 
 			It("returns error including target url", func() {
-				_, _, _, err := client.PipelineConfig(pipelineName)
+				_, _, _, err := client.PipelineConfig(teamName, pipelineName)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).Should(ContainSubstring(target))
@@ -142,7 +146,7 @@ var _ = Describe("Pipeline methods", func() {
 			})
 
 			It("returns error including target url", func() {
-				_, _, _, err := client.PipelineConfig(pipelineName)
+				_, _, _, err := client.PipelineConfig(teamName, pipelineName)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).Should(ContainSubstring(target))
@@ -186,6 +190,7 @@ var _ = Describe("Pipeline methods", func() {
 
 		It("returns successfully", func() {
 			err := client.SetPipelineConfig(
+				teamName,
 				pipelineName,
 				configVersion,
 				passedConfig,
@@ -208,6 +213,7 @@ var _ = Describe("Pipeline methods", func() {
 
 			It("returns error including target url", func() {
 				err := client.SetPipelineConfig(
+					teamName,
 					pipelineName,
 					configVersion,
 					passedConfig,
@@ -227,6 +233,7 @@ var _ = Describe("Pipeline methods", func() {
 
 			It("returns error including target url", func() {
 				err := client.SetPipelineConfig(
+					teamName,
 					pipelineName,
 					configVersion,
 					passedConfig,
@@ -260,7 +267,7 @@ var _ = Describe("Pipeline methods", func() {
 		})
 
 		It("returns successfully", func() {
-			err := client.DeletePipeline(pipelineName)
+			err := client.DeletePipeline(teamName, pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(fakeConcourseClient.DeletePipelineCallCount()).To(Equal(1))
@@ -273,7 +280,7 @@ var _ = Describe("Pipeline methods", func() {
 			})
 
 			It("returns error including target url", func() {
-				err := client.DeletePipeline(pipelineName)
+				err := client.DeletePipeline(teamName, pipelineName)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).Should(ContainSubstring(target))
@@ -287,7 +294,7 @@ var _ = Describe("Pipeline methods", func() {
 			})
 
 			It("returns error including target url", func() {
-				err := client.DeletePipeline(pipelineName)
+				err := client.DeletePipeline(teamName, pipelineName)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).Should(ContainSubstring(target))

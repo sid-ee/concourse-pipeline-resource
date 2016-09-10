@@ -89,6 +89,7 @@ jobs:
 		pipelines = []concourse.Pipeline{
 			{
 				Name:       pipelineName,
+				TeamName:   teamName,
 				ConfigFile: pipelineConfigFilename,
 				VarsFiles: []string{
 					varsFileFilename,
@@ -119,9 +120,14 @@ jobs:
 		outRequest = concourse.OutRequest{
 			Source: concourse.Source{
 				Target:   target,
-				Username: username,
-				Password: password,
 				Insecure: fmt.Sprintf("%t", insecure),
+				Teams: []concourse.Team{
+					{
+						Name:     teamName,
+						Username: username,
+						Password: password,
+					},
+				},
 			},
 			Params: concourse.OutParams{
 				Pipelines:     pipelines,
@@ -136,7 +142,7 @@ jobs:
 
 	Describe("Creating pipelines successfully", func() {
 		AfterEach(func() {
-			err := apiClient.DeletePipeline(pipelineName)
+			err := apiClient.DeletePipeline(teamName, pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
