@@ -1,14 +1,11 @@
 package helpers
 
 import (
-	"fmt"
-	"io"
 	"io/ioutil"
 
 	"github.com/concourse/atc"
 	"github.com/concourse/fly/template"
 	"github.com/mitchellh/mapstructure"
-	"github.com/onsi/gomega/gexec"
 	"gopkg.in/yaml.v2"
 )
 
@@ -16,6 +13,11 @@ import (
 type Client interface {
 	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
 	SetPipelineConfig(teamName string, pipelineName string, configVersion string, passedConfig atc.Config) error
+}
+
+//go:generate counterfeiter . ConfigDiffer
+type ConfigDiffer interface {
+	Diff(existingConfig atc.Config, newConfig atc.Config) error
 }
 
 type PipelineSetter struct {
@@ -121,44 +123,4 @@ func (p PipelineSetter) newConfig(
 	}
 
 	return newConfig, nil
-}
-
-func diff(to io.Writer, existingConfig atc.Config, newConfig atc.Config) {
-	indent := gexec.NewPrefixedWriter("  ", to)
-
-	groupDiffs := diffIndices(GroupIndex(existingConfig.Groups), GroupIndex(newConfig.Groups))
-	if len(groupDiffs) > 0 {
-		fmt.Fprintln(to, "groups:")
-
-		for _, diff := range groupDiffs {
-			diff.Render(indent, "group")
-		}
-	}
-
-	resourceDiffs := diffIndices(ResourceIndex(existingConfig.Resources), ResourceIndex(newConfig.Resources))
-	if len(resourceDiffs) > 0 {
-		fmt.Fprintln(to, "resources:")
-
-		for _, diff := range resourceDiffs {
-			diff.Render(indent, "resource")
-		}
-	}
-
-	resourceTypeDiffs := diffIndices(ResourceTypeIndex(existingConfig.ResourceTypes), ResourceTypeIndex(newConfig.ResourceTypes))
-	if len(resourceTypeDiffs) > 0 {
-		fmt.Fprintln(to, "resource types:")
-
-		for _, diff := range resourceTypeDiffs {
-			diff.Render(indent, "resource type")
-		}
-	}
-
-	jobDiffs := diffIndices(JobIndex(existingConfig.Jobs), JobIndex(newConfig.Jobs))
-	if len(jobDiffs) > 0 {
-		fmt.Fprintln(to, "jobs:")
-
-		for _, diff := range jobDiffs {
-			diff.Render(indent, "job")
-		}
-	}
 }

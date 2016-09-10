@@ -14,6 +14,7 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
+	"github.com/robdimsdale/concourse-pipeline-resource/out/configdiffer"
 	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers"
 	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 	"github.com/robdimsdale/concourse-pipeline-resource/validator"
@@ -125,7 +126,7 @@ func main() {
 
 	apiClient := api.NewClient(input.Source.Target, teamClients)
 
-	cd := helpers.NewConfigDiffer(sanitizer)
+	cd := configdiffer.NewConfigDiffer(sanitizer)
 	pipelineSetter := helpers.NewPipelineSetter(apiClient, cd)
 	response, err := out.NewOutCommand(
 		version,

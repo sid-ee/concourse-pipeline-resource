@@ -1,4 +1,4 @@
-package helpers
+package configdiffer
 
 import (
 	"bytes"
@@ -14,21 +14,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-//go:generate counterfeiter . ConfigDiffer
-
-type ConfigDiffer interface {
-	Diff(existingConfig atc.Config, newConfig atc.Config) error
-}
-
-type configDiffer struct {
+type ConfigDiffer struct {
 	writer io.Writer
 }
 
-func NewConfigDiffer(writer io.Writer) ConfigDiffer {
-	return &configDiffer{writer: writer}
+func NewConfigDiffer(writer io.Writer) *ConfigDiffer {
+	return &ConfigDiffer{writer: writer}
 }
 
-func (p configDiffer) Diff(
+func (p ConfigDiffer) Diff(
 	existingConfig atc.Config,
 	newConfig atc.Config,
 ) error {
