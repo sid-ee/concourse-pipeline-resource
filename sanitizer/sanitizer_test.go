@@ -17,7 +17,7 @@ var _ = Describe("Sanitizer", func() {
 		logFile     *os.File
 
 		pairs map[string]string
-		s     sanitizer.Sanitizer
+		s     *sanitizer.Sanitizer
 	)
 
 	BeforeEach(func() {

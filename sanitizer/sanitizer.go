@@ -5,23 +5,19 @@ import (
 	"strings"
 )
 
-type Sanitizer interface {
-	io.Writer
-}
-
-type sanitizer struct {
+type Sanitizer struct {
 	sanitized map[string]string
 	sink      io.Writer
 }
 
-func NewSanitizer(sanitized map[string]string, sink io.Writer) Sanitizer {
-	return &sanitizer{
+func NewSanitizer(sanitized map[string]string, sink io.Writer) *Sanitizer {
+	return &Sanitizer{
 		sanitized: sanitized,
 		sink:      sink,
 	}
 }
 
-func (s sanitizer) Write(p []byte) (n int, err error) {
+func (s Sanitizer) Write(p []byte) (n int, err error) {
 	input := string(p)
 
 	for k, v := range s.sanitized {
