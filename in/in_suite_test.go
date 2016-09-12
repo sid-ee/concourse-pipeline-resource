@@ -9,7 +9,10 @@ import (
 
 const (
 	apiPrefix = "/api/v1"
-	teamName  = "some team"
+)
+
+var (
+	teamNames = []string{"team-0", "team-1"}
 )
 
 func TestIn(t *testing.T) {

@@ -55,6 +55,10 @@ var _ = Describe("In", func() {
 		pipelinesErr = nil
 		pipelines = []api.Pipeline{
 			{
+				Name: "pipeline-0",
+				URL:  "pipeline_URL_0",
+			},
+			{
 				Name: "pipeline-1",
 				URL:  "pipeline_URL_1",
 			},
@@ -64,16 +68,20 @@ var _ = Describe("In", func() {
 			},
 		}
 
-		pipelineVersions = []string{"1234", "2345"}
+		pipelineVersions = []string{"1234", "2345", "3456"}
 
 		pipelineConfigErr = nil
-		pipelineContents = make([]string, 2)
+		pipelineContents = make([]string, 3)
 
 		pipelineContents[0] = `---
-pipeline1: foo
+pipeline0: foo
 `
 
 		pipelineContents[1] = `---
+pipeline1: foo
+`
+
+		pipelineContents[2] = `---
 pipeline2: foo
 `
 
@@ -82,7 +90,12 @@ pipeline2: foo
 				Target: target,
 				Teams: []concourse.Team{
 					{
-						Name:     teamName,
+						Name:     teamNames[0],
+						Username: username,
+						Password: password,
+					},
+					{
+						Name:     teamNames[1],
 						Username: username,
 						Password: password,
 					},
@@ -95,7 +108,17 @@ pipeline2: foo
 	})
 
 	JustBeforeEach(func() {
-		fakeAPIClient.PipelinesReturns(pipelines, pipelinesErr)
+		fakeAPIClient.PipelinesStub = func(teamName string) ([]api.Pipeline, error) {
+			switch teamName {
+			case teamNames[0]:
+				return []api.Pipeline{pipelines[0], pipelines[1]}, pipelinesErr
+			case teamNames[1]:
+				return []api.Pipeline{pipelines[2]}, pipelinesErr
+			default:
+				Fail("Unexpected invocation of Pipelines")
+				return nil, nil
+			}
+		}
 
 		fakeAPIClient.PipelineConfigStub = func(teamName string, name string) (atc.Config, string, string, error) {
 			defer GinkgoRecover()
@@ -110,6 +133,8 @@ pipeline2: foo
 				return atc.Config{}, pipelineContents[0], pipelineVersions[0], nil
 			case pipelines[1].Name:
 				return atc.Config{}, pipelineContents[1], pipelineVersions[1], nil
+			case pipelines[2].Name:
+				return atc.Config{}, pipelineContents[2], pipelineVersions[2], nil
 			default:
 				Fail("Unexpected invocation of PipelineConfig")
 				return atc.Config{}, "", "", nil
@@ -139,17 +164,13 @@ pipeline2: foo
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(files).To(HaveLen(len(pipelines)))
-		Expect(files[0].Name()).To(MatchRegexp("%s.yml", pipelines[0].Name))
 
-		contents, err := ioutil.ReadFile(filepath.Join(downloadDir, files[0].Name()))
-		Expect(err).NotTo(HaveOccurred())
-		Expect(string(contents)).To(Equal(pipelineContents[0]))
-
-		Expect(files[1].Name()).To(MatchRegexp("%s.yml", pipelines[1].Name))
-
-		contents, err = ioutil.ReadFile(filepath.Join(downloadDir, files[1].Name()))
-		Expect(err).NotTo(HaveOccurred())
-		Expect(string(contents)).To(Equal(pipelineContents[1]))
+		for i, pipeline := range pipelines {
+			Expect(files[i].Name()).To(MatchRegexp("%s.yml", pipeline.Name))
+			contents, err := ioutil.ReadFile(filepath.Join(downloadDir, files[i].Name()))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(contents)).To(Equal(pipelineContents[i]))
+		}
 	})
 
 	It("returns provided version", func() {

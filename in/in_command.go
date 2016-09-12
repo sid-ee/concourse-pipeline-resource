@@ -56,33 +56,43 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 
 	c.logger.Debugf("Getting pipelines\n")
 
-	teamName := input.Source.Teams[0].Name
-	pipelines, err := c.apiClient.Pipelines(teamName)
-	if err != nil {
-		return concourse.InResponse{}, err
+	teamPipelines := make(map[string][]api.Pipeline)
+	totalPipelineCount := 0
+	for _, team := range input.Source.Teams {
+		pipelines, err := c.apiClient.Pipelines(team.Name)
+		if err != nil {
+			return concourse.InResponse{}, err
+		}
+		teamPipelines[team.Name] = pipelines
+		totalPipelineCount += len(pipelines)
 	}
 
-	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
+	c.logger.Debugf("Found pipelines: %+v\n", teamPipelines)
 
 	var wg sync.WaitGroup
-	wg.Add(len(pipelines))
+	wg.Add(totalPipelineCount)
 
-	errChan := make(chan error, len(pipelines))
+	errChan := make(chan error, totalPipelineCount)
+	pipelinesWithContents := make([]pipelineWithContent, totalPipelineCount)
 
-	pipelinesWithContents := make([]pipelineWithContent, len(pipelines))
-	for i, p := range pipelines {
-		go func(i int, p api.Pipeline) {
-			defer wg.Done()
+	i := 0
+	for teamName, pipelines := range teamPipelines {
+		for _, p := range pipelines {
+			go func(i int, teamName string, p api.Pipeline) {
+				defer wg.Done()
 
-			_, config, _, err := c.apiClient.PipelineConfig(teamName, p.Name)
-			if err != nil {
-				errChan <- err
-			}
-			pipelinesWithContents[i] = pipelineWithContent{
-				name:     p.Name,
-				contents: config,
-			}
-		}(i, p)
+				_, config, _, err := c.apiClient.PipelineConfig(teamName, p.Name)
+				if err != nil {
+					errChan <- err
+				}
+				pipelinesWithContents[i] = pipelineWithContent{
+					name:     p.Name,
+					contents: config,
+				}
+			}(i, teamName, p)
+
+			i++
+		}
 	}
 
 	c.logger.Debugf("Waiting for all pipelines\n")
