@@ -16,8 +16,8 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/out"
 	"github.com/robdimsdale/concourse-pipeline-resource/out/configdiffer"
 	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers"
-	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 	"github.com/robdimsdale/concourse-pipeline-resource/validator"
+	"github.com/robdimsdale/sanitizer"
 )
 
 const (

@@ -641,6 +641,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/robdimsdale/sanitizer",
+			"repository": "https://github.com/robdimsdale/sanitizer",
+			"vcs": "git",
+			"revision": "ab2334cb7539a2ce27b7aea53b7d693087b10cd9",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/sclevine/agouti",
 			"repository": "https://github.com/sclevine/agouti",
 			"vcs": "git",

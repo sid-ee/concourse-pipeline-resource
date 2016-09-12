@@ -13,7 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
+	"github.com/robdimsdale/sanitizer"
 
 	"testing"
 )

@@ -13,8 +13,8 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/in"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
 	"github.com/robdimsdale/concourse-pipeline-resource/validator"
+	"github.com/robdimsdale/sanitizer"
 )
 
 const (

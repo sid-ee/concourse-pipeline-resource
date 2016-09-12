@@ -14,7 +14,7 @@ import (
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
 	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
+	"github.com/robdimsdale/sanitizer"
 )
 
 var _ = Describe("Check", func() {
