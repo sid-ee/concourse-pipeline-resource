@@ -1,6 +1,7 @@
 package check
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -66,25 +67,32 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Getting pipelines\n")
 
-	teamName := input.Source.Teams[0].Name
-	pipelines, err := c.apiClient.Pipelines(teamName)
-	if err != nil {
-		return nil, err
-	}
-
-	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
-
-	pipelineVersions := make(map[string]string, len(pipelines))
-
-	for _, pipeline := range pipelines {
-		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		_, _, version, err := c.apiClient.PipelineConfig(teamName, pipeline.Name)
-
+	teamPipelines := make(map[string][]api.Pipeline)
+	for _, team := range input.Source.Teams {
+		pipelines, err := c.apiClient.Pipelines(team.Name)
 		if err != nil {
 			return nil, err
 		}
+		teamPipelines[team.Name] = pipelines
+	}
 
-		pipelineVersions[pipeline.Name] = version
+	c.logger.Debugf("Found pipelines: %+v\n", teamPipelines)
+
+	pipelineVersions := make(map[string]string)
+
+	for teamName, pipelines := range teamPipelines {
+		for _, pipeline := range pipelines {
+			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
+			_, _, version, err := c.apiClient.PipelineConfig(teamName, pipeline.Name)
+
+			if err != nil {
+				return nil, err
+			}
+
+			pipelineVersionKey := fmt.Sprintf("%s/%s", teamName, pipeline.Name)
+
+			pipelineVersions[pipelineVersionKey] = version
+		}
 	}
 
 	out := concourse.CheckResponse{
