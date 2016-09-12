@@ -11,6 +11,8 @@ func ValidateOut(input concourse.OutRequest) error {
 		return fmt.Errorf("%s must be provided in source", "teams")
 	}
 
+	sourceTeamNames := []string{}
+
 	for i, team := range input.Source.Teams {
 		if team.Name == "" {
 			return fmt.Errorf("%s must be provided for team: %d", "name", i)
@@ -23,6 +25,8 @@ func ValidateOut(input concourse.OutRequest) error {
 		if team.Password == "" {
 			return fmt.Errorf("%s must be provided for team: %s", "password", team.Name)
 		}
+
+		sourceTeamNames = append(sourceTeamNames, team.Name)
 	}
 
 	var pipelinesFilePresent bool
@@ -65,6 +69,10 @@ func ValidateOut(input concourse.OutRequest) error {
 			return fmt.Errorf("%s must be provided for pipeline[%d]", "team", i)
 		}
 
+		if !stringContains(sourceTeamNames, p.TeamName) {
+			return fmt.Errorf("team name '%s' not found in source team names: %v", p.TeamName, sourceTeamNames)
+		}
+
 		// vars files can be nil as it is optional.
 		if p.VarsFiles != nil {
 			// However, if it is provided it must be non-empty
@@ -86,4 +94,14 @@ func ValidateOut(input concourse.OutRequest) error {
 	}
 
 	return nil
+}
+
+func stringContains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+
+	return false
 }

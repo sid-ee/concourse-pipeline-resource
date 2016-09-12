@@ -22,6 +22,11 @@ var _ = Describe("ValidateOut", func() {
 						Username: "some username",
 						Password: "some password",
 					},
+					{
+						Name:     "other team",
+						Username: "other username",
+						Password: "other password",
+					},
 				},
 			},
 			Params: concourse.OutParams{
@@ -144,6 +149,19 @@ var _ = Describe("ValidateOut", func() {
 			Expect(err).To(HaveOccurred())
 
 			Expect(err.Error()).To(MatchRegexp(".*vars file.*non-empty"))
+		})
+	})
+
+	Context("when team name is not provided in source", func() {
+		BeforeEach(func() {
+			outRequest.Params.Pipelines[0].TeamName = "not-supplied"
+		})
+
+		It("returns an error", func() {
+			err := validator.ValidateOut(outRequest)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(MatchRegexp(".*name.*not found.*source.*"))
 		})
 	})
 })
