@@ -55,16 +55,19 @@ var _ = Describe("In", func() {
 		pipelinesErr = nil
 		pipelines = []api.Pipeline{
 			{
-				Name: "pipeline-0",
-				URL:  "pipeline_URL_0",
+				Name:     "pipeline-0",
+				TeamName: teamNames[0],
+				URL:      "pipeline_URL_0",
 			},
 			{
-				Name: "pipeline-1",
-				URL:  "pipeline_URL_1",
+				Name:     "pipeline-1",
+				TeamName: teamNames[0],
+				URL:      "pipeline_URL_1",
 			},
 			{
-				Name: "pipeline-2",
-				URL:  "pipeline_URL_2",
+				Name:     "pipeline-2",
+				TeamName: teamNames[1],
+				URL:      "pipeline_URL_2",
 			},
 		}
 
@@ -166,7 +169,7 @@ pipeline2: foo
 		Expect(files).To(HaveLen(len(pipelines)))
 
 		for i, pipeline := range pipelines {
-			Expect(files[i].Name()).To(MatchRegexp("%s.yml", pipeline.Name))
+			Expect(files[i].Name()).To(MatchRegexp("%s-%s.yml", pipeline.TeamName, pipeline.Name))
 			contents, err := ioutil.ReadFile(filepath.Join(downloadDir, files[i].Name()))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(contents)).To(Equal(pipelineContents[i]))

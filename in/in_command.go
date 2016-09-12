@@ -87,6 +87,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 				}
 				pipelinesWithContents[i] = pipelineWithContent{
 					name:     p.Name,
+					teamName: teamName,
 					contents: config,
 				}
 			}(i, teamName, p)
@@ -107,7 +108,10 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 	}
 
 	for _, p := range pipelinesWithContents {
-		pipelineContentsFilepath := filepath.Join(c.downloadDir, fmt.Sprintf("%s.yml", p.name))
+		pipelineContentsFilepath := filepath.Join(
+			c.downloadDir,
+			fmt.Sprintf("%s-%s.yml", p.teamName, p.name),
+		)
 		c.logger.Debugf("Writing pipeline contents to: %s\n", pipelineContentsFilepath)
 		err = ioutil.WriteFile(pipelineContentsFilepath, []byte(p.contents), os.ModePerm)
 		if err != nil {
@@ -125,6 +129,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 }
 
 type pipelineWithContent struct {
+	teamName string
 	name     string
 	contents string
 }

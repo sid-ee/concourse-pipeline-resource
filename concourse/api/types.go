@@ -3,14 +3,16 @@ package api
 import "github.com/concourse/atc"
 
 type Pipeline struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	TeamName string `json:"team_name"`
 }
 
 func pipelineFromATCPipeline(p atc.Pipeline) Pipeline {
 	return Pipeline{
-		Name: p.Name,
-		URL:  p.URL,
+		Name:     p.Name,
+		URL:      p.URL,
+		TeamName: p.TeamName,
 	}
 }
 
