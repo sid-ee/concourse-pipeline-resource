@@ -6,8 +6,21 @@ import (
 	"github.com/concourse/atc"
 )
 
+func (c Client) clientForTeam(teamName string) (ConcourseClient, error) {
+	client := c.gcClients[teamName]
+	if client == nil {
+		return nil, fmt.Errorf("no client found for team: '%s'", teamName)
+	}
+	return client, nil
+}
+
 func (c Client) Pipelines(teamName string) ([]Pipeline, error) {
-	atcPipelines, err := c.gcClients[teamName].ListPipelines()
+	gcClient, err := c.clientForTeam(teamName)
+	if err != nil {
+		return nil, c.wrapErr(err)
+	}
+
+	atcPipelines, err := gcClient.ListPipelines()
 	if err != nil {
 		return nil, c.wrapErr(err)
 	}
@@ -16,8 +29,13 @@ func (c Client) Pipelines(teamName string) ([]Pipeline, error) {
 }
 
 func (c Client) PipelineConfig(teamName string, pipelineName string) (atc.Config, string, string, error) {
+	gcClient, err := c.clientForTeam(teamName)
+	if err != nil {
+		return atc.Config{}, "", "", c.wrapErr(err)
+	}
+
 	atcConfig, atcRawConfig, configVersion, exists, err :=
-		c.gcClients[teamName].PipelineConfig(pipelineName)
+		gcClient.PipelineConfig(pipelineName)
 	if err != nil {
 		return atc.Config{}, "", "", c.wrapErr(err)
 	}
@@ -36,7 +54,12 @@ func (c Client) SetPipelineConfig(
 	configVersion string,
 	passedConfig atc.Config,
 ) error {
-	created, updated, _, err := c.gcClients[teamName].CreateOrUpdatePipelineConfig(
+	gcClient, err := c.clientForTeam(teamName)
+	if err != nil {
+		return c.wrapErr(err)
+	}
+
+	created, updated, _, err := gcClient.CreateOrUpdatePipelineConfig(
 		pipelineName,
 		configVersion,
 		passedConfig,
@@ -46,7 +69,7 @@ func (c Client) SetPipelineConfig(
 	}
 
 	if !created && !updated {
-		err := fmt.Errorf("Pipeline not created or updated: %s", pipelineName)
+		err := fmt.Errorf("Pipeline neither created nor updated: %s", pipelineName)
 		return c.wrapErr(err)
 	}
 

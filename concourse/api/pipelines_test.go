@@ -83,6 +83,20 @@ var _ = Describe("Pipeline methods", func() {
 				Expect(err.Error()).Should(ContainSubstring("some error"))
 			})
 		})
+
+		Context("when no client exists for team name", func() {
+			BeforeEach(func() {
+				teamName = "unknown team"
+			})
+
+			It("returns error including target url", func() {
+				_, err := client.Pipelines(teamName)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring("unknown team"))
+			})
+		})
 	})
 
 	Describe("PipelineConfig", func() {
@@ -152,6 +166,20 @@ var _ = Describe("Pipeline methods", func() {
 				Expect(err.Error()).Should(ContainSubstring(target))
 				Expect(err.Error()).Should(ContainSubstring(pipelineName))
 				Expect(err.Error()).Should(ContainSubstring("not found"))
+			})
+		})
+
+		Context("when no client exists for team name", func() {
+			BeforeEach(func() {
+				teamName = "unknown team"
+			})
+
+			It("returns error including target url", func() {
+				_, _, _, err := client.PipelineConfig(teamName, pipelineName)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring("unknown team"))
 			})
 		})
 	})
@@ -225,7 +253,7 @@ var _ = Describe("Pipeline methods", func() {
 			})
 		})
 
-		Context("when pipeline was not created or updated", func() {
+		Context("when pipeline was neither created nor updated", func() {
 			BeforeEach(func() {
 				pipelineCreated = false
 				pipelineUpdated = false
@@ -242,7 +270,26 @@ var _ = Describe("Pipeline methods", func() {
 
 				Expect(err.Error()).Should(ContainSubstring(target))
 				Expect(err.Error()).Should(ContainSubstring(pipelineName))
-				Expect(err.Error()).Should(ContainSubstring("not created or updated"))
+				Expect(err.Error()).Should(ContainSubstring("neither created nor updated"))
+			})
+		})
+
+		Context("when no client exists for team name", func() {
+			BeforeEach(func() {
+				teamName = "unknown team"
+			})
+
+			It("returns error including target url", func() {
+				err := client.SetPipelineConfig(
+					teamName,
+					pipelineName,
+					configVersion,
+					passedConfig,
+				)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).Should(ContainSubstring(target))
+				Expect(err.Error()).Should(ContainSubstring("unknown team"))
 			})
 		})
 	})
