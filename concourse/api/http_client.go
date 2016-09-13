@@ -36,12 +36,14 @@ func LoginWithBasicAuth(
 		caCert,
 	)
 	if err != nil {
-		panic(err)
+		// Untested as the only error returned is from an invalid CACert which we
+		// cannot force, as we provide an empty CACert and that is valid,
+		return TargetToken{}, err
 	}
 
 	token, err := target.Team().AuthToken()
 	if err != nil {
-		panic(err)
+		return TargetToken{}, err
 	}
 
 	return TargetToken{
