@@ -1,6 +1,6 @@
 # Concourse Pipeline Resource
 
-Interact with concourse pipelines from concourse.
+Get and set concourse pipelines from concourse.
 
 ## Installing
 
@@ -37,24 +37,9 @@ The rootfs of the docker image is available with each release on the
 The docker image is semantically versioned; these versions correspond to the git tags
 in this repository.
 
-## Source Configuration
+## Source configuration
 
-* `target`: *Optional.* URL of your concourse instance e.g. `https://my-concourse.com`.
-  If not specified, the resource defaults to the `ATC_EXTERNAL_URL` environment variable,
-  meaning it will always target the same concourse that created the container.
-
-* `username`: *Required.*  Basic auth username for logging in to Concourse.
-  Basic Auth must be enabled on the Concourse installation.
-
-* `password`: *Required.*  Basic auth password for logging in to Concourse.
-  Basic Auth must be enabled on the Concourse installation.
-
-* `insecure`: *Optional.* Connect to Concourse insecurely - i.e. skip SSL validation.
-  Defaults to false if not provided.
-
-### Example Pipeline Configuration
-
-#### Check
+Check returns the versions of all pipelines. Configure as follows:
 
 ```yaml
 ---
@@ -63,28 +48,74 @@ resources:
   type: concourse-pipeline
   source:
     target: https://my-concourse.com
-    username: some-user
-    password: some-password
+    insecure: false
+    teams:
+    - name: team-1
+      username: some-user
+      password: some-password
+    - name: team-2
+      username: other-user
+      password: other-password
 ```
 
-#### In
+* `target`: *Optional.* URL of your concourse instance e.g. `https://my-concourse.com`.
+  If not specified, the resource defaults to the `ATC_EXTERNAL_URL` environment variable,
+  meaning it will always target the same concourse that created the container.
 
-Resource configuration as above for Check, with the following job configuration:
+* `insecure`: *Optional.* Connect to Concourse insecurely - i.e. skip SSL validation.
+  Defaults to false if not provided.
+
+* `teams`: *Required.* At least one team must be provided, with the following parameters:
+
+  * `username`: *Required.*  Basic auth username for logging in to the team.
+    Basic Auth must be enabled for the team.
+
+  * `password`: *Required.*  Basic auth password for logging in to the team.
+    Basic Auth must be enabled for the team.
+
+## `in`: Get the configuration of the pipelines
+
+Get the config for each pipeline; write it to the local working directory (e.g.
+`/tmp/build/get`) with the filename derived from the pipeline name and team name.
+
+For example, if there are two pipelines `foo` and `bar` belonging to `team-1`
+and `team-2` respectively, the config for the first will be written to
+`team-1-foo.yml` and the second to `team-2-bar.yml`.
 
 ```yaml
 ---
+resources:
+- name: my-pipelines
+  type: concourse-pipeline
+  source: ...
+
 jobs:
 - name: download-my-pipelines
   plan:
   - get: my-pipelines
 ```
 
-#### Out - static
+## `out`: Set the configuration of the pipelines
 
-Resource configuration as above for Check, with the following job configuration:
+Set the configuration for each pipeline provided in the `params` section.
+
+Configuration can be either static or dynamic.
+Static configuration has the configuration fixed in the pipeline config file,
+whereas dynamic configuration reads the pipeline configuration from the provided file.
+
+One of either static or dynamic configuration must be provided; using both is not allowed.
+
+### static
 
 ```yaml
 ---
+resources:
+- name: my-pipelines
+  type: concourse-pipeline
+  source:
+    teams:
+    - name: team-1
+
 jobs:
 - name: set-my-pipelines
   plan:
@@ -92,14 +123,31 @@ jobs:
     params:
       pipelines:
       - name: my-pipeline
+        team: team-1
         config_file: path/to/config/file
         vars_files:
         - path/to/optional/vars/file/1
         - path/to/optional/vars/file/2
 ```
 
+* `pipelines`: *Required.* Array of pipelines to configure.
+Must be non-nil and non-empty. The structure of the `pipeline` object is as follows:
 
-#### Out - dynamic
+ - `name`: *Required.* Name of pipeline to be configured.
+ Equivalent of `-p my-pipeline-name` in `fly set-pipeline` command.
+
+ - `team`: *Required.* Name of the team to which the pipeline belongs.
+ Equivalent of `-n my-team` in `fly login` command.
+ Must match one of the `teams` provided in `source`.
+
+ - `config_file`: *Required.* Location of config file.
+ Equivalent of `-c some-config-file.yml` in `fly set-pipeline` command.
+
+ - `vars_files`: *Optional.* Array of strings corresponding to files
+ containing variables to be interpolated via `{{ }}` in `config_file`.
+ Equivalent of `-l some-vars-file.yml` in `fly set-pipeline` command.
+
+### dynamic
 
 Resource configuration as above for Check, with the following job configuration:
 
@@ -113,77 +161,20 @@ jobs:
       pipelines_file: path/to/pipelines/file
 ```
 
-## Behavior
-
-### `check`: Check for changes to the pipelines.
-
-Return the versions of all pipelines.
-
-### `in`: Get the configuration of the pipelines
-
-Get the config for each pipeline; write it to the local working directory (e.g.
-`/tmp/build/get`) with the filename derived from the pipeline name.
-
-For example, if there are two pipelines `foo` and `bar` the config for the
-first will be written to `foo.yml` and the second to `bar.yml`.
-
-### `out`: Set the configuration of the pipelines
-
-Set the configuration for each pipeline provided in the `params` section.
-
-Configuration can be either static or dynamic. Static configuration has the configuration fixed in the pipeline config file, whereas dynamic configuration reads the pipeline configuration from the provided file.
-
-Either static or dynamic configuration must be selected; using both is not allowed.
-
-#### Parameters - static
-
-* `pipelines`: *Required.* Array of pipelines to configure.
-Must be non-nil and non-empty. The structure of the `pipeline` object is as follows:
-
- - `name`: *Required.* Name of pipeline to be configured.
- Equivalent of `-p my-pipeline-name` in `fly set-pipeline` command.
-
- - `config_file`: *Required.* Location of config file.
- Equivalent of `-c some-config-file.yml` in `fly set-pipeline` command.
-
- - `vars_files`: *Optional.* Array of strings corresponding to files
- containing variables to be interpolated via `{{ }}` in `config_file`.
- Equivalent of `-l some-vars-file.yml` in `fly set-pipeline` command.
-
-#### Parameters - dynamic
-
-* `pipelines_file`: *Required.* Path to dynamic configuration file. The contents of this file should look as follows:
-
-  ```yaml
-  ---
-  pipelines:
-  - name: my-pipeline
-    config_file: path/to/config/file
-    vars_files:
-    - path/to/optional/vars/file/1
-    - path/to/optional/vars/file/2
-  ```
-
-This is the same structure as Static configuration above, but in a file. See that section to determine which fields are optional and which are required.
+* `pipelines_file`: *Required.* Path to dynamic configuration file.
+  The contents of this file should have the same structure as the
+  static configuration above, but in a file.
 
 ## Developing
 
 ### Prerequisites
 
-A valid install of golang >= 1.5 is required.
+A valid install of golang >= 1.6 is required.
 
 ### Dependencies
 
 Dependencies are vendored in the `vendor` directory, according to the
 [golang 1.5 vendor experiment](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&cad=rja&uact=8&ved=0ahUKEwi7puWg7ZrLAhUN1WMKHeT4A7oQFggdMAA&url=https%3A%2F%2Fgolang.org%2Fs%2Fgo15vendor&usg=AFQjCNEPCAjj1lnni5apHdA7rW0crWs7Zw).
-
-If using golang 1.6, no action is required.
-
-If using golang 1.5 run the following command:
-
-```
-export GO15VENDOREXPERIMENT=1
-```
 
 #### Updating dependencies
 
