@@ -67,6 +67,9 @@ resources:
 
 * `teams`: *Required.* At least one team must be provided, with the following parameters:
 
+  * `name`: *Required.* Name of team.
+    Equivalent of `-n team-name` in `fly login` command.
+
   * `username`: *Required.*  Basic auth username for logging in to the team.
     Basic Auth must be enabled for the team.
 
