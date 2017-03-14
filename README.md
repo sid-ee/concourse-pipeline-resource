@@ -48,7 +48,7 @@ resources:
   type: concourse-pipeline
   source:
     target: https://my-concourse.com
-    insecure: false
+    insecure: "false"
     teams:
     - name: team-1
       username: some-user
@@ -63,7 +63,8 @@ resources:
   meaning it will always target the same concourse that created the container.
 
 * `insecure`: *Optional.* Connect to Concourse insecurely - i.e. skip SSL validation.
-  Defaults to false if not provided.
+  Must be a [boolean-parseable string](https://golang.org/pkg/strconv/#ParseBool).
+  Defaults to "false" if not provided.
 
 * `teams`: *Required.* At least one team must be provided, with the following parameters:
 
