@@ -23,7 +23,7 @@ on adding `resource_types` to a pipeline config.
 
 **Using `tag: latest-final` will pull the latest final release, which can be
 found on the
-[releases page](https://github.com/robdimsdale/concourse-pipeline-resource/releases)**
+[releases page](https://github.com/concourse/concourse-pipeline-resource/releases)**
 
 **To avoid automatically upgrading, use a fixed tag instead e.g. `tag: v0.6.3`**
 
@@ -32,7 +32,7 @@ available on
 [dockerhub](https://hub.docker.com/r/robdimsdale/concourse-pipeline-resource).
 
 The rootfs of the docker image is available with each release on the
-[releases page](https://github.com/robdimsdale/concourse-pipeline-resource/releases).
+[releases page](https://github.com/concourse/concourse-pipeline-resource/releases).
 
 The docker image is semantically versioned; these versions correspond to the git tags
 in this repository.
@@ -224,7 +224,7 @@ PASSWORD=my-basic-auth-password \
 ### Contributing
 
 Please make all pull requests to the `develop` branch, and
-[ensure the tests pass locally](https://github.com/robdimsdale/concourse-pipeline-resource#running-the-tests).
+[ensure the tests pass locally](https://github.com/concourse/concourse-pipeline-resource#running-the-tests).
 
 ### Project management
 

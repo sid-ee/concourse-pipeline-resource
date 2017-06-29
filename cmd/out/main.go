@@ -5,22 +5,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
-	"github.com/robdimsdale/concourse-pipeline-resource/cmd/out/filereader"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-	"github.com/robdimsdale/concourse-pipeline-resource/out"
-	"github.com/robdimsdale/concourse-pipeline-resource/out/configdiffer"
-	"github.com/robdimsdale/concourse-pipeline-resource/out/helpers"
-	"github.com/robdimsdale/concourse-pipeline-resource/validator"
+	"github.com/concourse/concourse-pipeline-resource/cmd/out/filereader"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/fly"
+	"github.com/concourse/concourse-pipeline-resource/logger"
+	"github.com/concourse/concourse-pipeline-resource/out"
+	"github.com/concourse/concourse-pipeline-resource/validator"
 	"github.com/robdimsdale/sanitizer"
 )
 
 const (
+	flyBinaryName        = "fly"
 	atcExternalURLEnvKey = "ATC_EXTERNAL_URL"
 )
 
@@ -28,7 +28,7 @@ var (
 	// version is deliberately left uninitialized so it can be set at compile-time
 	version string
 
-	l *logger.Logger
+	l logger.Logger
 )
 
 func main() {
@@ -43,6 +43,13 @@ func main() {
 
 	sourcesDir := os.Args[1]
 
+	outDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	var input concourse.OutRequest
+
 	logFile, err := ioutil.TempFile("", "concourse-pipeline-resource-out.log")
 	if err != nil {
 		log.Fatalln(err)
@@ -51,7 +58,6 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "Logging to %s\n", logFile.Name())
 
-	var input concourse.OutRequest
 	err = json.NewDecoder(os.Stdin).Decode(&input)
 	if err != nil {
 		fmt.Fprintf(logFile, "Exiting with error: %v\n", err)
@@ -62,6 +68,9 @@ func main() {
 	sanitizer := sanitizer.NewSanitizer(sanitized, logFile)
 
 	l = logger.NewLogger(sanitizer)
+
+	flyBinaryPath := filepath.Join(outDir, flyBinaryName)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
 
 	err = validator.ValidateOut(input)
 	if err != nil {
@@ -100,41 +109,9 @@ func main() {
 		}
 	}
 
-	teamClients := make(map[string]*http.Client)
-	for _, t := range input.Source.Teams {
-		teamName := t.Name
-
-		if teamClients[teamName] != nil {
-			continue
-		}
-
-		token, err := api.LoginWithBasicAuth(
-			input.Source.Target,
-			t.Name,
-			t.Username,
-			t.Password,
-			insecure,
-		)
-		if err != nil {
-			l.Debugf("Exiting with error: %v\n", err)
-			log.Fatalln(err)
-		}
-
-		httpClient := api.OAuthHTTPClient(token, insecure)
-		teamClients[teamName] = httpClient
-	}
-
-	apiClient := api.NewClient(input.Source.Target, teamClients)
-
-	cd := configdiffer.NewConfigDiffer(sanitizer)
-	pipelineSetter := helpers.NewPipelineSetter(apiClient, cd)
-	response, err := out.NewOutCommand(
-		version,
-		l,
-		pipelineSetter,
-		apiClient,
-		sourcesDir,
-	).Run(input)
+	//TODO: Do we need to check to see if input.Source.Teams is nil?
+	apiClient := api.NewClient(input.Source.Target, insecure, input.Source.Teams)
+	response, err := out.NewOutCommand(version, l, flyConn, apiClient, sourcesDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

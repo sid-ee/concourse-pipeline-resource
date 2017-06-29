@@ -4,350 +4,171 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/concourse/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/logger/loggerfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api/apifakes"
-
-	"github.com/concourse/atc"
-	gc "github.com/concourse/go-concourse/concourse"
+	"github.com/onsi/gomega/ghttp"
 )
 
-var _ = Describe("Pipeline methods", func() {
+var _ = Describe("Check", func() {
 	var (
-		originalNewGCClientFunc func(target string, teamName string, httpClient *http.Client) api.ConcourseClient
-		fakeConcourseClient     *apifakes.FakeConcourseClient
-
-		client *api.Client
+		server *ghttp.Server
+		client api.Client
 		target string
 
-		teamName string
+		fakeLogger *loggerfakes.FakeLogger
 	)
 
 	BeforeEach(func() {
-		originalNewGCClientFunc = api.NewGCClientFunc
+		server = ghttp.NewServer()
+		target = server.URL()
 
-		fakeConcourseClient = &apifakes.FakeConcourseClient{}
-
-		api.NewGCClientFunc = func(target string, teamName string, httpClient *http.Client) api.ConcourseClient {
-			return fakeConcourseClient
+		fakeLogger = &loggerfakes.FakeLogger{}
+		teams := []concourse.Team{
+			{
+				Name:     "main",
+				Username: "foo",
+				Password: "bar",
+			},
 		}
-
-		target = "some target"
-		teamName = "main"
-
-		teamClients := map[string]*http.Client{teamName: &http.Client{}}
-		client = api.NewClient(target, teamClients)
+		client = api.NewClient(target, false, teams)
 	})
 
 	AfterEach(func() {
-		api.NewGCClientFunc = originalNewGCClientFunc
+		server.Close()
 	})
 
 	Describe("Pipelines", func() {
 		var (
-			atcPipelines []atc.Pipeline
-			pipelinesErr error
+			token              api.AuthToken
+			tokenStatusCode    int
+			response           []api.Pipeline
+			responseStatusCode int
 		)
 
 		BeforeEach(func() {
-			pipelinesErr = nil
+			token = api.AuthToken{
+				Type:  "Bearer",
+				Value: "foobar",
+			}
 
-			atcPipelines = []atc.Pipeline{
+			response = []api.Pipeline{
 				{Name: "p1", URL: "url_p2"},
 				{Name: "p2", URL: "url_p1"},
 			}
-		})
 
-		JustBeforeEach(func() {
-			fakeConcourseClient.ListPipelinesReturns(atcPipelines, pipelinesErr)
+			tokenStatusCode = http.StatusOK
+			responseStatusCode = http.StatusOK
 		})
 
 		It("returns successfully", func() {
-			returnedPipelines, err := client.Pipelines(teamName)
+			server.AppendHandlers(
+				ghttp.CombineHandlers(
+					ghttp.VerifyRequest("GET", apiPrefix+"/teams/main/auth/token"),
+					ghttp.VerifyBasicAuth("foo", "bar"),
+					ghttp.RespondWithJSONEncoded(tokenStatusCode, token),
+				),
+				ghttp.CombineHandlers(
+					ghttp.VerifyRequest("GET", apiPrefix+"/teams/main/pipelines"),
+					ghttp.VerifyHeaderKV("Authorization", "Bearer foobar"),
+					ghttp.RespondWithJSONEncoded(responseStatusCode, response),
+				),
+			)
+			returnedPipelines, err := client.Pipelines("main")
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(returnedPipelines).To(HaveLen(2))
 		})
 
-		Context("when getting pipelines returns an error", func() {
-			BeforeEach(func() {
-				pipelinesErr = fmt.Errorf("some error")
-			})
-
-			It("returns error including target url", func() {
-				_, err := client.Pipelines(teamName)
-				Expect(err).To(HaveOccurred())
-
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring("some error"))
-			})
-		})
-
-		Context("when no client exists for team name", func() {
-			BeforeEach(func() {
-				teamName = "unknown team"
-			})
-
-			It("returns error including target url", func() {
-				_, err := client.Pipelines(teamName)
-				Expect(err).To(HaveOccurred())
-
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring("unknown team"))
-			})
-		})
-	})
-
-	Describe("PipelineConfig", func() {
-		var (
-			atcConfig         atc.Config
-			atcRawConfig      atc.RawConfig
-			configVersion     string
-			pipelineExists    bool
-			pipelineConfigErr error
-
-			pipelineName string
-		)
-
-		BeforeEach(func() {
-			atcConfig = atc.Config{Groups: atc.GroupConfigs{{Name: "some group"}}}
-			atcRawConfig = atc.RawConfig("some raw config")
-			configVersion = "some config version"
-			pipelineExists = true
-			pipelineConfigErr = nil
-
-			pipelineName = "some pipeline"
-		})
-
-		JustBeforeEach(func() {
-			fakeConcourseClient.PipelineConfigReturns(
-				atcConfig,
-				atcRawConfig,
-				configVersion,
-				pipelineExists,
-				pipelineConfigErr,
-			)
-		})
-
-		It("returns successfully", func() {
-			returnedATCConfig, returnedConfig, returnedConfigVersion, err :=
-				client.PipelineConfig(teamName, pipelineName)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(returnedATCConfig).To(Equal(atcConfig))
-			Expect(returnedConfig).To(Equal(atcRawConfig.String()))
-			Expect(returnedConfigVersion).To(Equal(configVersion))
-		})
-
-		Context("when getting pipelines returns an error", func() {
-			BeforeEach(func() {
-				pipelineConfigErr = fmt.Errorf("some error")
-			})
-
-			It("returns error including target url", func() {
-				_, _, _, err := client.PipelineConfig(teamName, pipelineName)
-				Expect(err).To(HaveOccurred())
-
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring("some error"))
-			})
-		})
-
-		Context("when pipeline does not exist", func() {
-			BeforeEach(func() {
-				pipelineExists = false
-			})
-
-			It("returns error including target url", func() {
-				_, _, _, err := client.PipelineConfig(teamName, pipelineName)
-				Expect(err).To(HaveOccurred())
-
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring(pipelineName))
-				Expect(err.Error()).Should(ContainSubstring("not found"))
-			})
-		})
-
-		Context("when no client exists for team name", func() {
-			BeforeEach(func() {
-				teamName = "unknown team"
-			})
-
-			It("returns error including target url", func() {
-				_, _, _, err := client.PipelineConfig(teamName, pipelineName)
-				Expect(err).To(HaveOccurred())
-
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring("unknown team"))
-			})
-		})
-	})
-
-	Describe("SetPipelineConfig", func() {
-		var (
-			pipelineCreated   bool
-			pipelineUpdated   bool
-			warnings          []gc.ConfigWarning
-			pipelineConfigErr error
-
-			pipelineName  string
-			configVersion string
-			passedConfig  atc.Config
-		)
-
-		BeforeEach(func() {
-			pipelineCreated = false
-			pipelineUpdated = true
-			warnings = nil
-			pipelineConfigErr = nil
-
-			pipelineName = "some pipeline"
-			configVersion = "some version"
-			passedConfig = atc.Config{}
-		})
-
-		JustBeforeEach(func() {
-			fakeConcourseClient.CreateOrUpdatePipelineConfigReturns(
-				pipelineCreated,
-				pipelineUpdated,
-				warnings,
-				pipelineConfigErr,
-			)
-		})
-
-		It("returns successfully", func() {
-			err := client.SetPipelineConfig(
-				teamName,
-				pipelineName,
-				configVersion,
-				passedConfig,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(fakeConcourseClient.CreateOrUpdatePipelineConfigCallCount()).To(Equal(1))
-			invokedPipelineName, invokedConfigVersion, invokedPassedConfig :=
-				fakeConcourseClient.CreateOrUpdatePipelineConfigArgsForCall(0)
-
-			Expect(invokedPipelineName).To(Equal(pipelineName))
-			Expect(invokedConfigVersion).To(Equal(configVersion))
-			Expect(invokedPassedConfig).To(Equal(passedConfig))
-		})
-
-		Context("when getting pipelines returns an error", func() {
-			BeforeEach(func() {
-				pipelineConfigErr = fmt.Errorf("some error")
-			})
-
-			It("returns error including target url", func() {
-				err := client.SetPipelineConfig(
-					teamName,
-					pipelineName,
-					configVersion,
-					passedConfig,
+		Context("when getting pipelines returns unmarshallable body", func() {
+			It("returns error", func() {
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", apiPrefix+"/teams/main/auth/token"),
+						ghttp.VerifyBasicAuth("foo", "bar"),
+						ghttp.RespondWithJSONEncoded(tokenStatusCode, token),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", fmt.Sprintf(
+							"%s/teams/main/pipelines",
+							apiPrefix,
+						)),
+						ghttp.VerifyHeaderKV("Authorization", "Bearer foobar"),
+						ghttp.RespondWith(
+							http.StatusOK,
+							`$not%valid-#json`,
+						),
+					),
 				)
+				_, err := client.Pipelines("main")
 				Expect(err).To(HaveOccurred())
-
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring("some error"))
 			})
 		})
-
-		Context("when pipeline was neither created nor updated", func() {
-			BeforeEach(func() {
-				pipelineCreated = false
-				pipelineUpdated = false
-			})
-
+		Context("when getting pipelines on invalid target", func() {
 			It("returns error including target url", func() {
-				err := client.SetPipelineConfig(
-					teamName,
-					pipelineName,
-					configVersion,
-					passedConfig,
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", apiPrefix+"/teams/main/auth/token"),
+						ghttp.VerifyBasicAuth("foo", "bar"),
+						ghttp.RespondWithJSONEncoded(tokenStatusCode, token),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", fmt.Sprintf(
+							"%s/teams/main/pipelines",
+							apiPrefix,
+						)),
+						ghttp.VerifyHeaderKV("Authorization", "Bearer foobar"),
+						ghttp.RespondWith(
+							http.StatusNotFound,
+							"",
+						),
+					),
 				)
+				_, err := client.Pipelines("main")
 				Expect(err).To(HaveOccurred())
-
 				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring(pipelineName))
-				Expect(err.Error()).Should(ContainSubstring("neither created nor updated"))
 			})
 		})
 
-		Context("when no client exists for team name", func() {
-			BeforeEach(func() {
-				teamName = "unknown team"
-			})
-
-			It("returns error including target url", func() {
-				err := client.SetPipelineConfig(
-					teamName,
-					pipelineName,
-					configVersion,
-					passedConfig,
+		Context("when getting auth token returns unmarshallable body", func() {
+			It("returns error", func() {
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", apiPrefix+"/teams/main/auth/token"),
+						ghttp.VerifyBasicAuth("foo", "bar"),
+						ghttp.RespondWith(
+							http.StatusOK,
+							`$not%valid-#json`,
+						),
+					),
 				)
+				_, err := client.Pipelines("main")
 				Expect(err).To(HaveOccurred())
 
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring("unknown team"))
+				Expect(server.ReceivedRequests()).To(HaveLen(1))
 			})
 		})
-	})
-
-	Describe("DeletePipeline", func() {
-		var (
-			pipelineExists    bool
-			pipelineConfigErr error
-
-			pipelineName string
-		)
-
-		BeforeEach(func() {
-			pipelineExists = true
-			pipelineConfigErr = nil
-
-			pipelineName = "some pipeline"
-		})
-
-		JustBeforeEach(func() {
-			fakeConcourseClient.DeletePipelineReturns(pipelineExists, pipelineConfigErr)
-		})
-
-		It("returns successfully", func() {
-			err := client.DeletePipeline(teamName, pipelineName)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(fakeConcourseClient.DeletePipelineCallCount()).To(Equal(1))
-			Expect(fakeConcourseClient.DeletePipelineArgsForCall(0)).To(Equal(pipelineName))
-		})
-
-		Context("when getting pipelines returns an error", func() {
-			BeforeEach(func() {
-				pipelineConfigErr = fmt.Errorf("some error")
-			})
-
+		Context("when getting auth token on invalid target", func() {
 			It("returns error including target url", func() {
-				err := client.DeletePipeline(teamName, pipelineName)
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", apiPrefix+"/teams/main/auth/token"),
+						ghttp.VerifyBasicAuth("foo", "bar"),
+						ghttp.RespondWith(
+							http.StatusNotFound,
+							"",
+						),
+					),
+				)
+				_, err := client.Pipelines("main")
 				Expect(err).To(HaveOccurred())
-
 				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring("some error"))
+
+				Expect(server.ReceivedRequests()).To(HaveLen(1))
 			})
 		})
 
-		Context("when pipeline does not exist", func() {
-			BeforeEach(func() {
-				pipelineExists = false
-			})
-
-			It("returns error including target url", func() {
-				err := client.DeletePipeline(teamName, pipelineName)
-				Expect(err).To(HaveOccurred())
-
-				Expect(err.Error()).Should(ContainSubstring(target))
-				Expect(err.Error()).Should(ContainSubstring(pipelineName))
-				Expect(err.Error()).Should(ContainSubstring("not found"))
-			})
-		})
 	})
 })

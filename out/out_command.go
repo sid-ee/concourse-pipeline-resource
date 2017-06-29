@@ -1,66 +1,62 @@
 package out
 
 import (
+	"crypto/md5"
+	"fmt"
 	"path/filepath"
+	"strconv"
 
-	"github.com/concourse/atc"
-	"github.com/concourse/fly/template"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/fly"
+	"github.com/concourse/concourse-pipeline-resource/logger"
 )
 
 const (
 	apiPrefix = "/api/v1"
 )
 
-//go:generate counterfeiter . Client
-type Client interface {
-	Pipelines(teamName string) ([]api.Pipeline, error)
-	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
-}
-
-//go:generate counterfeiter . Logger
-type Logger interface {
-	Debugf(format string, a ...interface{}) (n int, err error)
-}
-
-//go:generate counterfeiter . PipelineSetter
-type PipelineSetter interface {
-	SetPipeline(
-		teamName string,
-		pipelineName string,
-		configPath string,
-		templateVariables template.Variables,
-		templateVariablesFiles []string,
-	) error
-}
-
 type OutCommand struct {
-	logger         Logger
-	binaryVersion  string
-	apiClient      Client
-	sourcesDir     string
-	pipelineSetter PipelineSetter
+	logger        logger.Logger
+	binaryVersion string
+	flyConn       fly.FlyConn
+	apiClient     api.Client
+	sourcesDir    string
 }
 
 func NewOutCommand(
 	binaryVersion string,
-	logger Logger,
-	pipelineSetter PipelineSetter,
-	apiClient Client,
+	logger logger.Logger,
+	flyConn fly.FlyConn,
+	apiClient api.Client,
 	sourcesDir string,
 ) *OutCommand {
 	return &OutCommand{
-		logger:         logger,
-		binaryVersion:  binaryVersion,
-		pipelineSetter: pipelineSetter,
-		apiClient:      apiClient,
-		sourcesDir:     sourcesDir,
+		logger:        logger,
+		binaryVersion: binaryVersion,
+		flyConn:       flyConn,
+		apiClient:     apiClient,
+		sourcesDir:    sourcesDir,
 	}
 }
 
 func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
+
+	insecure := false
+	if input.Source.Insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(input.Source.Insecure)
+		if err != nil {
+			return concourse.OutResponse{}, err
+		}
+	}
+
+	teams := make(map[string]concourse.Team)
+
+	for _, team := range input.Source.Teams {
+		teams[team.Name] = team
+	}
 
 	pipelines := input.Params.Pipelines
 
@@ -68,6 +64,23 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	c.logger.Debugf("Setting pipelines\n")
 	for _, p := range pipelines {
+		team, found := teams[p.TeamName]
+		if !found {
+			return concourse.OutResponse{}, fmt.Errorf("team (%s) configuration not found for pipeline (%s)", p.TeamName, p.Name)
+		}
+
+		_, err := c.flyConn.Login(
+			input.Source.Target,
+			team.Username,
+			team.Password,
+			insecure,
+		)
+		if err != nil {
+			return concourse.OutResponse{}, err
+		}
+
+		c.logger.Debugf("Login successful\n")
+
 		configFilepath := filepath.Join(c.sourcesDir, p.ConfigFile)
 
 		var varsFilepaths []string
@@ -76,41 +89,48 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 			varsFilepaths = append(varsFilepaths, varFilepath)
 		}
 
-		var templateVariables template.Variables
-		err := c.pipelineSetter.SetPipeline(
-			p.TeamName,
-			p.Name,
-			configFilepath,
-			templateVariables,
-			varsFilepaths,
-		)
+		_, err = c.flyConn.SetPipeline(p.Name, configFilepath, varsFilepaths)
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}
 	}
 	c.logger.Debugf("Setting pipelines complete\n")
 
-	c.logger.Debugf("Getting pipelines\n")
+	pipelineVersions := make(map[string]string)
 
-	teamName := input.Source.Teams[0].Name
-	apiPipelines, err := c.apiClient.Pipelines(teamName)
-	if err != nil {
-		return concourse.OutResponse{}, err
-	}
-
-	c.logger.Debugf("Found pipelines: %+v\n", pipelines)
-
-	pipelineVersions := make(map[string]string, len(pipelines))
-
-	for _, pipeline := range apiPipelines {
-		c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-		_, _, version, err := c.apiClient.PipelineConfig(teamName, pipeline.Name)
-
+	for teamName, team := range teams {
+		c.logger.Debugf("Performing login\n")
+		_, err := c.flyConn.Login(
+			input.Source.Target,
+			team.Username,
+			team.Password,
+			insecure,
+		)
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}
 
-		pipelineVersions[pipeline.Name] = version
+		c.logger.Debugf("Login successful\n")
+
+		pipelines, err := c.apiClient.Pipelines(teamName)
+		if err != nil {
+			return concourse.OutResponse{}, err
+		}
+		c.logger.Debugf("Found pipelines (%s): %+v\n", teamName, pipelines)
+
+		for _, pipeline := range pipelines {
+			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
+			outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+			if err != nil {
+				return concourse.OutResponse{}, err
+			}
+
+			version := fmt.Sprintf(
+				"%x",
+				md5.Sum(outBytes),
+			)
+			pipelineVersions[pipeline.Name] = version
+		}
 	}
 
 	response := concourse.OutResponse{

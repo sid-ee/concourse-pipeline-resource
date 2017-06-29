@@ -1,10 +1,10 @@
 package validator_test
 
 import (
+	"github.com/concourse/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/validator"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
-	"github.com/robdimsdale/concourse-pipeline-resource/validator"
 )
 
 var _ = Describe("ValidateCheck", func() {

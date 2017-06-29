@@ -8,6 +8,7 @@ set -x
 
 TARGET="${TARGET:?"TARGET must be provided"}"
 USERNAME="${USERNAME:?"USERNAME must be provided"}"
+FLY_LOCATION="${FLY_LOCATION:?"FLY_LOCATION must be provided"}"
 
 SLOW_SPEC_THRESHOLD=20
 

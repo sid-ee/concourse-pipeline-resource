@@ -11,11 +11,11 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 )
 
 const (
@@ -61,8 +61,9 @@ var _ = Describe("Out", func() {
 resources:
 - name: concourse-pipeline-resource-repo
   type: git
-  uri: https://github.com/robdimsdale/concourse-pipeline-resource.git
-  branch: {{foo}}
+  source:
+    uri: https://github.com/concourse/concourse-pipeline-resource.git
+    branch: {{foo}}
 jobs:
 - name: get-concourse-pipeline-resource-repo
   plan:
@@ -142,8 +143,8 @@ jobs:
 
 	Describe("Creating pipelines successfully", func() {
 		AfterEach(func() {
-			err := apiClient.DeletePipeline(teamName, pipelineName)
-			Expect(err).NotTo(HaveOccurred())
+			// err := apiClient.DeletePipeline(teamName, pipelineName)
+			// Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("creates pipeline and returns valid json", func() {

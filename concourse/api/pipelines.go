@@ -1,91 +1,139 @@
 package api
 
 import (
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 
-	"github.com/concourse/atc"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 )
 
-func (c Client) clientForTeam(teamName string) (ConcourseClient, error) {
-	client := c.gcClients[teamName]
-	if client == nil {
-		return nil, fmt.Errorf("no client found for team: '%s'", teamName)
-	}
-	return client, nil
+const (
+	apiPrefix = "/api/v1"
+)
+
+//go:generate counterfeiter . Client
+
+type Client interface {
+	Pipelines(string) ([]Pipeline, error)
 }
 
-func (c Client) Pipelines(teamName string) ([]Pipeline, error) {
-	gcClient, err := c.clientForTeam(teamName)
-	if err != nil {
-		return nil, c.wrapErr(err)
-	}
-
-	atcPipelines, err := gcClient.ListPipelines()
-	if err != nil {
-		return nil, c.wrapErr(err)
-	}
-
-	return pipelinesFromATCPipelines(atcPipelines), nil
+type client struct {
+	target   string
+	insecure bool
+	teams    []concourse.Team
 }
 
-func (c Client) PipelineConfig(teamName string, pipelineName string) (atc.Config, string, string, error) {
-	gcClient, err := c.clientForTeam(teamName)
-	if err != nil {
-		return atc.Config{}, "", "", c.wrapErr(err)
+func NewClient(target string, insecure bool, teams []concourse.Team) Client {
+	return &client{
+		target:   target,
+		insecure: insecure,
+		teams:    teams,
 	}
-
-	atcConfig, atcRawConfig, configVersion, exists, err :=
-		gcClient.PipelineConfig(pipelineName)
-	if err != nil {
-		return atc.Config{}, "", "", c.wrapErr(err)
-	}
-
-	if !exists {
-		err := fmt.Errorf("Pipeline not found: %s", pipelineName)
-		return atc.Config{}, "", "", c.wrapErr(err)
-	}
-
-	return atcConfig, atcRawConfig.String(), configVersion, nil
 }
 
-func (c Client) SetPipelineConfig(
-	teamName string,
-	pipelineName string,
-	configVersion string,
-	passedConfig atc.Config,
-) error {
-	gcClient, err := c.clientForTeam(teamName)
-	if err != nil {
-		return c.wrapErr(err)
+type AuthToken struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+func (c client) Pipelines(teamName string) ([]Pipeline, error) {
+	var team *concourse.Team
+
+	for _, t := range c.teams {
+		if t.Name == teamName {
+			team = &t
+		}
 	}
 
-	created, updated, _, err := gcClient.CreateOrUpdatePipelineConfig(
-		pipelineName,
-		configVersion,
-		passedConfig,
+	if team == nil {
+		return nil, fmt.Errorf("team not configured: %s", teamName)
+	}
+
+	client := &http.Client{}
+
+	if c.insecure {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			Proxy:           http.ProxyFromEnvironment,
+		}
+		client.Transport = tr
+	}
+
+	tokenUrl := fmt.Sprintf(
+		"%s%s/teams/%s/auth/token",
+		c.target,
+		apiPrefix,
+		teamName,
 	)
+
+	req, err := http.NewRequest(
+		"GET",
+		tokenUrl,
+		nil)
+
+	req.SetBasicAuth(team.Username, team.Password)
+
+	resp, err := client.Do(req)
 	if err != nil {
-		return c.wrapErr(err)
+		return nil, err
 	}
 
-	if !created && !updated {
-		err := fmt.Errorf("Pipeline neither created nor updated: %s", pipelineName)
-		return c.wrapErr(err)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Unexpected response from %s - status code: %d, expected: %d",
+			tokenUrl,
+			resp.StatusCode,
+			http.StatusOK,
+		)
 	}
 
-	return nil
-}
-
-func (c Client) DeletePipeline(teamName string, pipelineName string) error {
-	exists, err := c.gcClients[teamName].DeletePipeline(pipelineName)
+	var token AuthToken
+	err = json.NewDecoder(resp.Body).Decode(&token)
 	if err != nil {
-		return c.wrapErr(err)
+		return nil, err
 	}
 
-	if !exists {
-		err := fmt.Errorf("Pipeline not found: %s", pipelineName)
-		return c.wrapErr(err)
+	targetUrl := fmt.Sprintf(
+		"%s%s/teams/%s/pipelines",
+		c.target,
+		apiPrefix,
+		teamName,
+	)
+
+	req, err = http.NewRequest(
+		"GET",
+		targetUrl,
+		nil)
+
+	req.Header.Set("Authorization", fmt.Sprintf("%s %s", token.Type, token.Value))
+
+	resp, err = client.Do(req)
+
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Unexpected response from %s - status code: %d, expected: %d",
+			targetUrl,
+			resp.StatusCode,
+			http.StatusOK,
+		)
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		// Untested as it is too hard to force ReadAll to return an error
+		return nil, err
+	}
+
+	var pipelines []Pipeline
+	err = json.Unmarshal(b, &pipelines)
+	if err != nil {
+		return nil, err
+	}
+
+	return pipelines, nil
 }

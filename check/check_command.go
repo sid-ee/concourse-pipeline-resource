@@ -1,43 +1,38 @@
 package check
 
 import (
+	"crypto/md5"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
-	"github.com/concourse/atc"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/fly"
+	"github.com/concourse/concourse-pipeline-resource/logger"
 )
 
-//go:generate counterfeiter . Client
-type Client interface {
-	Pipelines(teamName string) ([]api.Pipeline, error)
-	PipelineConfig(teamName string, pipelineName string) (config atc.Config, rawConfig string, version string, err error)
-}
-
-//go:generate counterfeiter . Logger
-type Logger interface {
-	Debugf(format string, a ...interface{}) (n int, err error)
-}
-
 type CheckCommand struct {
-	logger        Logger
+	logger        logger.Logger
 	logFilePath   string
 	binaryVersion string
-	apiClient     Client
+	flyConn       fly.FlyConn
+	apiClient     api.Client
 }
 
 func NewCheckCommand(
 	binaryVersion string,
-	logger Logger,
+	logger logger.Logger,
 	logFilePath string,
-	apiClient Client,
+	flyConn fly.FlyConn,
+	apiClient api.Client,
 ) *CheckCommand {
 	return &CheckCommand{
 		logger:        logger,
 		logFilePath:   logFilePath,
 		binaryVersion: binaryVersion,
+		flyConn:       flyConn,
 		apiClient:     apiClient,
 	}
 }
@@ -65,33 +60,56 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Getting pipelines\n")
+	c.logger.Debugf("Performing login\n")
 
-	teamPipelines := make(map[string][]api.Pipeline)
-	for _, team := range input.Source.Teams {
-		pipelines, err := c.apiClient.Pipelines(team.Name)
+	insecure := false
+	if input.Source.Insecure != "" {
+		var err error
+		insecure, err = strconv.ParseBool(input.Source.Insecure)
 		if err != nil {
-			return nil, err
+			return concourse.CheckResponse{}, err
 		}
-		teamPipelines[team.Name] = pipelines
 	}
 
-	c.logger.Debugf("Found pipelines: %+v\n", teamPipelines)
+	teams := make(map[string]concourse.Team)
+
+	for _, team := range input.Source.Teams {
+		teams[team.Name] = team
+	}
 
 	pipelineVersions := make(map[string]string)
 
-	for teamName, pipelines := range teamPipelines {
+	for teamName, team := range teams {
+		_, err := c.flyConn.Login(
+			input.Source.Target,
+			team.Username,
+			team.Password,
+			insecure,
+		)
+		if err != nil {
+			return concourse.CheckResponse{}, err
+		}
+
+		c.logger.Debugf("Login successful\n")
+
+		pipelines, err := c.apiClient.Pipelines(teamName)
+		if err != nil {
+			return concourse.CheckResponse{}, err
+		}
+		c.logger.Debugf("Found pipelines (%s): %+v\n", teamName, pipelines)
+
 		for _, pipeline := range pipelines {
 			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-			_, _, version, err := c.apiClient.PipelineConfig(teamName, pipeline.Name)
-
+			outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
 			if err != nil {
-				return nil, err
+				return concourse.CheckResponse{}, err
 			}
 
-			pipelineVersionKey := fmt.Sprintf("%s/%s", teamName, pipeline.Name)
-
-			pipelineVersions[pipelineVersionKey] = version
+			version := fmt.Sprintf(
+				"%x",
+				md5.Sum(outBytes),
+			)
+			pipelineVersions[pipeline.Name] = version
 		}
 	}
 

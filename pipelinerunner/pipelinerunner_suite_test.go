@@ -1,4 +1,4 @@
-package in_test
+package pipelinerunner
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -11,7 +11,7 @@ const (
 	apiPrefix = "/api/v1"
 )
 
-func TestIn(t *testing.T) {
+func TestPipelineRunner(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "In Suite")
+	RunSpecs(t, "PipelineRunner Suite")
 }

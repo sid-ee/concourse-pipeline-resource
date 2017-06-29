@@ -11,10 +11,6 @@ const (
 	apiPrefix = "/api/v1"
 )
 
-var (
-	teamNames = []string{"team-0", "team-1"}
-)
-
 func TestCheck(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Check Suite")

@@ -5,19 +5,21 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
-	"github.com/robdimsdale/concourse-pipeline-resource/check"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-	"github.com/robdimsdale/concourse-pipeline-resource/validator"
+	"github.com/concourse/concourse-pipeline-resource/check"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/fly"
+	"github.com/concourse/concourse-pipeline-resource/logger"
+	"github.com/concourse/concourse-pipeline-resource/validator"
 	"github.com/robdimsdale/sanitizer"
 )
 
 const (
+	flyBinaryName        = "fly"
 	atcExternalURLEnvKey = "ATC_EXTERNAL_URL"
 )
 
@@ -25,12 +27,17 @@ var (
 	// version is deliberately left uninitialized so it can be set at compile-time
 	version string
 
-	l *logger.Logger
+	l logger.Logger
 )
 
 func main() {
 	if version == "" {
 		version = "dev"
+	}
+
+	checkDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	var input concourse.CheckRequest
@@ -54,6 +61,9 @@ func main() {
 
 	l = logger.NewLogger(sanitizer)
 
+	flyBinaryPath := filepath.Join(checkDir, flyBinaryName)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
+
 	err = validator.ValidateCheck(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
@@ -73,33 +83,8 @@ func main() {
 		}
 	}
 
-	teamClients := make(map[string]*http.Client)
-	for _, t := range input.Source.Teams {
-		teamName := t.Name
-
-		if teamClients[teamName] != nil {
-			continue
-		}
-
-		token, err := api.LoginWithBasicAuth(
-			input.Source.Target,
-			t.Name,
-			t.Username,
-			t.Password,
-			insecure,
-		)
-		if err != nil {
-			l.Debugf("Exiting with error: %v\n", err)
-			log.Fatalln(err)
-		}
-
-		httpClient := api.OAuthHTTPClient(token, insecure)
-		teamClients[teamName] = httpClient
-	}
-
-	apiClient := api.NewClient(input.Source.Target, teamClients)
-
-	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), apiClient)
+	apiClient := api.NewClient(input.Source.Target, insecure, input.Source.Teams)
+	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn, apiClient)
 	response, err := checkCommand.Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)

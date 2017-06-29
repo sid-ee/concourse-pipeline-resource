@@ -5,19 +5,21 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/in"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
-	"github.com/robdimsdale/concourse-pipeline-resource/validator"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse/api"
+	"github.com/concourse/concourse-pipeline-resource/fly"
+	"github.com/concourse/concourse-pipeline-resource/in"
+	"github.com/concourse/concourse-pipeline-resource/logger"
+	"github.com/concourse/concourse-pipeline-resource/validator"
 	"github.com/robdimsdale/sanitizer"
 )
 
 const (
+	flyBinaryName        = "fly"
 	atcExternalURLEnvKey = "ATC_EXTERNAL_URL"
 )
 
@@ -25,7 +27,7 @@ var (
 	// version is deliberately left uninitialized so it can be set at compile-time
 	version string
 
-	l *logger.Logger
+	l logger.Logger
 )
 
 func main() {
@@ -39,6 +41,11 @@ func main() {
 	}
 
 	downloadDir := os.Args[1]
+
+	inDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	var input concourse.InRequest
 
@@ -61,6 +68,9 @@ func main() {
 
 	l = logger.NewLogger(sanitizer)
 
+	flyBinaryPath := filepath.Join(inDir, flyBinaryName)
+	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
+
 	err = validator.ValidateIn(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
@@ -80,33 +90,8 @@ func main() {
 		}
 	}
 
-	teamClients := make(map[string]*http.Client)
-	for _, t := range input.Source.Teams {
-		teamName := t.Name
-
-		if teamClients[teamName] != nil {
-			continue
-		}
-
-		token, err := api.LoginWithBasicAuth(
-			input.Source.Target,
-			t.Name,
-			t.Username,
-			t.Password,
-			insecure,
-		)
-		if err != nil {
-			l.Debugf("Exiting with error: %v\n", err)
-			log.Fatalln(err)
-		}
-
-		httpClient := api.OAuthHTTPClient(token, insecure)
-		teamClients[teamName] = httpClient
-	}
-
-	apiClient := api.NewClient(input.Source.Target, teamClients)
-
-	response, err := in.NewInCommand(version, l, apiClient, downloadDir).Run(input)
+	apiClient := api.NewClient(input.Source.Target, insecure, input.Source.Teams)
+	response, err := in.NewInCommand(version, l, flyConn, apiClient, downloadDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

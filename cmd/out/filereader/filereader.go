@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 	"gopkg.in/yaml.v2"
 )
 

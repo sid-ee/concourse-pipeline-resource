@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/concourse/concourse-pipeline-resource/cmd/out/filereader"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/robdimsdale/concourse-pipeline-resource/cmd/out/filereader"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"gopkg.in/yaml.v2"
 )
 

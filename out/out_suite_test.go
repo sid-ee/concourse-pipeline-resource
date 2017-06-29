@@ -9,7 +9,6 @@ import (
 
 const (
 	apiPrefix = "/api/v1"
-	teamName  = "some team"
 )
 
 func TestOut(t *testing.T) {

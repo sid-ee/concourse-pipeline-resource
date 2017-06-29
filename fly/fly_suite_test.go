@@ -1,4 +1,4 @@
-package in_test
+package fly_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -11,7 +11,7 @@ const (
 	apiPrefix = "/api/v1"
 )
 
-func TestIn(t *testing.T) {
+func TestFly(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "In Suite")
+	RunSpecs(t, "Fly Suite")
 }
