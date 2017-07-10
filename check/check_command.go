@@ -82,6 +82,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 	for teamName, team := range teams {
 		_, err := c.flyConn.Login(
 			input.Source.Target,
+			teamName,
 			team.Username,
 			team.Password,
 			insecure,

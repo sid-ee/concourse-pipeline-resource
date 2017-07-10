@@ -216,7 +216,7 @@ pipeline2: foo
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
-			_, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
+			_, _, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
 
 			Expect(insecure).To(BeTrue())
 		})

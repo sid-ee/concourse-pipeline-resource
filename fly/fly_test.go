@@ -24,7 +24,8 @@ var _ = Describe("FlyConn", func() {
 	var (
 		flyConn fly.FlyConn
 
-		target string
+		target   string
+		teamName string
 
 		tempDir         string
 		flyBinaryPath   string
@@ -35,6 +36,7 @@ var _ = Describe("FlyConn", func() {
 
 	BeforeEach(func() {
 		target = "some-target"
+		teamName = "main"
 
 		var err error
 		tempDir, err = ioutil.TempDir("", "")
@@ -76,14 +78,15 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.Login(url, username, password, insecure)
+			output, err := flyConn.Login(url, teamName, username, password, insecure)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
-				"%s %s %s %s %s %s %s %s %s\n",
+				"%s %s %s %s %s %s %s %s %s %s %s\n",
 				"-t", target,
 				"login",
 				"-c", url,
+				"-n", teamName,
 				"-u", username,
 				"-p", password,
 			)
@@ -97,14 +100,15 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("adds -k flag to command", func() {
-				output, err := flyConn.Login(url, username, password, insecure)
+				output, err := flyConn.Login(url, teamName, username, password, insecure)
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(
-					"%s %s %s %s %s %s %s %s %s %s\n",
+					"%s %s %s %s %s %s %s %s %s %s %s %s\n",
 					"-t", target,
 					"login",
 					"-c", url,
+					"-n", teamName,
 					"-u", username,
 					"-p", password,
 					"-k",
@@ -120,7 +124,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("returns an error", func() {
-				_, err := flyConn.Login(url, username, password, insecure)
+				_, err := flyConn.Login(url, teamName, username, password, insecure)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -131,7 +135,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("appends stderr to the error", func() {
-				_, err := flyConn.Login(url, username, password, insecure)
+				_, err := flyConn.Login(url, teamName, username, password, insecure)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).To(MatchRegexp(".*some err output.*"))

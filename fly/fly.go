@@ -14,7 +14,7 @@ import (
 //go:generate counterfeiter . FlyConn
 
 type FlyConn interface {
-	Login(url string, username string, password string, insecure bool) ([]byte, error)
+	Login(url string, teamName string, username string, password string, insecure bool) ([]byte, error)
 	GetPipeline(pipelineName string) ([]byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
@@ -36,6 +36,7 @@ func NewFlyConn(target string, logger logger.Logger, flyBinaryPath string) FlyCo
 
 func (f flyConn) Login(
 	url string,
+	teamName string,
 	username string,
 	password string,
 	insecure bool,
@@ -53,6 +54,7 @@ func (f flyConn) Login(
 	return f.run(
 		"login",
 		"-c", url,
+		"-n", teamName,
 		"-u", username,
 		"-p", password,
 		extraArgs,

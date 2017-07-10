@@ -71,6 +71,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 		_, err := c.flyConn.Login(
 			input.Source.Target,
+			p.TeamName,
 			team.Username,
 			team.Password,
 			insecure,
@@ -102,6 +103,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		c.logger.Debugf("Performing login\n")
 		_, err := c.flyConn.Login(
 			input.Source.Target,
+			teamName,
 			team.Username,
 			team.Password,
 			insecure,

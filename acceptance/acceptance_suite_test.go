@@ -120,7 +120,7 @@ var _ = BeforeSuite(func() {
 	flyConn = fly.NewFlyConn("concourse-pipeline-resource-target", l, inFlyPath)
 
 	By("Logging in with fly")
-	_, err = flyConn.Login(target, username, password, insecure)
+	_, err = flyConn.Login(target, teamName, username, password, insecure)
 	Expect(err).NotTo(HaveOccurred())
 
 	// By("Creating API Client")

@@ -8,10 +8,11 @@ import (
 )
 
 type FakeFlyConn struct {
-	LoginStub        func(url string, username string, password string, insecure bool) ([]byte, error)
+	LoginStub        func(url string, teamName string, username string, password string, insecure bool) ([]byte, error)
 	loginMutex       sync.RWMutex
 	loginArgsForCall []struct {
 		url      string
+		teamName string
 		username string
 		password string
 		insecure bool
@@ -69,19 +70,20 @@ type FakeFlyConn struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeFlyConn) Login(url string, username string, password string, insecure bool) ([]byte, error) {
+func (fake *FakeFlyConn) Login(url string, teamName string, username string, password string, insecure bool) ([]byte, error) {
 	fake.loginMutex.Lock()
 	ret, specificReturn := fake.loginReturnsOnCall[len(fake.loginArgsForCall)]
 	fake.loginArgsForCall = append(fake.loginArgsForCall, struct {
 		url      string
+		teamName string
 		username string
 		password string
 		insecure bool
-	}{url, username, password, insecure})
-	fake.recordInvocation("Login", []interface{}{url, username, password, insecure})
+	}{url, teamName, username, password, insecure})
+	fake.recordInvocation("Login", []interface{}{url, teamName, username, password, insecure})
 	fake.loginMutex.Unlock()
 	if fake.LoginStub != nil {
-		return fake.LoginStub(url, username, password, insecure)
+		return fake.LoginStub(url, teamName, username, password, insecure)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -95,10 +97,10 @@ func (fake *FakeFlyConn) LoginCallCount() int {
 	return len(fake.loginArgsForCall)
 }
 
-func (fake *FakeFlyConn) LoginArgsForCall(i int) (string, string, string, bool) {
+func (fake *FakeFlyConn) LoginArgsForCall(i int) (string, string, string, string, bool) {
 	fake.loginMutex.RLock()
 	defer fake.loginMutex.RUnlock()
-	return fake.loginArgsForCall[i].url, fake.loginArgsForCall[i].username, fake.loginArgsForCall[i].password, fake.loginArgsForCall[i].insecure
+	return fake.loginArgsForCall[i].url, fake.loginArgsForCall[i].teamName, fake.loginArgsForCall[i].username, fake.loginArgsForCall[i].password, fake.loginArgsForCall[i].insecure
 }
 
 func (fake *FakeFlyConn) LoginReturns(result1 []byte, result2 error) {

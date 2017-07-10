@@ -65,6 +65,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 	for teamName, team := range teams {
 		_, err := c.flyConn.Login(
 			input.Source.Target,
+			teamName,
 			team.Username,
 			team.Password,
 			insecure,

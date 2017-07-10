@@ -23,11 +23,15 @@ var _ = Describe("Out", func() {
 
 		ginkgoLogger logger.Logger
 
-		target          string
-		username        string
-		password        string
-		pipelines       []concourse.Pipeline
-		flyRunCallCount int
+		target         string
+		username       string
+		otherUsername  string
+		password       string
+		otherPassword  string
+		teamName       string
+		otherTeamName  string
+		pipelines      []concourse.Pipeline
+		otherPipelines []concourse.Pipeline
 
 		apiPipelines    []api.Pipeline
 		getPipelinesErr error
@@ -35,15 +39,15 @@ var _ = Describe("Out", func() {
 
 		pipelineContents []string
 
-		outRequest concourse.OutRequest
-		outCommand *out.OutCommand
+		outRequest    concourse.OutRequest
+		badOutRequest concourse.OutRequest
+		outCommand    *out.OutCommand
 
 		fakeFlyConn   *flyfakes.FakeFlyConn
 		fakeAPIClient *apifakes.FakeClient
 	)
 
 	BeforeEach(func() {
-		flyRunCallCount = 0
 		fakeFlyConn = &flyfakes.FakeFlyConn{}
 		fakeAPIClient = &apifakes.FakeClient{}
 
@@ -53,7 +57,11 @@ var _ = Describe("Out", func() {
 
 		target = "some target"
 		username = "some user"
+		otherUsername = "some other user"
 		password = "some password"
+		otherPassword = "some other password"
+		teamName = "main"
+		otherTeamName = "some-other-team"
 
 		apiPipelines = []api.Pipeline{
 			{
@@ -94,12 +102,17 @@ pipeline3: foo
 					"vars_1.yml",
 					"vars_2.yml",
 				},
-				TeamName: "main",
+				TeamName: teamName,
 			},
 			{
 				Name:       apiPipelines[1].Name,
 				ConfigFile: "pipeline_2.yml",
-				TeamName:   "main",
+				TeamName:   teamName,
+			},
+			{
+				Name:       apiPipelines[2].Name,
+				ConfigFile: "pipeline_3.yml",
+				TeamName:   otherTeamName,
 			},
 		}
 
@@ -125,14 +138,35 @@ pipeline3: foo
 				Target: target,
 				Teams: []concourse.Team{
 					{
-						Name:     "main",
+						Name:     teamName,
 						Username: username,
 						Password: password,
+					},
+					{
+						Name:     otherTeamName,
+						Username: otherUsername,
+						Password: otherPassword,
 					},
 				},
 			},
 			Params: concourse.OutParams{
 				Pipelines: pipelines,
+			},
+		}
+
+		badOutRequest = concourse.OutRequest{
+			Source: concourse.Source{
+				Target: target,
+				Teams: []concourse.Team{
+					{
+						Name:     "the-wrong-team",
+						Username: "the wrong username",
+						Password: "the wrong password",
+					},
+				},
+			},
+			Params: concourse.OutParams{
+				Pipelines: otherPipelines,
 			},
 		}
 	})
@@ -160,9 +194,12 @@ pipeline3: foo
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(pipelines)))
+
 		for i, p := range pipelines {
 			name, configFilepath, varsFilepaths := fakeFlyConn.SetPipelineArgsForCall(i)
+			_, tname, _, _, _ := fakeFlyConn.LoginArgsForCall(i)
 			Expect(name).To(Equal(p.Name))
+			Expect(tname).To(Equal(p.TeamName))
 			Expect(configFilepath).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
 
 			// the first pipeline has vars files
@@ -198,8 +235,8 @@ pipeline3: foo
 			_, err := outCommand.Run(outRequest)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(fakeFlyConn.LoginCallCount()).To(Equal(3))
-			_, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
+			Expect(fakeFlyConn.LoginCallCount()).To(Equal(5))
+			_, _, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
 
 			Expect(insecure).To(BeTrue())
 		})
