@@ -18,6 +18,7 @@ type FlyConn interface {
 	GetPipeline(pipelineName string) ([]byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
+	Sync() ([]byte, error)
 }
 
 type flyConn struct {
@@ -32,6 +33,10 @@ func NewFlyConn(target string, logger logger.Logger, flyBinaryPath string) FlyCo
 		logger:        logger,
 		flyBinaryPath: flyBinaryPath,
 	}
+}
+
+func (f flyConn) Sync() ([]byte, error) {
+	return f.run("sync")
 }
 
 func (f flyConn) Login(

@@ -23,15 +23,14 @@ var _ = Describe("Out", func() {
 
 		ginkgoLogger logger.Logger
 
-		target         string
-		username       string
-		otherUsername  string
-		password       string
-		otherPassword  string
-		teamName       string
-		otherTeamName  string
-		pipelines      []concourse.Pipeline
-		otherPipelines []concourse.Pipeline
+		target        string
+		username      string
+		otherUsername string
+		password      string
+		otherPassword string
+		teamName      string
+		otherTeamName string
+		pipelines     []concourse.Pipeline
 
 		apiPipelines    []api.Pipeline
 		getPipelinesErr error
@@ -166,7 +165,7 @@ pipeline3: foo
 				},
 			},
 			Params: concourse.OutParams{
-				Pipelines: otherPipelines,
+				Pipelines: pipelines,
 			},
 		}
 	})
@@ -187,6 +186,12 @@ pipeline3: foo
 	AfterEach(func() {
 		err := os.RemoveAll(sourcesDir)
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("syncs the fly version to the given target", func() {
+		_, err := outCommand.Run(outRequest)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fakeFlyConn.SyncCallCount()).To(Equal(1))
 	})
 
 	It("invokes fly set-pipeline for each pipeline", func() {
@@ -249,6 +254,13 @@ pipeline3: foo
 
 		It("returns an error", func() {
 			_, err := outCommand.Run(outRequest)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Context("when setting a pipeline that belongs to another team", func() {
+		It("returns an error", func() {
+			_, err := outCommand.Run(badOutRequest)
 			Expect(err).To(HaveOccurred())
 		})
 	})

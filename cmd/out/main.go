@@ -109,7 +109,6 @@ func main() {
 		}
 	}
 
-	//TODO: Do we need to check to see if input.Source.Teams is nil?
 	apiClient := api.NewClient(input.Source.Target, insecure, input.Source.Teams)
 	response, err := out.NewOutCommand(version, l, flyConn, apiClient, sourcesDir).Run(input)
 	if err != nil {
