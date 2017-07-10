@@ -60,8 +60,13 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Performing login\n")
+	c.logger.Debugf("Syncing fly\n")
+	_, err = c.flyConn.Sync()
+	if err != nil {
+		return concourse.CheckResponse{}, err
+	}
 
+	c.logger.Debugf("Performing login\n")
 	insecure := false
 	if input.Source.Insecure != "" {
 		var err error

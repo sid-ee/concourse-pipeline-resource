@@ -41,13 +41,13 @@ func NewOutCommand(
 }
 
 func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
+	c.logger.Debugf("Received input: %+v\n", input)
+
 	c.logger.Debugf("Syncing fly\n")
 	_, err := c.flyConn.Sync()
 	if err != nil {
 		return concourse.OutResponse{}, err
 	}
-
-	c.logger.Debugf("Received input: %+v\n", input)
 
 	insecure := false
 	if input.Source.Insecure != "" {

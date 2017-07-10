@@ -43,13 +43,13 @@ func NewInCommand(
 }
 
 func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error) {
+	c.logger.Debugf("Received input: %+v\n", input)
+
 	c.logger.Debugf("Syncing fly\n")
 	_, err := c.flyConn.Sync()
 	if err != nil {
 		return concourse.InResponse{}, err
 	}
-
-	c.logger.Debugf("Received input: %+v\n", input)
 
 	c.logger.Debugf("Performing login\n")
 
