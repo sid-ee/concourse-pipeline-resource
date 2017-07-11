@@ -9,7 +9,7 @@ export PATH=$GOPATH/bin:$PATH
 BUILD_DIR=$PWD/built-resource
 
 mkdir -p $BUILD_DIR/assets
-cp -a fly/* $BUILD_DIR/assets/fly
+cp -a fly/fly_linux_amd64 $BUILD_DIR/assets/fly
 chmod +x assets/fly
 
 cd $GOPATH/src/github.com/concourse/concourse-pipeline-resource
