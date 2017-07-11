@@ -9,7 +9,6 @@ inputs:
 - name: concourse-pipeline-resource
   path: gopath/src/github.com/concourse/concourse-pipeline-resource
 - name: fly
-  path: gopath/src/github.com/concourse/concourse-pipeline-resource/fly
 
 outputs:
 - name: built-resource
