@@ -61,7 +61,7 @@ func main() {
 	l = logger.NewLogger(sanitizer)
 
 	flyBinaryPath := filepath.Join(inDir, flyBinaryName)
-	flyConn := fly.NewFlyConn("concourse-pipeline-resource-target", l, flyBinaryPath)
+	flyConn := fly.NewFlyConn(input.Source.Target, l, flyBinaryPath)
 
 	err = validator.ValidateIn(input)
 	if err != nil {
