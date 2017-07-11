@@ -4,8 +4,7 @@ Get and set concourse pipelines from concourse.
 
 ## Installing
 
-This resource is only compatible with Concourse versions 0.74.0 and higher
-as no BOSH release is provided. Use this resource by adding the following to
+Use this resource by adding the following to
 the `resource_types` section of a pipeline config:
 
 ```yaml
@@ -14,28 +13,11 @@ resource_types:
 - name: concourse-pipeline
   type: docker-image
   source:
-    repository: robdimsdale/concourse-pipeline-resource
-    tag: latest-final
+    repository: concourse/concourse-pipeline-resource
 ```
 
 See [concourse docs](http://concourse.ci/configuring-resource-types.html) for more details
 on adding `resource_types` to a pipeline config.
-
-**Using `tag: latest-final` will pull the latest final release, which can be
-found on the
-[releases page](https://github.com/concourse/concourse-pipeline-resource/releases)**
-
-**To avoid automatically upgrading, use a fixed tag instead e.g. `tag: v0.6.3`**
-
-The docker image is `robdimsdale/concourse-pipeline-resource`; the images are
-available on
-[dockerhub](https://hub.docker.com/r/robdimsdale/concourse-pipeline-resource).
-
-The rootfs of the docker image is available with each release on the
-[releases page](https://github.com/concourse/concourse-pipeline-resource/releases).
-
-The docker image is semantically versioned; these versions correspond to the git tags
-in this repository.
 
 ## Source configuration
 
