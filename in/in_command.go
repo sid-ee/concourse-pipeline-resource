@@ -19,26 +19,23 @@ const (
 )
 
 type InCommand struct {
-	logger        logger.Logger
-	binaryVersion string
-	flyConn       fly.FlyConn
-	apiClient     api.Client
-	downloadDir   string
+	logger      logger.Logger
+	flyConn     fly.FlyConn
+	apiClient   api.Client
+	downloadDir string
 }
 
 func NewInCommand(
-	binaryVersion string,
 	logger logger.Logger,
 	flyConn fly.FlyConn,
 	apiClient api.Client,
 	downloadDir string,
 ) *InCommand {
 	return &InCommand{
-		logger:        logger,
-		binaryVersion: binaryVersion,
-		flyConn:       flyConn,
-		apiClient:     apiClient,
-		downloadDir:   downloadDir,
+		logger:      logger,
+		flyConn:     flyConn,
+		apiClient:   apiClient,
+		downloadDir: downloadDir,
 	}
 }
 

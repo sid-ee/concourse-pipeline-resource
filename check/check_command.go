@@ -14,26 +14,23 @@ import (
 )
 
 type CheckCommand struct {
-	logger        logger.Logger
-	logFilePath   string
-	binaryVersion string
-	flyConn       fly.FlyConn
-	apiClient     api.Client
+	logger      logger.Logger
+	logFilePath string
+	flyConn     fly.FlyConn
+	apiClient   api.Client
 }
 
 func NewCheckCommand(
-	binaryVersion string,
 	logger logger.Logger,
 	logFilePath string,
 	flyConn fly.FlyConn,
 	apiClient api.Client,
 ) *CheckCommand {
 	return &CheckCommand{
-		logger:        logger,
-		logFilePath:   logFilePath,
-		binaryVersion: binaryVersion,
-		flyConn:       flyConn,
-		apiClient:     apiClient,
+		logger:      logger,
+		logFilePath: logFilePath,
+		flyConn:     flyConn,
+		apiClient:   apiClient,
 	}
 }
 

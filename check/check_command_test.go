@@ -90,8 +90,6 @@ pipeline2: foo
 		err = ioutil.WriteFile(logFilePath, []byte("initial log content"), os.ModePerm)
 		Expect(err).NotTo(HaveOccurred())
 
-		binaryVersion := "v0.1.2-unit-tests"
-
 		target = "some target"
 		teams := []concourse.Team{
 			{
@@ -121,7 +119,6 @@ pipeline2: foo
 		}
 
 		checkCommand = check.NewCheckCommand(
-			binaryVersion,
 			ginkgoLogger,
 			logFilePath,
 			fakeFlyConn,

@@ -179,8 +179,7 @@ pipeline3: foo
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		binaryVersion := "v0.1.2-unit-tests"
-		outCommand = out.NewOutCommand(binaryVersion, ginkgoLogger, fakeFlyConn, fakeAPIClient, sourcesDir)
+		outCommand = out.NewOutCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, sourcesDir)
 	})
 
 	AfterEach(func() {

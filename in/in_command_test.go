@@ -121,8 +121,7 @@ pipeline2: foo
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		binaryVersion := "v0.1.2-unit-tests"
-		inCommand = in.NewInCommand(binaryVersion, ginkgoLogger, fakeFlyConn, fakeAPIClient, downloadDir)
+		inCommand = in.NewInCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, downloadDir)
 	})
 
 	AfterEach(func() {

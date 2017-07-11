@@ -24,17 +24,10 @@ const (
 )
 
 var (
-	// version is deliberately left uninitialized so it can be set at compile-time
-	version string
-
 	l logger.Logger
 )
 
 func main() {
-	if version == "" {
-		version = "dev"
-	}
-
 	checkDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		log.Fatalln(err)
@@ -46,7 +39,6 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Fprintf(logFile, "Concourse Pipeline Resource version: %s\n", version)
 
 	fmt.Fprintf(os.Stderr, "Logging to %s\n", logFile.Name())
 
@@ -84,7 +76,7 @@ func main() {
 	}
 
 	apiClient := api.NewClient(input.Source.Target, insecure, input.Source.Teams)
-	checkCommand := check.NewCheckCommand(version, l, logFile.Name(), flyConn, apiClient)
+	checkCommand := check.NewCheckCommand(l, logFile.Name(), flyConn, apiClient)
 	response, err := checkCommand.Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
