@@ -143,8 +143,8 @@ jobs:
 
 	Describe("Creating pipelines successfully", func() {
 		AfterEach(func() {
-			// err := apiClient.DeletePipeline(teamName, pipelineName)
-			// Expect(err).NotTo(HaveOccurred())
+			_, err := flyConn.DestroyPipeline(pipelineName)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("creates pipeline and returns valid json", func() {

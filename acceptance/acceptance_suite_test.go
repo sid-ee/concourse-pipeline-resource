@@ -37,8 +37,7 @@ var (
 	password string
 	insecure bool
 
-	apiClient Client
-	flyConn   fly.FlyConn
+	flyConn fly.FlyConn
 )
 
 func TestAcceptance(t *testing.T) {
@@ -122,7 +121,6 @@ var _ = BeforeSuite(func() {
 	By("Logging in with fly")
 	_, err = flyConn.Login(target, teamName, username, password, insecure)
 	Expect(err).NotTo(HaveOccurred())
-
 })
 
 var _ = AfterSuite(func() {
