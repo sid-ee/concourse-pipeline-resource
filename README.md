@@ -191,12 +191,12 @@ Install the ginkgo executable with:
 go get -u github.com/onsi/ginkgo/ginkgo
 ```
 
-The tests require a concourse API server to test against, and a valid
-basic auth username/password for that concourse deployment.
+The tests require a running Concourse configured with basic auth to test against.
 
-Run the tests with the following command:
+Run the tests with the following command (optionally also setting `INSECURE=true`):
 
 ```
+FLY_LOCATION=path/to/fly \
 TARGET=https://my-concourse.com \
 USERNAME=my-basic-auth-user \
 PASSWORD=my-basic-auth-password \
@@ -205,13 +205,5 @@ PASSWORD=my-basic-auth-password \
 
 ### Contributing
 
-Please make all pull requests to the `develop` branch, and
-[ensure the tests pass locally](https://github.com/concourse/concourse-pipeline-resource#running-the-tests).
+Please [ensure the tests pass locally](https://github.com/concourse/concourse-pipeline-resource#running-the-tests).
 
-### Project management
-
-The CI for this project can be found at https://concourse.robdimsdale.com/pipelines/concourse-pipeline-resource
-and the scripts can be found in the
-[robdimsdale-ci repository](https://github.com/robdimsdale/robdimsdale-ci).
-
-The roadmap is captured in [Pivotal Tracker](https://www.pivotaltracker.com/projects/1549921).
