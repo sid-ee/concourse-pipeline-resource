@@ -82,13 +82,15 @@ var _ = Describe("FlyConn", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
-				"%s %s %s %s %s %s %s %s %s %s %s\n",
+				"%s %s %s %s %s %s %s %s %s %s %s\n%s %s %s\n",
 				"-t", target,
 				"login",
 				"-c", url,
 				"-n", teamName,
 				"-u", username,
 				"-p", password,
+				"-t", target,
+				"sync",
 			)
 
 			Expect(string(output)).To(Equal(expectedOutput))
@@ -104,7 +106,7 @@ var _ = Describe("FlyConn", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(
-					"%s %s %s %s %s %s %s %s %s %s %s %s\n",
+					"%s %s %s %s %s %s %s %s %s %s %s %s\n%s %s %s\n",
 					"-t", target,
 					"login",
 					"-c", url,
@@ -112,6 +114,8 @@ var _ = Describe("FlyConn", func() {
 					"-u", username,
 					"-p", password,
 					"-k",
+					"-t", target,
+					"sync",
 				)
 
 				Expect(string(output)).To(Equal(expectedOutput))

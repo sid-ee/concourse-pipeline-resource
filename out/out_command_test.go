@@ -187,12 +187,6 @@ pipeline3: foo
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("syncs the fly version to the given target", func() {
-		_, err := outCommand.Run(outRequest)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(fakeFlyConn.SyncCallCount()).To(Equal(1))
-	})
-
 	It("invokes fly set-pipeline for each pipeline", func() {
 		_, err := outCommand.Run(outRequest)
 		Expect(err).NotTo(HaveOccurred())

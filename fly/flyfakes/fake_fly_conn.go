@@ -66,17 +66,6 @@ type FakeFlyConn struct {
 		result1 []byte
 		result2 error
 	}
-	SyncStub        func() ([]byte, error)
-	syncMutex       sync.RWMutex
-	syncArgsForCall []struct{}
-	syncReturns     struct {
-		result1 []byte
-		result2 error
-	}
-	syncReturnsOnCall map[int]struct {
-		result1 []byte
-		result2 error
-	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -296,49 +285,6 @@ func (fake *FakeFlyConn) DestroyPipelineReturnsOnCall(i int, result1 []byte, res
 	}{result1, result2}
 }
 
-func (fake *FakeFlyConn) Sync() ([]byte, error) {
-	fake.syncMutex.Lock()
-	ret, specificReturn := fake.syncReturnsOnCall[len(fake.syncArgsForCall)]
-	fake.syncArgsForCall = append(fake.syncArgsForCall, struct{}{})
-	fake.recordInvocation("Sync", []interface{}{})
-	fake.syncMutex.Unlock()
-	if fake.SyncStub != nil {
-		return fake.SyncStub()
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fake.syncReturns.result1, fake.syncReturns.result2
-}
-
-func (fake *FakeFlyConn) SyncCallCount() int {
-	fake.syncMutex.RLock()
-	defer fake.syncMutex.RUnlock()
-	return len(fake.syncArgsForCall)
-}
-
-func (fake *FakeFlyConn) SyncReturns(result1 []byte, result2 error) {
-	fake.SyncStub = nil
-	fake.syncReturns = struct {
-		result1 []byte
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeFlyConn) SyncReturnsOnCall(i int, result1 []byte, result2 error) {
-	fake.SyncStub = nil
-	if fake.syncReturnsOnCall == nil {
-		fake.syncReturnsOnCall = make(map[int]struct {
-			result1 []byte
-			result2 error
-		})
-	}
-	fake.syncReturnsOnCall[i] = struct {
-		result1 []byte
-		result2 error
-	}{result1, result2}
-}
-
 func (fake *FakeFlyConn) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -350,8 +296,6 @@ func (fake *FakeFlyConn) Invocations() map[string][][]interface{} {
 	defer fake.setPipelineMutex.RUnlock()
 	fake.destroyPipelineMutex.RLock()
 	defer fake.destroyPipelineMutex.RUnlock()
-	fake.syncMutex.RLock()
-	defer fake.syncMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

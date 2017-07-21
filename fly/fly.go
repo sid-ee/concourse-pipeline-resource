@@ -18,7 +18,6 @@ type FlyConn interface {
 	GetPipeline(pipelineName string) ([]byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
-	Sync() ([]byte, error)
 }
 
 type flyConn struct {
@@ -33,10 +32,6 @@ func NewFlyConn(target string, logger logger.Logger, flyBinaryPath string) FlyCo
 		logger:        logger,
 		flyBinaryPath: flyBinaryPath,
 	}
-}
-
-func (f flyConn) Sync() ([]byte, error) {
-	return f.run("sync")
 }
 
 func (f flyConn) Login(
@@ -56,7 +51,7 @@ func (f flyConn) Login(
 		}
 		http.DefaultClient.Transport = tr
 	}
-	return f.run(
+	loginOut, err := f.run(
 		"login",
 		"-c", url,
 		"-n", teamName,
@@ -64,6 +59,17 @@ func (f flyConn) Login(
 		"-p", password,
 		extraArgs,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	syncOut, err := f.run("sync")
+
+	if err != nil {
+		return nil, err
+	}
+
+	return append(loginOut, syncOut...), nil
 }
 
 func (f flyConn) run(args ...string) ([]byte, error) {

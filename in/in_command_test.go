@@ -167,12 +167,6 @@ pipeline2: foo
 		Expect(response.Metadata).NotTo(BeNil())
 	})
 
-	It("syncs the fly version to the given target", func() {
-		_, err := inCommand.Run(inRequest)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(fakeFlyConn.SyncCallCount()).To(Equal(1))
-	})
-
 	Context("when insecure parses as true", func() {
 		BeforeEach(func() {
 			inRequest.Source.Insecure = "true"

@@ -42,14 +42,6 @@ func NewInCommand(
 func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Syncing fly\n")
-	_, err := c.flyConn.Sync()
-	if err != nil {
-		return concourse.InResponse{}, err
-	}
-
-	c.logger.Debugf("Performing login\n")
-
 	insecure := false
 	if input.Source.Insecure != "" {
 		var err error
@@ -66,6 +58,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 	}
 
 	for teamName, team := range teams {
+		c.logger.Debugf("Performing login\n")
 		_, err := c.flyConn.Login(
 			input.Source.Target,
 			teamName,

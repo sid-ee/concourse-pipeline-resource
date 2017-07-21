@@ -40,12 +40,6 @@ func NewOutCommand(
 func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
-	c.logger.Debugf("Syncing fly\n")
-	_, err := c.flyConn.Sync()
-	if err != nil {
-		return concourse.OutResponse{}, err
-	}
-
 	insecure := false
 	if input.Source.Insecure != "" {
 		var err error
@@ -72,6 +66,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 			return concourse.OutResponse{}, fmt.Errorf("team (%s) configuration not found for pipeline (%s)", p.TeamName, p.Name)
 		}
 
+		c.logger.Debugf("Performing login\n")
 		_, err := c.flyConn.Login(
 			input.Source.Target,
 			p.TeamName,

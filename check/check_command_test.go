@@ -203,12 +203,6 @@ pipeline2: foo
 		})
 	})
 
-	It("syncs the fly version to the given target", func() {
-		_, err := checkCommand.Run(checkRequest)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(fakeFlyConn.SyncCallCount()).To(Equal(1))
-	})
-
 	Context("when insecure parses as true", func() {
 		BeforeEach(func() {
 			checkRequest.Source.Insecure = "true"

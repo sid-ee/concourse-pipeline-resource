@@ -108,23 +108,15 @@ var _ = Describe("In", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 			})
 
-			It("returns valid json", func() {
+			It("exits with error", func() {
 				By("Running the command")
 				session := run(command, stdinContents)
-				Eventually(session, inTimeout).Should(gexec.Exit(0))
 
-				By("Outputting a valid json response")
-				response := concourse.InResponse{}
-				err := json.Unmarshal(session.Out.Contents(), &response)
-				Expect(err).ShouldNot(HaveOccurred())
-
-				By("Validating output contains pipeline versions")
-				Expect(len(response.Version)).To(BeNumerically(">", 0))
-				for k, v := range response.Version {
-					Expect(k).NotTo(BeEmpty())
-					Expect(v).NotTo(BeEmpty())
-				}
+				By("Validating command exited with error")
+				Eventually(session, inTimeout).Should(gexec.Exit(1))
+				Expect(session.Err).Should(gbytes.Say(".*target.*specified"))
 			})
+
 		})
 	})
 
