@@ -123,21 +123,6 @@ var _ = BeforeSuite(func() {
 	_, err = flyConn.Login(target, teamName, username, password, insecure)
 	Expect(err).NotTo(HaveOccurred())
 
-	// By("Creating API Client")
-	// teamClients := make(map[string]*http.Client)
-	// token, err := api.LoginWithBasicAuth(
-	// 	target,
-	// 	teamName,
-	// 	username,
-	// 	password,
-	// 	insecure,
-	// )
-	// Expect(err).NotTo(HaveOccurred())
-
-	// httpClient := api.OAuthHTTPClient(token, insecure)
-	// teamClients[teamName] = httpClient
-
-	// apiClient = api.NewClient(target, teamClients)
 })
 
 var _ = AfterSuite(func() {
