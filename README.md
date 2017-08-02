@@ -53,11 +53,11 @@ resources:
   * `name`: *Required.* Name of team.
     Equivalent of `-n team-name` in `fly login` command.
 
-  * `username`: *Required.*  Basic auth username for logging in to the team.
-    Basic Auth must be enabled for the team.
+  * `username`: Basic auth username for logging in to the team.
+    If this and `password` are blank, team must have no authentication configured.
 
-  * `password`: *Required.*  Basic auth password for logging in to the team.
-    Basic Auth must be enabled for the team.
+  * `password`: Basic auth password for logging in to the team.
+    If this and `username` are blank, team must have no authentication configured.
 
 ## `in`: Get the configuration of the pipelines
 
