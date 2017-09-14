@@ -133,6 +133,30 @@ var _ = Describe("FlyConn", func() {
 			})
 		})
 
+		Context("when no username or password is specified", func() {
+			BeforeEach(func() {
+				username = ""
+				password = ""
+			})
+
+			It("does not pass the `p` or `u` flags to fly", func() {
+				output, err := flyConn.Login(url, teamName, username, password, insecure)
+				Expect(err).NotTo(HaveOccurred())
+
+				expectedOutput := fmt.Sprintf(
+					"%s %s %s %s %s %s %s\n%s %s %s\n",
+					"-t", target,
+					"login",
+					"-c", url,
+					"-n", teamName,
+					"-t", target,
+					"sync",
+				)
+
+				Expect(string(output)).To(Equal(expectedOutput))
+			})
+		})
+
 		Context("when the command returns an error", func() {
 			BeforeEach(func() {
 				fakeFlyContents = errScript

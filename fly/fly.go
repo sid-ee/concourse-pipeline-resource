@@ -41,24 +41,26 @@ func (f flyConn) Login(
 	password string,
 	insecure bool,
 ) ([]byte, error) {
-	extraArgs := ""
+	args := []string{
+		"login",
+		"-c", url,
+		"-n", teamName,
+	}
+
+	if username != "" && password != "" {
+		args = append(args, "-u", username, "-p", password)
+	}
 
 	if insecure {
-		extraArgs = "-k"
+		args = append(args, "-k")
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			Proxy:           http.ProxyFromEnvironment,
 		}
 		http.DefaultClient.Transport = tr
 	}
-	loginOut, err := f.run(
-		"login",
-		"-c", url,
-		"-n", teamName,
-		"-u", username,
-		"-p", password,
-		extraArgs,
-	)
+
+	loginOut, err := f.run(args...)
 	if err != nil {
 		return nil, err
 	}

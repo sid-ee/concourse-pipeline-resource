@@ -7,25 +7,13 @@ import (
 )
 
 func ValidateOut(input concourse.OutRequest) error {
-	if input.Source.Teams == nil {
-		return fmt.Errorf("%s must be provided in source", "teams")
+	err := ValidateTeams(input.Source.Teams)
+	if err != nil {
+		return err
 	}
 
 	sourceTeamNames := []string{}
-
-	for i, team := range input.Source.Teams {
-		if team.Name == "" {
-			return fmt.Errorf("%s must be provided for team: %d", "name", i)
-		}
-
-		if team.Username == "" {
-			return fmt.Errorf("%s must be provided for team: %s", "username", team.Name)
-		}
-
-		if team.Password == "" {
-			return fmt.Errorf("%s must be provided for team: %s", "password", team.Name)
-		}
-
+	for _, team := range input.Source.Teams {
 		sourceTeamNames = append(sourceTeamNames, team.Name)
 	}
 
