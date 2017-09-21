@@ -54,11 +54,9 @@ var _ = BeforeSuite(func() {
 
 	By("Getting username from environment variables")
 	username = os.Getenv("USERNAME")
-	Expect(username).NotTo(BeEmpty(), "$USERNAME must be provided")
 
 	By("Getting password from environment variables")
 	password = os.Getenv("PASSWORD")
-	Expect(password).NotTo(BeEmpty(), "$PASSWORD must be provided")
 
 	insecureFlag := os.Getenv("INSECURE")
 	if insecureFlag != "" {
