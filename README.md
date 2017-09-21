@@ -155,7 +155,10 @@ jobs:
 
 ### Prerequisites
 
-A valid install of golang >= 1.6 is required.
+* golang is *required* - version 1.9.x is tested; earlier versions may also
+  work.
+* docker is *required* - version 17.06.x is tested; earlier versions may also
+  work.
 
 ### Dependencies
 
@@ -201,6 +204,19 @@ TARGET=https://my-concourse.com \
 USERNAME=my-basic-auth-user \
 PASSWORD=my-basic-auth-password \
 ./bin/test
+```
+
+or with the `Dockerfile`...
+
+The tests have been embedded with the `Dockerfile`; ensuring that the testing
+environment is consistent across any `docker` enabled platform. When the docker
+image builds, the test are run inside the docker container, on failure they
+will stop the build.
+
+Run the tests with the following command:
+
+```sh
+docker build -t concourse-pipeline-resource .
 ```
 
 ### Contributing
