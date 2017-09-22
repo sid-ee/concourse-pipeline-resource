@@ -1,4 +1,9 @@
 FROM golang:alpine as builder
+RUN apk add --no-cache curl jq
+RUN mkdir -p /assets
+RUN url=$(curl -s "https://api.github.com/repos/concourse/concourse/releases/latest" \
+    | jq -r '.assets[] | select(.name | test("fly_linux_amd64")) | .browser_download_url') &&\
+    curl -L "$url" -o /assets/fly
 COPY . /go/src/github.com/concourse/concourse-pipeline-resource
 ENV CGO_ENABLED 0
 RUN go build -o /assets/in github.com/concourse/concourse-pipeline-resource/cmd/in
@@ -9,6 +14,7 @@ RUN set -e; for pkg in $(go list ./... | grep -v "acceptance"); do \
 	done
 
 FROM alpine:edge AS resource
+RUN apk add --no-cache bash tzdata
 COPY --from=builder assets/ /opt/resource/
 RUN chmod +x /opt/resource/*
 
