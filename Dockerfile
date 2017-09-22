@@ -14,7 +14,7 @@ RUN set -e; for pkg in $(go list ./... | grep -v "acceptance"); do \
 	done
 
 FROM alpine:edge AS resource
-RUN apk add --no-cache bash tzdata
+RUN apk add --no-cache bash tzdata ca-certificates
 COPY --from=builder assets/ /opt/resource/
 RUN chmod +x /opt/resource/*
 
