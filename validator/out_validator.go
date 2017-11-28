@@ -17,6 +17,10 @@ func ValidateOut(input concourse.OutRequest) error {
 		sourceTeamNames = append(sourceTeamNames, team.Name)
 	}
 
+	if input.Source.Target == "" {
+		return fmt.Errorf("%s must be provided in source", "target")
+	}
+
 	var pipelinesFilePresent bool
 	var pipelinesPresent bool
 

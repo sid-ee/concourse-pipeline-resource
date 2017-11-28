@@ -75,6 +75,10 @@ func (f flyConn) Login(
 }
 
 func (f flyConn) run(args ...string) ([]byte, error) {
+	if f.target == "" {
+		return nil, fmt.Errorf("target cannot be empty in flyConn.run")
+	}
+
 	defaultArgs := []string{
 		"-t", f.target,
 	}
