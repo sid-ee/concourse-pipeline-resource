@@ -61,16 +61,17 @@ func main() {
 	l = logger.NewLogger(sanitizer)
 
 	flyBinaryPath := filepath.Join(inDir, flyBinaryName)
+
+	if input.Source.Target == "" {
+		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
+	}
+
 	flyConn := fly.NewFlyConn(input.Source.Target, l, flyBinaryPath)
 
 	err = validator.ValidateIn(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)
-	}
-
-	if input.Source.Target == "" {
-		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
 	}
 
 	insecure := false
