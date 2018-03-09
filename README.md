@@ -16,7 +16,7 @@ resource_types:
     repository: concourse/concourse-pipeline-resource
 ```
 
-See [concourse docs](http://concourse.ci/configuring-resource-types.html) for more details
+See [concourse docs](https://concourse-ci.org/configuring-resource-types.html) for more details
 on adding `resource_types` to a pipeline config.
 
 ## Source configuration
