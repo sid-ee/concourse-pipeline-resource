@@ -133,6 +133,10 @@ Must be non-nil and non-empty. The structure of the `pipeline` object is as foll
  containing variables to be interpolated via `{{ }}` in `config_file`.
  Equivalent of `-l some-vars-file.yml` in `fly set-pipeline` command.
 
+ - `unpaused`: *Optional.* Boolean specifying if the pipeline should
+ be unpaused after the creation. If it is set to `true`, the command
+ `unpause-pipeline` will be executed for the specific pipeline.
+
 ### dynamic
 
 Resource configuration as above for Check, with the following job configuration:

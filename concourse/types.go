@@ -55,6 +55,7 @@ type Pipeline struct {
 	ConfigFile string   `json:"config_file" yaml:"config_file"`
 	VarsFiles  []string `json:"vars_files" yaml:"vars_files"`
 	TeamName   string   `json:"team" yaml:"team"`
+	Unpaused   bool     `json:"unpaused" yaml:"unpaused"`
 }
 
 type OutResponse struct {

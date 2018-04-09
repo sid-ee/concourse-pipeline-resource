@@ -92,6 +92,13 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}
+
+		if p.Unpaused {
+			_, err = c.flyConn.UnpausePipeline(p.Name)
+			if err != nil {
+				return concourse.OutResponse{}, err
+			}
+		}
 	}
 	c.logger.Debugf("Setting pipelines complete\n")
 

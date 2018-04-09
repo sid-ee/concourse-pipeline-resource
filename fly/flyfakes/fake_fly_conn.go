@@ -66,6 +66,19 @@ type FakeFlyConn struct {
 		result1 []byte
 		result2 error
 	}
+	UnpausePipelineStub        func(pipelineName string) ([]byte, error)
+	unpausePipelineMutex       sync.RWMutex
+	unpausePipelineArgsForCall []struct {
+		pipelineName string
+	}
+	unpausePipelineReturns struct {
+		result1 []byte
+		result2 error
+	}
+	unpausePipelineReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -285,6 +298,57 @@ func (fake *FakeFlyConn) DestroyPipelineReturnsOnCall(i int, result1 []byte, res
 	}{result1, result2}
 }
 
+func (fake *FakeFlyConn) UnpausePipeline(pipelineName string) ([]byte, error) {
+	fake.unpausePipelineMutex.Lock()
+	ret, specificReturn := fake.unpausePipelineReturnsOnCall[len(fake.unpausePipelineArgsForCall)]
+	fake.unpausePipelineArgsForCall = append(fake.unpausePipelineArgsForCall, struct {
+		pipelineName string
+	}{pipelineName})
+	fake.recordInvocation("UnpausePipeline", []interface{}{pipelineName})
+	fake.unpausePipelineMutex.Unlock()
+	if fake.UnpausePipelineStub != nil {
+		return fake.UnpausePipelineStub(pipelineName)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fake.unpausePipelineReturns.result1, fake.unpausePipelineReturns.result2
+}
+
+func (fake *FakeFlyConn) UnpausePipelineCallCount() int {
+	fake.unpausePipelineMutex.RLock()
+	defer fake.unpausePipelineMutex.RUnlock()
+	return len(fake.unpausePipelineArgsForCall)
+}
+
+func (fake *FakeFlyConn) UnpausePipelineArgsForCall(i int) string {
+	fake.unpausePipelineMutex.RLock()
+	defer fake.unpausePipelineMutex.RUnlock()
+	return fake.unpausePipelineArgsForCall[i].pipelineName
+}
+
+func (fake *FakeFlyConn) UnpausePipelineReturns(result1 []byte, result2 error) {
+	fake.UnpausePipelineStub = nil
+	fake.unpausePipelineReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeFlyConn) UnpausePipelineReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.UnpausePipelineStub = nil
+	if fake.unpausePipelineReturnsOnCall == nil {
+		fake.unpausePipelineReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.unpausePipelineReturnsOnCall[i] = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeFlyConn) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -296,6 +360,8 @@ func (fake *FakeFlyConn) Invocations() map[string][][]interface{} {
 	defer fake.setPipelineMutex.RUnlock()
 	fake.destroyPipelineMutex.RLock()
 	defer fake.destroyPipelineMutex.RUnlock()
+	fake.unpausePipelineMutex.RLock()
+	defer fake.unpausePipelineMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
