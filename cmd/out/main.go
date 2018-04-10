@@ -98,7 +98,7 @@ func main() {
 		var err error
 		insecure, err = strconv.ParseBool(input.Source.Insecure)
 		if err != nil {
-			log.Fatalln("Invalid value for insecure: %v", input.Source.Insecure)
+			log.Fatalf("Invalid value for insecure: %v", input.Source.Insecure)
 		}
 	}
 
