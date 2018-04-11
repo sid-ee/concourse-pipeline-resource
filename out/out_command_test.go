@@ -107,6 +107,7 @@ pipeline3: foo
 				Name:       apiPipelines[1].Name,
 				ConfigFile: "pipeline_2.yml",
 				TeamName:   teamName,
+				Unpaused:   true,
 			},
 			{
 				Name:       apiPipelines[2].Name,
@@ -204,6 +205,13 @@ pipeline3: foo
 			if i == 0 {
 				Expect(varsFilepaths[0]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[0])))
 				Expect(varsFilepaths[1]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[1])))
+			}
+
+			// the second pipeline has Unpaused set to true
+			if i == 1 {
+				name := fakeFlyConn.UnpausePipelineArgsForCall(0)
+				Expect(name).To(Equal(p.Name))
+				Expect(fakeFlyConn.UnpausePipelineCallCount()).To(Equal(1))
 			}
 		}
 	})

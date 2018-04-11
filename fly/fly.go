@@ -18,6 +18,7 @@ type FlyConn interface {
 	GetPipeline(pipelineName string) ([]byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
+	UnpausePipeline(pipelineName string) ([]byte, error)
 }
 
 type flyConn struct {
@@ -134,6 +135,13 @@ func (f flyConn) SetPipeline(
 	}
 
 	return f.run(allArgs...)
+}
+
+func (f flyConn) UnpausePipeline(pipelineName string) ([]byte, error) {
+	return f.run(
+		"unpause-pipeline",
+		"-p", pipelineName,
+	)
 }
 
 func (f flyConn) DestroyPipeline(pipelineName string) ([]byte, error) {

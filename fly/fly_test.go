@@ -281,4 +281,28 @@ var _ = Describe("FlyConn", func() {
 			Expect(string(output)).To(Equal(expectedOutput))
 		})
 	})
+
+	Describe("UnpausePipeline", func() {
+		var (
+			pipelineName string
+		)
+
+		BeforeEach(func() {
+			pipelineName = "some-pipeline"
+		})
+
+		It("returns output without error", func() {
+			output, err := flyConn.UnpausePipeline(pipelineName)
+			Expect(err).NotTo(HaveOccurred())
+
+			expectedOutput := fmt.Sprintf(
+				"%s %s %s %s %s\n",
+				"-t", target,
+				"unpause-pipeline",
+				"-p", pipelineName,
+			)
+
+			Expect(string(output)).To(Equal(expectedOutput))
+		})
+	})
 })
