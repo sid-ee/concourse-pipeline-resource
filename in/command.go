@@ -18,28 +18,28 @@ const (
 	apiPrefix = "/api/v1"
 )
 
-type InCommand struct {
+type Command struct {
 	logger      logger.Logger
-	flyConn     fly.FlyConn
+	flyCommand  fly.Command
 	apiClient   api.Client
 	downloadDir string
 }
 
-func NewInCommand(
+func NewCommand(
 	logger logger.Logger,
-	flyConn fly.FlyConn,
+	flyCommand fly.Command,
 	apiClient api.Client,
 	downloadDir string,
-) *InCommand {
-	return &InCommand{
+) *Command {
+	return &Command{
 		logger:      logger,
-		flyConn:     flyConn,
+		flyCommand:  flyCommand,
 		apiClient:   apiClient,
 		downloadDir: downloadDir,
 	}
 }
 
-func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error) {
+func (c *Command) Run(input concourse.InRequest) (concourse.InResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
 	insecure := false
@@ -59,7 +59,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 
 	for teamName, team := range teams {
 		c.logger.Debugf("Performing login\n")
-		_, err := c.flyConn.Login(
+		_, err := c.flyCommand.Login(
 			input.Source.Target,
 			teamName,
 			team.Username,
@@ -87,7 +87,7 @@ func (c *InCommand) Run(input concourse.InRequest) (concourse.InResponse, error)
 			go func(p api.Pipeline) {
 				defer wg.Done()
 
-				outContents, err := c.flyConn.GetPipeline(p.Name)
+				outContents, err := c.flyCommand.GetPipeline(p.Name)
 				if err != nil {
 					errChan <- err
 				}

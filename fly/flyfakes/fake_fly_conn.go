@@ -381,4 +381,4 @@ func (fake *FakeFlyConn) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ fly.FlyConn = new(FakeFlyConn)
+var _ fly.Command = new(FakeFlyConn)

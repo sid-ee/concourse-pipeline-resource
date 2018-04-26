@@ -16,28 +16,28 @@ const (
 	apiPrefix = "/api/v1"
 )
 
-type OutCommand struct {
+type Command struct {
 	logger     logger.Logger
-	flyConn    fly.FlyConn
+	flyCommand fly.Command
 	apiClient  api.Client
 	sourcesDir string
 }
 
-func NewOutCommand(
+func NewCommand(
 	logger logger.Logger,
-	flyConn fly.FlyConn,
+	flyCommand fly.Command,
 	apiClient api.Client,
 	sourcesDir string,
-) *OutCommand {
-	return &OutCommand{
+) *Command {
+	return &Command{
 		logger:     logger,
-		flyConn:    flyConn,
+		flyCommand: flyCommand,
 		apiClient:  apiClient,
 		sourcesDir: sourcesDir,
 	}
 }
 
-func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
+func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error) {
 	c.logger.Debugf("Received input: %+v\n", input)
 
 	insecure := false
@@ -67,7 +67,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 		}
 
 		c.logger.Debugf("Performing login\n")
-		_, err := c.flyConn.Login(
+		_, err := c.flyCommand.Login(
 			input.Source.Target,
 			p.TeamName,
 			team.Username,
@@ -88,13 +88,13 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 			varsFilepaths = append(varsFilepaths, varFilepath)
 		}
 
-		_, err = c.flyConn.SetPipeline(p.Name, configFilepath, varsFilepaths)
+		_, err = c.flyCommand.SetPipeline(p.Name, configFilepath, varsFilepaths)
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}
 
 		if p.Unpaused {
-			_, err = c.flyConn.UnpausePipeline(p.Name)
+			_, err = c.flyCommand.UnpausePipeline(p.Name)
 			if err != nil {
 				return concourse.OutResponse{}, err
 			}
@@ -106,7 +106,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 	for teamName, team := range teams {
 		c.logger.Debugf("Performing login\n")
-		_, err := c.flyConn.Login(
+		_, err := c.flyCommand.Login(
 			input.Source.Target,
 			teamName,
 			team.Username,
@@ -127,7 +127,7 @@ func (c *OutCommand) Run(input concourse.OutRequest) (concourse.OutResponse, err
 
 		for _, pipeline := range pipelines {
 			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-			outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+			outBytes, err := c.flyCommand.GetPipeline(pipeline.Name)
 			if err != nil {
 				return concourse.OutResponse{}, err
 			}

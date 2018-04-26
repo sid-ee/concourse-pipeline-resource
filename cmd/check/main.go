@@ -59,7 +59,7 @@ func main() {
 		input.Source.Target = os.Getenv(atcExternalURLEnvKey)
 	}
 
-	flyConn := fly.NewFlyConn(input.Source.Target, l, flyBinaryPath)
+	flyCommand := fly.NewCommand(input.Source.Target, l, flyBinaryPath)
 
 	err = validator.ValidateCheck(input)
 	if err != nil {
@@ -77,8 +77,8 @@ func main() {
 	}
 
 	apiClient := api.NewClient(input.Source.Target, insecure, input.Source.Teams)
-	checkCommand := check.NewCheckCommand(l, logFile.Name(), flyConn, apiClient)
-	response, err := checkCommand.Run(input)
+	command := check.NewCommand(l, logFile.Name(), flyCommand, apiClient)
+	response, err := command.Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

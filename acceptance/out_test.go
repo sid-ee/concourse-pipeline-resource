@@ -143,7 +143,7 @@ jobs:
 
 	Describe("Creating pipelines successfully", func() {
 		AfterEach(func() {
-			_, err := flyConn.DestroyPipeline(pipelineName)
+			_, err := flyCommand.DestroyPipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
