@@ -11,9 +11,9 @@ import (
 	"github.com/concourse/concourse-pipeline-resource/logger"
 )
 
-//go:generate counterfeiter . FlyConn
+//go:generate counterfeiter . Command
 
-type FlyConn interface {
+type Command interface {
 	Login(url string, teamName string, username string, password string, insecure bool) ([]byte, error)
 	GetPipeline(pipelineName string) ([]byte, error)
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
@@ -21,21 +21,21 @@ type FlyConn interface {
 	UnpausePipeline(pipelineName string) ([]byte, error)
 }
 
-type flyConn struct {
+type command struct {
 	target        string
 	logger        logger.Logger
 	flyBinaryPath string
 }
 
-func NewFlyConn(target string, logger logger.Logger, flyBinaryPath string) FlyConn {
-	return &flyConn{
+func NewCommand(target string, logger logger.Logger, flyBinaryPath string) Command {
+	return &command{
 		target:        target,
 		logger:        logger,
 		flyBinaryPath: flyBinaryPath,
 	}
 }
 
-func (f flyConn) Login(
+func (f command) Login(
 	url string,
 	teamName string,
 	username string,
@@ -75,9 +75,9 @@ func (f flyConn) Login(
 	return append(loginOut, syncOut...), nil
 }
 
-func (f flyConn) run(args ...string) ([]byte, error) {
+func (f command) run(args ...string) ([]byte, error) {
 	if f.target == "" {
-		return nil, fmt.Errorf("target cannot be empty in flyConn.run")
+		return nil, fmt.Errorf("target cannot be empty in command.run")
 	}
 
 	defaultArgs := []string{
@@ -111,14 +111,14 @@ func (f flyConn) run(args ...string) ([]byte, error) {
 	return outbuf.Bytes(), nil
 }
 
-func (f flyConn) GetPipeline(pipelineName string) ([]byte, error) {
+func (f command) GetPipeline(pipelineName string) ([]byte, error) {
 	return f.run(
 		"get-pipeline",
 		"-p", pipelineName,
 	)
 }
 
-func (f flyConn) SetPipeline(
+func (f command) SetPipeline(
 	pipelineName string,
 	configFilepath string,
 	varsFilepaths []string,
@@ -137,14 +137,14 @@ func (f flyConn) SetPipeline(
 	return f.run(allArgs...)
 }
 
-func (f flyConn) UnpausePipeline(pipelineName string) ([]byte, error) {
+func (f command) UnpausePipeline(pipelineName string) ([]byte, error) {
 	return f.run(
 		"unpause-pipeline",
 		"-p", pipelineName,
 	)
 }
 
-func (f flyConn) DestroyPipeline(pipelineName string) ([]byte, error) {
+func (f command) DestroyPipeline(pipelineName string) ([]byte, error) {
 	return f.run(
 		"destroy-pipeline",
 		"-n",

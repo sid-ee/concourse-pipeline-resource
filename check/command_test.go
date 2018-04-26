@@ -31,7 +31,7 @@ var _ = Describe("Check", func() {
 		pipelineContents []string
 
 		checkRequest concourse.CheckRequest
-		checkCommand *check.CheckCommand
+		command      *check.Command
 
 		pipelinesErr error
 		pipelines    []api.Pipeline
@@ -77,7 +77,7 @@ pipeline2: foo
 			case pipelines[1].Name:
 				return []byte(pipelineContents[1]), nil
 			default:
-				Fail("Unexpected invocation of flyConn.GetPipeline")
+				Fail("Unexpected invocation of flyCommand.GetPipeline")
 				return nil, nil
 			}
 		}
@@ -118,7 +118,7 @@ pipeline2: foo
 			},
 		}
 
-		checkCommand = check.NewCheckCommand(
+		command = check.NewCommand(
 			ginkgoLogger,
 			logFilePath,
 			fakeFlyConn,
@@ -136,7 +136,7 @@ pipeline2: foo
 	})
 
 	It("returns pipelines checksum without error", func() {
-		response, err := checkCommand.Run(checkRequest)
+		response, err := command.Run(checkRequest)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(response).To(Equal(expectedResponse))
@@ -151,7 +151,7 @@ pipeline2: foo
 		})
 
 		It("returns the most recent version", func() {
-			response, err := checkCommand.Run(checkRequest)
+			response, err := command.Run(checkRequest)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(response).To(Equal(expectedResponse))
@@ -187,7 +187,7 @@ pipeline2: foo
 		})
 
 		It("removes the other log files", func() {
-			_, err := checkCommand.Run(checkRequest)
+			_, err := command.Run(checkRequest)
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err = os.Stat(otherFilePath1)
@@ -209,7 +209,7 @@ pipeline2: foo
 		})
 
 		It("invokes the login with insecure: true, without error", func() {
-			_, err := checkCommand.Run(checkRequest)
+			_, err := command.Run(checkRequest)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
@@ -225,7 +225,7 @@ pipeline2: foo
 		})
 
 		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
+			_, err := command.Run(checkRequest)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -241,7 +241,7 @@ pipeline2: foo
 		})
 
 		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
+			_, err := command.Run(checkRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(expectedErr))
@@ -254,7 +254,7 @@ pipeline2: foo
 		})
 
 		It("forwards the error", func() {
-			_, err := checkCommand.Run(checkRequest)
+			_, err := command.Run(checkRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(pipelinesErr))
@@ -273,7 +273,7 @@ pipeline2: foo
 		})
 
 		It("returns an error", func() {
-			_, err := checkCommand.Run(checkRequest)
+			_, err := command.Run(checkRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(expectedErr))

@@ -37,7 +37,7 @@ var (
 	password string
 	insecure bool
 
-	flyConn fly.FlyConn
+	flyCommand fly.Command
 )
 
 func TestAcceptance(t *testing.T) {
@@ -114,10 +114,10 @@ var _ = BeforeSuite(func() {
 
 	By("Creating fly connection")
 	l := logger.NewLogger(sanitizer)
-	flyConn = fly.NewFlyConn("concourse-pipeline-resource-target", l, inFlyPath)
+	flyCommand = fly.NewCommand("concourse-pipeline-resource-target", l, inFlyPath)
 
 	By("Logging in with fly")
-	_, err = flyConn.Login(target, teamName, username, password, insecure)
+	_, err = flyCommand.Login(target, teamName, username, password, insecure)
 	Expect(err).NotTo(HaveOccurred())
 })
 

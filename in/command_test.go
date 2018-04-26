@@ -30,7 +30,7 @@ var _ = Describe("In", func() {
 
 		inRequest         concourse.InRequest
 		pipelinesChecksum string
-		inCommand         *in.InCommand
+		command           *in.Command
 
 		fakeFlyConn     *flyfakes.FakeFlyConn
 		flyRunCallCount int
@@ -107,7 +107,7 @@ pipeline2: foo
 			case pipelines[1].Name:
 				return []byte(pipelineContents[1]), nil
 			default:
-				Fail("Unexpected invocation of flyConn.GetPipeline")
+				Fail("Unexpected invocation of flyCommand.GetPipeline")
 				return nil, nil
 			}
 		}
@@ -121,7 +121,7 @@ pipeline2: foo
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		inCommand = in.NewInCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, downloadDir)
+		command = in.NewCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, downloadDir)
 	})
 
 	AfterEach(func() {
@@ -130,7 +130,7 @@ pipeline2: foo
 	})
 
 	It("downloads all pipeline configs to the target directory", func() {
-		_, err := inCommand.Run(inRequest)
+		_, err := command.Run(inRequest)
 
 		Expect(err).NotTo(HaveOccurred())
 
@@ -152,7 +152,7 @@ pipeline2: foo
 	})
 
 	It("returns provided version", func() {
-		response, err := inCommand.Run(inRequest)
+		response, err := command.Run(inRequest)
 
 		Expect(err).NotTo(HaveOccurred())
 
@@ -160,7 +160,7 @@ pipeline2: foo
 	})
 
 	It("returns metadata", func() {
-		response, err := inCommand.Run(inRequest)
+		response, err := command.Run(inRequest)
 
 		Expect(err).NotTo(HaveOccurred())
 
@@ -173,7 +173,7 @@ pipeline2: foo
 		})
 
 		It("invokes the login with insecure: true, without error", func() {
-			_, err := inCommand.Run(inRequest)
+			_, err := command.Run(inRequest)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
@@ -189,7 +189,7 @@ pipeline2: foo
 		})
 
 		It("returns an error", func() {
-			_, err := inCommand.Run(inRequest)
+			_, err := command.Run(inRequest)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -205,7 +205,7 @@ pipeline2: foo
 		})
 
 		It("returns an error", func() {
-			_, err := inCommand.Run(inRequest)
+			_, err := command.Run(inRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(expectedErr))
@@ -218,7 +218,7 @@ pipeline2: foo
 		})
 
 		It("returns an error", func() {
-			_, err := inCommand.Run(inRequest)
+			_, err := command.Run(inRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(pipelinesErr))
@@ -236,7 +236,7 @@ pipeline2: foo
 		})
 
 		It("returns an error", func() {
-			_, err := inCommand.Run(inRequest)
+			_, err := command.Run(inRequest)
 			Expect(err).To(Equal(expectedErr))
 		})
 	})

@@ -13,28 +13,28 @@ import (
 	"github.com/concourse/concourse-pipeline-resource/logger"
 )
 
-type CheckCommand struct {
+type Command struct {
 	logger      logger.Logger
 	logFilePath string
-	flyConn     fly.FlyConn
+	flyCommand  fly.Command
 	apiClient   api.Client
 }
 
-func NewCheckCommand(
+func NewCommand(
 	logger logger.Logger,
 	logFilePath string,
-	flyConn fly.FlyConn,
+	flyCommand fly.Command,
 	apiClient api.Client,
-) *CheckCommand {
-	return &CheckCommand{
+) *Command {
+	return &Command{
 		logger:      logger,
 		logFilePath: logFilePath,
-		flyConn:     flyConn,
+		flyCommand:  flyCommand,
 		apiClient:   apiClient,
 	}
 }
 
-func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckResponse, error) {
+func (c *Command) Run(input concourse.CheckRequest) (concourse.CheckResponse, error) {
 	logDir := filepath.Dir(c.logFilePath)
 	existingLogFiles, err := filepath.Glob(filepath.Join(logDir, "concourse-pipeline-resource-check.log*"))
 	if err != nil {
@@ -76,7 +76,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 	for teamName, team := range teams {
 		c.logger.Debugf("Performing login\n")
-		_, err := c.flyConn.Login(
+		_, err := c.flyCommand.Login(
 			input.Source.Target,
 			teamName,
 			team.Username,
@@ -97,7 +97,7 @@ func (c *CheckCommand) Run(input concourse.CheckRequest) (concourse.CheckRespons
 
 		for _, pipeline := range pipelines {
 			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-			outBytes, err := c.flyConn.GetPipeline(pipeline.Name)
+			outBytes, err := c.flyCommand.GetPipeline(pipeline.Name)
 			if err != nil {
 				return concourse.CheckResponse{}, err
 			}

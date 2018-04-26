@@ -40,7 +40,7 @@ var _ = Describe("Out", func() {
 
 		outRequest    concourse.OutRequest
 		badOutRequest concourse.OutRequest
-		outCommand    *out.OutCommand
+		command       *out.Command
 
 		fakeFlyConn   *flyfakes.FakeFlyConn
 		fakeAPIClient *apifakes.FakeClient
@@ -128,7 +128,7 @@ pipeline3: foo
 			case apiPipelines[2].Name:
 				return []byte(pipelineContents[2]), nil
 			default:
-				Fail("Unexpected invocation of flyConn.GetPipeline")
+				Fail("Unexpected invocation of flyCommand.GetPipeline")
 				return nil, nil
 			}
 		}
@@ -180,7 +180,7 @@ pipeline3: foo
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		outCommand = out.NewOutCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, sourcesDir)
+		command = out.NewCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, sourcesDir)
 	})
 
 	AfterEach(func() {
@@ -189,7 +189,7 @@ pipeline3: foo
 	})
 
 	It("invokes fly set-pipeline for each pipeline", func() {
-		_, err := outCommand.Run(outRequest)
+		_, err := command.Run(outRequest)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(pipelines)))
@@ -217,7 +217,7 @@ pipeline3: foo
 	})
 
 	It("returns provided version", func() {
-		response, err := outCommand.Run(outRequest)
+		response, err := command.Run(outRequest)
 
 		Expect(err).NotTo(HaveOccurred())
 
@@ -225,7 +225,7 @@ pipeline3: foo
 	})
 
 	It("returns metadata", func() {
-		response, err := outCommand.Run(outRequest)
+		response, err := command.Run(outRequest)
 
 		Expect(err).NotTo(HaveOccurred())
 
@@ -238,7 +238,7 @@ pipeline3: foo
 		})
 
 		It("invokes the login with insecure: true, without error", func() {
-			_, err := outCommand.Run(outRequest)
+			_, err := command.Run(outRequest)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(fakeFlyConn.LoginCallCount()).To(Equal(5))
@@ -254,14 +254,14 @@ pipeline3: foo
 		})
 
 		It("returns an error", func() {
-			_, err := outCommand.Run(outRequest)
+			_, err := command.Run(outRequest)
 			Expect(err).To(HaveOccurred())
 		})
 	})
 
 	Context("when setting a pipeline that belongs to another team", func() {
 		It("returns an error", func() {
-			_, err := outCommand.Run(badOutRequest)
+			_, err := command.Run(badOutRequest)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -277,7 +277,7 @@ pipeline3: foo
 		})
 
 		It("returns an error", func() {
-			_, err := outCommand.Run(outRequest)
+			_, err := command.Run(outRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(expectedErr))
@@ -290,7 +290,7 @@ pipeline3: foo
 		})
 
 		It("returns an error", func() {
-			_, err := outCommand.Run(outRequest)
+			_, err := command.Run(outRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(setPipelinesErr))
@@ -303,7 +303,7 @@ pipeline3: foo
 		})
 
 		It("returns an error", func() {
-			_, err := outCommand.Run(outRequest)
+			_, err := command.Run(outRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(getPipelinesErr))
@@ -322,7 +322,7 @@ pipeline3: foo
 		})
 
 		It("returns an error", func() {
-			_, err := outCommand.Run(outRequest)
+			_, err := command.Run(outRequest)
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(expectedErr))

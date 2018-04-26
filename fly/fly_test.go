@@ -20,9 +20,9 @@ exit 1
 `
 )
 
-var _ = Describe("FlyConn", func() {
+var _ = Describe("Command", func() {
 	var (
-		flyConn fly.FlyConn
+		flyCommand fly.Command
 
 		target   string
 		teamName string
@@ -54,7 +54,7 @@ var _ = Describe("FlyConn", func() {
 		err := ioutil.WriteFile(flyBinaryPath, []byte(fakeFlyContents), os.ModePerm)
 		Expect(err).NotTo(HaveOccurred())
 
-		flyConn = fly.NewFlyConn(target, fakeLogger, flyBinaryPath)
+		flyCommand = fly.NewCommand(target, fakeLogger, flyBinaryPath)
 	})
 
 	AfterEach(func() {
@@ -78,7 +78,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.Login(url, teamName, username, password, insecure)
+			output, err := flyCommand.Login(url, teamName, username, password, insecure)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -102,7 +102,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("adds -k flag to command", func() {
-				output, err := flyConn.Login(url, teamName, username, password, insecure)
+				output, err := flyCommand.Login(url, teamName, username, password, insecure)
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(
@@ -128,7 +128,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("returns an error", func() {
-				_, err := flyConn.Login(url, teamName, username, password, insecure)
+				_, err := flyCommand.Login(url, teamName, username, password, insecure)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -140,7 +140,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("does not pass the `p` or `u` flags to fly", func() {
-				output, err := flyConn.Login(url, teamName, username, password, insecure)
+				output, err := flyCommand.Login(url, teamName, username, password, insecure)
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(
@@ -163,7 +163,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("appends stderr to the error", func() {
-				_, err := flyConn.Login(url, teamName, username, password, insecure)
+				_, err := flyCommand.Login(url, teamName, username, password, insecure)
 				Expect(err).To(HaveOccurred())
 
 				Expect(err.Error()).To(MatchRegexp(".*some err output.*"))
@@ -181,7 +181,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.GetPipeline(pipelineName)
+			output, err := flyCommand.GetPipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -207,7 +207,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.SetPipeline(pipelineName, configFilepath, nil)
+			output, err := flyCommand.SetPipeline(pipelineName, configFilepath, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -236,7 +236,7 @@ var _ = Describe("FlyConn", func() {
 			})
 
 			It("returns output without error", func() {
-				output, err := flyConn.SetPipeline(pipelineName, configFilepath, varsFiles)
+				output, err := flyCommand.SetPipeline(pipelineName, configFilepath, varsFiles)
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(
@@ -267,7 +267,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.DestroyPipeline(pipelineName)
+			output, err := flyCommand.DestroyPipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -292,7 +292,7 @@ var _ = Describe("FlyConn", func() {
 		})
 
 		It("returns output without error", func() {
-			output, err := flyConn.UnpausePipeline(pipelineName)
+			output, err := flyCommand.UnpausePipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
