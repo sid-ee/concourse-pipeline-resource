@@ -14,15 +14,15 @@ var _ = Describe("ValidateTeams", func() {
 
 	BeforeEach(func() {
 		teams = []concourse.Team{
-					{
-						Name:     "some team",
-						Username: "some username",
-						Password: "some password",
-					},
-				}
+			{
+				Name:     "some team",
+				Username: "some username",
+				Password: "some password",
+			},
+		}
 	})
 
-	Context("when all the necessary info is provided", func () {
+	Context("when all the necessary info is provided", func() {
 		It("does not throw an error", func() {
 			err := validator.ValidateTeams(teams)
 			Expect(err).ToNot(HaveOccurred())
@@ -81,7 +81,7 @@ var _ = Describe("ValidateTeams", func() {
 	})
 
 	Context("when there are no teams", func() {
-		It("returns an error", func () {
+		It("returns an error", func() {
 			err := validator.ValidateTeams([]concourse.Team{})
 			Expect(err).To(HaveOccurred())
 

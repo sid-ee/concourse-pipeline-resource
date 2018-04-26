@@ -20,7 +20,7 @@ const (
 
 type Command struct {
 	logger      logger.Logger
-	flyCommand     fly.Command
+	flyCommand  fly.Command
 	apiClient   api.Client
 	downloadDir string
 }
@@ -33,7 +33,7 @@ func NewCommand(
 ) *Command {
 	return &Command{
 		logger:      logger,
-		flyCommand:     flyCommand,
+		flyCommand:  flyCommand,
 		apiClient:   apiClient,
 		downloadDir: downloadDir,
 	}

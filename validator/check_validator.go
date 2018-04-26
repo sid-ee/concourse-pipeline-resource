@@ -6,7 +6,7 @@ import (
 	"github.com/concourse/concourse-pipeline-resource/concourse"
 )
 
-func ValidateCheck(input concourse.CheckRequest) error  {
+func ValidateCheck(input concourse.CheckRequest) error {
 	if input.Source.Target == "" {
 		return fmt.Errorf("%s must be provided in source", "target")
 	}
