@@ -2,7 +2,7 @@ FROM golang:alpine as builder
 RUN apk add --no-cache curl jq
 RUN mkdir -p /assets
 RUN url=$(curl -s "https://api.github.com/repos/concourse/concourse/releases/latest" \
-    | jq -r '.assets[] | select(.name | test("fly_linux_amd64")) | .browser_download_url') &&\
+    | jq -r '.assets[] | select(.name | test("fly_linux_amd64$")) | .browser_download_url') &&\
     curl -L "$url" -o /assets/fly
 COPY . /go/src/github.com/concourse/concourse-pipeline-resource
 ENV CGO_ENABLED 0
