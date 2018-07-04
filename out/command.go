@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/concourse/concourse-pipeline-resource/concourse"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api"
 	"github.com/concourse/concourse-pipeline-resource/fly"
 	"github.com/concourse/concourse-pipeline-resource/logger"
 )
@@ -19,20 +18,17 @@ const (
 type Command struct {
 	logger     logger.Logger
 	flyCommand fly.Command
-	apiClient  api.Client
 	sourcesDir string
 }
 
 func NewCommand(
 	logger logger.Logger,
 	flyCommand fly.Command,
-	apiClient api.Client,
 	sourcesDir string,
 ) *Command {
 	return &Command{
 		logger:     logger,
 		flyCommand: flyCommand,
-		apiClient:  apiClient,
 		sourcesDir: sourcesDir,
 	}
 }
@@ -119,15 +115,15 @@ func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error)
 
 		c.logger.Debugf("Login successful\n")
 
-		pipelines, err := c.apiClient.Pipelines(teamName)
+		pipelines, err := c.flyCommand.Pipelines()
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}
 		c.logger.Debugf("Found pipelines (%s): %+v\n", teamName, pipelines)
 
-		for _, pipeline := range pipelines {
-			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
-			outBytes, err := c.flyCommand.GetPipeline(pipeline.Name)
+		for _, pipelineName := range pipelines {
+			c.logger.Debugf("Getting pipeline: %s\n", pipelineName)
+			outBytes, err := c.flyCommand.GetPipeline(pipelineName)
 			if err != nil {
 				return concourse.OutResponse{}, err
 			}
@@ -136,7 +132,7 @@ func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error)
 				"%x",
 				md5.Sum(outBytes),
 			)
-			pipelineVersions[pipeline.Name] = version
+			pipelineVersions[pipelineName] = version
 		}
 	}
 

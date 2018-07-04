@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/concourse/concourse-pipeline-resource/concourse"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/concourse/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/concourse/concourse-pipeline-resource/in"
 	"github.com/concourse/concourse-pipeline-resource/logger"
@@ -26,18 +24,12 @@ var _ = Describe("In", func() {
 		target string
 		teams  []concourse.Team
 
-		flyBinaryPath string
+		inRequest concourse.InRequest
+		command   *in.Command
 
-		inRequest         concourse.InRequest
-		pipelinesChecksum string
-		command           *in.Command
+		fakeFlyCommand *flyfakes.FakeCommand
 
-		fakeFlyConn     *flyfakes.FakeFlyConn
-		flyRunCallCount int
-
-		fakeAPIClient *apifakes.FakeClient
-
-		pipelines        []api.Pipeline
+		pipelines        []string
 		pipelineVersions []string
 
 		pipelinesErr error
@@ -46,9 +38,7 @@ var _ = Describe("In", func() {
 	)
 
 	BeforeEach(func() {
-		flyRunCallCount = 0
-		fakeFlyConn = &flyfakes.FakeFlyConn{}
-		fakeAPIClient = &apifakes.FakeClient{}
+		fakeFlyCommand = &flyfakes.FakeCommand{}
 
 		var err error
 		downloadDir, err = ioutil.TempDir("", "")
@@ -62,21 +52,9 @@ var _ = Describe("In", func() {
 				Password: "some password",
 			},
 		}
-		flyBinaryPath = "fly"
-
-		pipelinesChecksum = "some-checksum"
 
 		pipelinesErr = nil
-		pipelines = []api.Pipeline{
-			{
-				Name: "pipeline-1",
-				URL:  "pipeline_URL_1",
-			},
-			{
-				Name: "pipeline-2",
-				URL:  "pipeline_URL_2",
-			},
-		}
+		pipelines = []string{"pipeline-1", "pipeline-2"}
 		pipelineVersions = []string{"1234", "2345"}
 		pipelineContents = make([]string, 2)
 
@@ -94,17 +72,17 @@ pipeline2: foo
 				Teams:  teams,
 			},
 			Version: concourse.Version{
-				pipelines[0].Name: pipelineVersions[0],
+				pipelines[0]: pipelineVersions[0],
 			},
 		}
 
-		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, error) {
+		fakeFlyCommand.GetPipelineStub = func(name string) ([]byte, error) {
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			switch name {
-			case pipelines[0].Name:
+			case pipelines[0]:
 				return []byte(pipelineContents[0]), nil
-			case pipelines[1].Name:
+			case pipelines[1]:
 				return []byte(pipelineContents[1]), nil
 			default:
 				Fail("Unexpected invocation of flyCommand.GetPipeline")
@@ -114,14 +92,14 @@ pipeline2: foo
 	})
 
 	JustBeforeEach(func() {
-		fakeAPIClient.PipelinesReturns(pipelines, pipelinesErr)
+		fakeFlyCommand.PipelinesReturns(pipelines, pipelinesErr)
 
 		sanitized := concourse.SanitizedSource(inRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		command = in.NewCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, downloadDir)
+		command = in.NewCommand(ginkgoLogger, fakeFlyCommand, downloadDir)
 	})
 
 	AfterEach(func() {
@@ -138,13 +116,13 @@ pipeline2: foo
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(files).To(HaveLen(len(pipelines)))
-		Expect(files[0].Name()).To(MatchRegexp("%s.yml", pipelines[0].Name))
+		Expect(files[0].Name()).To(MatchRegexp("%s.yml", pipelines[0]))
 
 		contents, err := ioutil.ReadFile(filepath.Join(downloadDir, files[0].Name()))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(contents)).To(Equal(pipelineContents[0]))
 
-		Expect(files[1].Name()).To(MatchRegexp("%s.yml", pipelines[1].Name))
+		Expect(files[1].Name()).To(MatchRegexp("%s.yml", pipelines[1]))
 
 		contents, err = ioutil.ReadFile(filepath.Join(downloadDir, files[1].Name()))
 		Expect(err).NotTo(HaveOccurred())
@@ -156,7 +134,7 @@ pipeline2: foo
 
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(response.Version[pipelines[0].Name]).To(Equal(pipelineVersions[0]))
+		Expect(response.Version[pipelines[0]]).To(Equal(pipelineVersions[0]))
 	})
 
 	It("returns metadata", func() {
@@ -176,8 +154,8 @@ pipeline2: foo
 			_, err := command.Run(inRequest)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
-			_, _, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
+			Expect(fakeFlyCommand.LoginCallCount()).To(Equal(1))
+			_, _, _, _, insecure := fakeFlyCommand.LoginArgsForCall(0)
 
 			Expect(insecure).To(BeTrue())
 		})
@@ -201,7 +179,7 @@ pipeline2: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
+			fakeFlyCommand.LoginReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -232,7 +210,7 @@ pipeline2: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("some error")
-			fakeFlyConn.GetPipelineReturns(nil, expectedErr)
+			fakeFlyCommand.GetPipelineReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {

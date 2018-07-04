@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/concourse/concourse-pipeline-resource/concourse"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api"
 	"github.com/concourse/concourse-pipeline-resource/fly"
 	"github.com/concourse/concourse-pipeline-resource/logger"
 )
@@ -21,20 +20,17 @@ const (
 type Command struct {
 	logger      logger.Logger
 	flyCommand  fly.Command
-	apiClient   api.Client
 	downloadDir string
 }
 
 func NewCommand(
 	logger logger.Logger,
 	flyCommand fly.Command,
-	apiClient api.Client,
 	downloadDir string,
 ) *Command {
 	return &Command{
 		logger:      logger,
 		flyCommand:  flyCommand,
-		apiClient:   apiClient,
 		downloadDir: downloadDir,
 	}
 }
@@ -72,7 +68,7 @@ func (c *Command) Run(input concourse.InRequest) (concourse.InResponse, error) {
 
 		c.logger.Debugf("Login successful\n")
 
-		pipelines, err := c.apiClient.Pipelines(teamName)
+		pipelines, err := c.flyCommand.Pipelines()
 		if err != nil {
 			return concourse.InResponse{}, err
 		}
@@ -84,10 +80,10 @@ func (c *Command) Run(input concourse.InRequest) (concourse.InResponse, error) {
 		errChan := make(chan error, len(pipelines))
 
 		for _, p := range pipelines {
-			go func(p api.Pipeline) {
+			go func(pipelineName string) {
 				defer wg.Done()
 
-				outContents, err := c.flyCommand.GetPipeline(p.Name)
+				outContents, err := c.flyCommand.GetPipeline(pipelineName)
 				if err != nil {
 					errChan <- err
 				}
@@ -96,7 +92,7 @@ func (c *Command) Run(input concourse.InRequest) (concourse.InResponse, error) {
 					fmt.Sprintf(
 						"%s-%s.yml",
 						teamName,
-						p.Name,
+						pipelineName,
 					),
 				)
 				c.logger.Debugf(

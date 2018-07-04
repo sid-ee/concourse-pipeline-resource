@@ -7,11 +7,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/concourse/concourse-pipeline-resource/cmd/out/filereader"
 	"github.com/concourse/concourse-pipeline-resource/concourse"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api"
 	"github.com/concourse/concourse-pipeline-resource/fly"
 	"github.com/concourse/concourse-pipeline-resource/logger"
 	"github.com/concourse/concourse-pipeline-resource/out"
@@ -93,17 +91,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	insecure := false
-	if input.Source.Insecure != "" {
-		var err error
-		insecure, err = strconv.ParseBool(input.Source.Insecure)
-		if err != nil {
-			log.Fatalf("Invalid value for insecure: %v", input.Source.Insecure)
-		}
-	}
-
-	apiClient := api.NewClient(input.Source.Target, insecure, input.Source.Teams)
-	response, err := out.NewCommand(l, flyCommand, apiClient, sourcesDir).Run(input)
+	response, err := out.NewCommand(l, flyCommand, sourcesDir).Run(input)
 	if err != nil {
 		l.Debugf("Exiting with error: %v\n", err)
 		log.Fatalln(err)

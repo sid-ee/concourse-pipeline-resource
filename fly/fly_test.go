@@ -171,6 +171,21 @@ var _ = Describe("Command", func() {
 		})
 	})
 
+	Describe("Pipelines", func() {
+		BeforeEach(func() {
+			fakeFlyContents = `#!/bin/sh
+echo '[{"name":"abc"},{"name":"def"}]'
+`
+		})
+
+		It("returns pipelines without error", func() {
+			pipelines, err := flyCommand.Pipelines()
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(pipelines).To(Equal([]string{"abc", "def"}))
+		})
+	})
+
 	Describe("GetPipeline", func() {
 		var (
 			pipelineName string
@@ -257,13 +272,11 @@ var _ = Describe("Command", func() {
 
 	Describe("DestroyPipeline", func() {
 		var (
-			pipelineName   string
-			configFilepath string
+			pipelineName string
 		)
 
 		BeforeEach(func() {
 			pipelineName = "some-pipeline"
-			configFilepath = "some-config-file"
 		})
 
 		It("returns output without error", func() {

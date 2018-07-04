@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/concourse/concourse-pipeline-resource/concourse"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/concourse/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/concourse/concourse-pipeline-resource/logger"
 	"github.com/concourse/concourse-pipeline-resource/out"
@@ -32,7 +30,7 @@ var _ = Describe("Out", func() {
 		otherTeamName string
 		pipelines     []concourse.Pipeline
 
-		apiPipelines    []api.Pipeline
+		apiPipelines    []string
 		getPipelinesErr error
 		setPipelinesErr error
 
@@ -42,13 +40,11 @@ var _ = Describe("Out", func() {
 		badOutRequest concourse.OutRequest
 		command       *out.Command
 
-		fakeFlyConn   *flyfakes.FakeFlyConn
-		fakeAPIClient *apifakes.FakeClient
+		fakeFlyCommand *flyfakes.FakeCommand
 	)
 
 	BeforeEach(func() {
-		fakeFlyConn = &flyfakes.FakeFlyConn{}
-		fakeAPIClient = &apifakes.FakeClient{}
+		fakeFlyCommand = &flyfakes.FakeCommand{}
 
 		var err error
 		sourcesDir, err = ioutil.TempDir("", "")
@@ -62,20 +58,7 @@ var _ = Describe("Out", func() {
 		teamName = "main"
 		otherTeamName = "some-other-team"
 
-		apiPipelines = []api.Pipeline{
-			{
-				Name: "pipeline-1",
-				URL:  "pipeline_URL_1",
-			},
-			{
-				Name: "pipeline-2",
-				URL:  "pipeline_URL_2",
-			},
-			{
-				Name: "pipeline-3",
-				URL:  "pipeline_URL_3",
-			},
-		}
+		apiPipelines = []string{"pipeline-1", "pipeline-2", "pipeline-3"}
 		getPipelinesErr = nil
 		setPipelinesErr = nil
 
@@ -95,7 +78,7 @@ pipeline3: foo
 
 		pipelines = []concourse.Pipeline{
 			{
-				Name:       apiPipelines[0].Name,
+				Name:       apiPipelines[0],
 				ConfigFile: "pipeline_1.yml",
 				VarsFiles: []string{
 					"vars_1.yml",
@@ -104,28 +87,28 @@ pipeline3: foo
 				TeamName: teamName,
 			},
 			{
-				Name:       apiPipelines[1].Name,
+				Name:       apiPipelines[1],
 				ConfigFile: "pipeline_2.yml",
 				TeamName:   teamName,
 				Unpaused:   true,
 			},
 			{
-				Name:       apiPipelines[2].Name,
+				Name:       apiPipelines[2],
 				ConfigFile: "pipeline_3.yml",
 				TeamName:   otherTeamName,
 			},
 		}
 
-		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, error) {
+		fakeFlyCommand.GetPipelineStub = func(name string) ([]byte, error) {
 			defer GinkgoRecover()
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			switch name {
-			case apiPipelines[0].Name:
+			case apiPipelines[0]:
 				return []byte(pipelineContents[0]), nil
-			case apiPipelines[1].Name:
+			case apiPipelines[1]:
 				return []byte(pipelineContents[1]), nil
-			case apiPipelines[2].Name:
+			case apiPipelines[2]:
 				return []byte(pipelineContents[2]), nil
 			default:
 				Fail("Unexpected invocation of flyCommand.GetPipeline")
@@ -172,15 +155,15 @@ pipeline3: foo
 	})
 
 	JustBeforeEach(func() {
-		fakeAPIClient.PipelinesReturns(apiPipelines, getPipelinesErr)
-		fakeFlyConn.SetPipelineReturns(nil, setPipelinesErr)
+		fakeFlyCommand.PipelinesReturns(apiPipelines, getPipelinesErr)
+		fakeFlyCommand.SetPipelineReturns(nil, setPipelinesErr)
 
 		sanitized := concourse.SanitizedSource(outRequest.Source)
 		sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 
 		ginkgoLogger = logger.NewLogger(sanitizer)
 
-		command = out.NewCommand(ginkgoLogger, fakeFlyConn, fakeAPIClient, sourcesDir)
+		command = out.NewCommand(ginkgoLogger, fakeFlyCommand, sourcesDir)
 	})
 
 	AfterEach(func() {
@@ -192,11 +175,11 @@ pipeline3: foo
 		_, err := command.Run(outRequest)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(fakeFlyConn.SetPipelineCallCount()).To(Equal(len(pipelines)))
+		Expect(fakeFlyCommand.SetPipelineCallCount()).To(Equal(len(pipelines)))
 
 		for i, p := range pipelines {
-			name, configFilepath, varsFilepaths := fakeFlyConn.SetPipelineArgsForCall(i)
-			_, tname, _, _, _ := fakeFlyConn.LoginArgsForCall(i)
+			name, configFilepath, varsFilepaths := fakeFlyCommand.SetPipelineArgsForCall(i)
+			_, tname, _, _, _ := fakeFlyCommand.LoginArgsForCall(i)
 			Expect(name).To(Equal(p.Name))
 			Expect(tname).To(Equal(p.TeamName))
 			Expect(configFilepath).To(Equal(filepath.Join(sourcesDir, p.ConfigFile)))
@@ -209,9 +192,9 @@ pipeline3: foo
 
 			// the second pipeline has Unpaused set to true
 			if i == 1 {
-				name := fakeFlyConn.UnpausePipelineArgsForCall(0)
+				name := fakeFlyCommand.UnpausePipelineArgsForCall(0)
 				Expect(name).To(Equal(p.Name))
-				Expect(fakeFlyConn.UnpausePipelineCallCount()).To(Equal(1))
+				Expect(fakeFlyCommand.UnpausePipelineCallCount()).To(Equal(1))
 			}
 		}
 	})
@@ -221,7 +204,7 @@ pipeline3: foo
 
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(response.Version[apiPipelines[0].Name]).To(Equal("4f4bd60b18bf697cc68dac9cb95537c2"))
+		Expect(response.Version[apiPipelines[0]]).To(Equal("4f4bd60b18bf697cc68dac9cb95537c2"))
 	})
 
 	It("returns metadata", func() {
@@ -241,8 +224,8 @@ pipeline3: foo
 			_, err := command.Run(outRequest)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(fakeFlyConn.LoginCallCount()).To(Equal(5))
-			_, _, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
+			Expect(fakeFlyCommand.LoginCallCount()).To(Equal(5))
+			_, _, _, _, insecure := fakeFlyCommand.LoginArgsForCall(0)
 
 			Expect(insecure).To(BeTrue())
 		})
@@ -273,7 +256,7 @@ pipeline3: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
+			fakeFlyCommand.LoginReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -318,7 +301,7 @@ pipeline3: foo
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("some error")
 
-			fakeFlyConn.GetPipelineReturns(nil, expectedErr)
+			fakeFlyCommand.GetPipelineReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {

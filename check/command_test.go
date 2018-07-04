@@ -9,8 +9,6 @@ import (
 
 	"github.com/concourse/concourse-pipeline-resource/check"
 	"github.com/concourse/concourse-pipeline-resource/concourse"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api"
-	"github.com/concourse/concourse-pipeline-resource/concourse/api/apifakes"
 	"github.com/concourse/concourse-pipeline-resource/fly/flyfakes"
 	"github.com/concourse/concourse-pipeline-resource/logger"
 	. "github.com/onsi/ginkgo"
@@ -33,30 +31,16 @@ var _ = Describe("Check", func() {
 		checkRequest concourse.CheckRequest
 		command      *check.Command
 
-		pipelinesErr error
-		pipelines    []api.Pipeline
-		fakeFlyConn  *flyfakes.FakeFlyConn
-		runCallCount int
-
-		fakeAPIClient *apifakes.FakeClient
+		pipelinesErr   error
+		pipelines      []string
+		fakeFlyCommand *flyfakes.FakeCommand
 	)
 
 	BeforeEach(func() {
-		runCallCount = 0
-		fakeFlyConn = &flyfakes.FakeFlyConn{}
-		fakeAPIClient = &apifakes.FakeClient{}
+		fakeFlyCommand = &flyfakes.FakeCommand{}
 
 		pipelinesErr = nil
-		pipelines = []api.Pipeline{
-			{
-				Name: "pipeline 1",
-				URL:  "pipeline URL 1",
-			},
-			{
-				Name: "pipeline 2",
-				URL:  "pipeline URL 2",
-			},
-		}
+		pipelines = []string{"pipeline 1", "pipeline 2"}
 
 		pipelineContents = make([]string, 2)
 
@@ -68,13 +52,13 @@ pipeline1: foo
 pipeline2: foo
 `
 
-		fakeFlyConn.GetPipelineStub = func(name string) ([]byte, error) {
+		fakeFlyCommand.GetPipelineStub = func(name string) ([]byte, error) {
 			ginkgoLogger.Debugf("GetPipelineStub for: %s\n", name)
 
 			switch name {
-			case pipelines[0].Name:
+			case pipelines[0]:
 				return []byte(pipelineContents[0]), nil
-			case pipelines[1].Name:
+			case pipelines[1]:
 				return []byte(pipelineContents[1]), nil
 			default:
 				Fail("Unexpected invocation of flyCommand.GetPipeline")
@@ -113,16 +97,15 @@ pipeline2: foo
 
 		expectedResponse = []concourse.Version{
 			{
-				pipelines[0].Name: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[0]))),
-				pipelines[1].Name: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[1]))),
+				pipelines[0]: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[0]))),
+				pipelines[1]: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[1]))),
 			},
 		}
 
 		command = check.NewCommand(
 			ginkgoLogger,
 			logFilePath,
-			fakeFlyConn,
-			fakeAPIClient,
+			fakeFlyCommand,
 		)
 	})
 
@@ -132,7 +115,7 @@ pipeline2: foo
 	})
 
 	JustBeforeEach(func() {
-		fakeAPIClient.PipelinesReturns(pipelines, pipelinesErr)
+		fakeFlyCommand.PipelinesReturns(pipelines, pipelinesErr)
 	})
 
 	It("returns pipelines checksum without error", func() {
@@ -145,8 +128,8 @@ pipeline2: foo
 	Context("when the most recent version is provided", func() {
 		BeforeEach(func() {
 			checkRequest.Version = concourse.Version{
-				pipelines[0].Name: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[0]))),
-				pipelines[1].Name: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[1]))),
+				pipelines[0]: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[0]))),
+				pipelines[1]: fmt.Sprintf("%x", md5.Sum([]byte(pipelineContents[1]))),
 			}
 		})
 
@@ -212,8 +195,8 @@ pipeline2: foo
 			_, err := command.Run(checkRequest)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(fakeFlyConn.LoginCallCount()).To(Equal(1))
-			_, _, _, _, insecure := fakeFlyConn.LoginArgsForCall(0)
+			Expect(fakeFlyCommand.LoginCallCount()).To(Equal(1))
+			_, _, _, _, insecure := fakeFlyCommand.LoginArgsForCall(0)
 
 			Expect(insecure).To(BeTrue())
 		})
@@ -237,7 +220,7 @@ pipeline2: foo
 
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("login failed")
-			fakeFlyConn.LoginReturns(nil, expectedErr)
+			fakeFlyCommand.LoginReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {
@@ -269,7 +252,7 @@ pipeline2: foo
 		BeforeEach(func() {
 			expectedErr = fmt.Errorf("error executing fly")
 
-			fakeFlyConn.GetPipelineReturns(nil, expectedErr)
+			fakeFlyCommand.GetPipelineReturns(nil, expectedErr)
 		})
 
 		It("returns an error", func() {
