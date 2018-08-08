@@ -1,5 +1,4 @@
 FROM golang:alpine as builder
-RUN apk add --no-cache curl jq
 RUN mkdir -p /assets
 COPY fly/fly_linux_amd64 /assets/fly
 COPY concourse-pipeline-resource /go/src/github.com/concourse/concourse-pipeline-resource
