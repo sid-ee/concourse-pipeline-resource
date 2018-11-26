@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 
 	"github.com/concourse/concourse-pipeline-resource/concourse"
 	"github.com/concourse/concourse-pipeline-resource/fly"
@@ -74,45 +73,25 @@ func (c *Command) Run(input concourse.InRequest) (concourse.InResponse, error) {
 		}
 		c.logger.Debugf("Found pipelines (%s): %+v\n", teamName, pipelines)
 
-		var wg sync.WaitGroup
-		wg.Add(len(pipelines))
-
-		errChan := make(chan error, len(pipelines))
-
-		for _, p := range pipelines {
-			go func(pipelineName string) {
-				defer wg.Done()
-
-				outContents, err := c.flyCommand.GetPipeline(pipelineName)
-				if err != nil {
-					errChan <- err
-				}
-				pipelineContentsFilepath := filepath.Join(
-					c.downloadDir,
-					fmt.Sprintf(
-						"%s-%s.yml",
-						teamName,
-						pipelineName,
-					),
-				)
-				c.logger.Debugf(
-					"Writing pipeline contents to: %s\n",
-					pipelineContentsFilepath,
-				)
-				err = ioutil.WriteFile(pipelineContentsFilepath, outContents, os.ModePerm)
-				// Untested as it is too hard to force ioutil.WriteFile to error
-				if err != nil {
-					errChan <- err
-				}
-			}(p)
-		}
-
-		c.logger.Debugf("Waiting for all pipelines\n")
-		wg.Wait()
-		c.logger.Debugf("Waiting for all pipelines complete\n")
-
-		close(errChan)
-		for err := range errChan {
+		for _, pipelineName := range pipelines {
+			outContents, err := c.flyCommand.GetPipeline(pipelineName)
+			if err != nil {
+				return concourse.InResponse{}, err
+			}
+			pipelineContentsFilepath := filepath.Join(
+				c.downloadDir,
+				fmt.Sprintf(
+					"%s-%s.yml",
+					teamName,
+					pipelineName,
+				),
+			)
+			c.logger.Debugf(
+				"Writing pipeline contents to: %s\n",
+				pipelineContentsFilepath,
+			)
+			err = ioutil.WriteFile(pipelineContentsFilepath, outContents, os.ModePerm)
+			// Untested as it is too hard to force ioutil.WriteFile to error
 			if err != nil {
 				return concourse.InResponse{}, err
 			}
