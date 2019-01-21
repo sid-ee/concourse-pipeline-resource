@@ -240,13 +240,16 @@ echo '[{"name":"abc"},{"name":"def"}]'
 		Context("when optional vars are provided", func() {
 
 			var (
-				vars map[string]string
+				vars map[string]interface{}
 			)
 
 			BeforeEach(func() {
-				vars = map[string]string{
-					"launch-missiles": "true",
-					"dryrun":          "false",
+				vars = map[string]interface{}{
+					"launch-missiles": true,
+					"credentials": map[string]string{
+						"username": "admin",
+						"password": "admin",
+					},
 				}
 			})
 
@@ -261,8 +264,8 @@ echo '[{"name":"abc"},{"name":"def"}]'
 					"-n",
 					"-p", pipelineName,
 					"-c", configFilepath,
-					"-v", "launch-missiles=true",
-					"-v", "dryrun=false",
+					"-y", "launch-missiles=true",
+					"-y", "credentials=password: admin username: admin",
 				)
 
 				Expect(string(output)).To(Equal(expectedOutput))

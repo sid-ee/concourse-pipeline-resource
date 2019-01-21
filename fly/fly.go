@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os/exec"
 
+	"gopkg.in/yaml.v2"
+
 	"crypto/tls"
 	"net/http"
 
@@ -18,7 +20,7 @@ type Command interface {
 	Login(url string, teamName string, username string, password string, insecure bool) ([]byte, error)
 	Pipelines() ([]string, error)
 	GetPipeline(pipelineName string) ([]byte, error)
-	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string, vars map[string]string) ([]byte, error)
+	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string, vars map[string]interface{}) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
 	UnpausePipeline(pipelineName string) ([]byte, error)
 }
@@ -110,7 +112,7 @@ func (f command) SetPipeline(
 	pipelineName string,
 	configFilepath string,
 	varsFilepaths []string,
-	vars map[string]string,
+	vars map[string]interface{},
 ) ([]byte, error) {
 	allArgs := []string{
 		"set-pipeline",
@@ -124,7 +126,13 @@ func (f command) SetPipeline(
 	}
 
 	for key, value := range vars {
-		allArgs = append(allArgs, "-v", fmt.Sprintf("%s=%s", key, value))
+		yml, err := yaml.Marshal(value)
+
+		if err != nil {
+			return nil, err
+		}
+
+		allArgs = append(allArgs, "-y", fmt.Sprintf("%s=%s", key, yml))
 	}
 
 	return f.run(allArgs...)

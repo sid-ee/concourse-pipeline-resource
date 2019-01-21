@@ -96,8 +96,8 @@ pipeline3: foo
 				Name:       apiPipelines[2],
 				ConfigFile: "pipeline_3.yml",
 				TeamName:   otherTeamName,
-				Vars: map[string]string{
-					"launch-missiles": "true",
+				Vars: map[string]interface{}{
+					"launch-missiles": true,
 				},
 			},
 		}
@@ -203,7 +203,7 @@ pipeline3: foo
 			// the third pipeline has vars
 			if i == 2 {
 				Expect(vars).ToNot(BeNil())
-				Expect(vars["launch-missiles"]).To(Equal("true"))
+				Expect(vars["launch-missiles"]).To(BeTrue())
 			}
 		}
 	})

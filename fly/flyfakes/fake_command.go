@@ -63,13 +63,13 @@ type FakeCommand struct {
 		result1 []string
 		result2 error
 	}
-	SetPipelineStub        func(string, string, []string, map[string]string) ([]byte, error)
+	SetPipelineStub        func(string, string, []string, map[string]interface{}) ([]byte, error)
 	setPipelineMutex       sync.RWMutex
 	setPipelineArgsForCall []struct {
 		arg1 string
 		arg2 string
 		arg3 []string
-		arg4 map[string]string
+		arg4 map[string]interface{}
 	}
 	setPipelineReturns struct {
 		result1 []byte
@@ -344,7 +344,7 @@ func (fake *FakeCommand) PipelinesReturnsOnCall(i int, result1 []string, result2
 	}{result1, result2}
 }
 
-func (fake *FakeCommand) SetPipeline(arg1 string, arg2 string, arg3 []string, arg4 map[string]string) ([]byte, error) {
+func (fake *FakeCommand) SetPipeline(arg1 string, arg2 string, arg3 []string, arg4 map[string]interface{}) ([]byte, error) {
 	var arg3Copy []string
 	if arg3 != nil {
 		arg3Copy = make([]string, len(arg3))
@@ -356,7 +356,7 @@ func (fake *FakeCommand) SetPipeline(arg1 string, arg2 string, arg3 []string, ar
 		arg1 string
 		arg2 string
 		arg3 []string
-		arg4 map[string]string
+		arg4 map[string]interface{}
 	}{arg1, arg2, arg3Copy, arg4})
 	fake.recordInvocation("SetPipeline", []interface{}{arg1, arg2, arg3Copy, arg4})
 	fake.setPipelineMutex.Unlock()
@@ -376,13 +376,13 @@ func (fake *FakeCommand) SetPipelineCallCount() int {
 	return len(fake.setPipelineArgsForCall)
 }
 
-func (fake *FakeCommand) SetPipelineCalls(stub func(string, string, []string, map[string]string) ([]byte, error)) {
+func (fake *FakeCommand) SetPipelineCalls(stub func(string, string, []string, map[string]interface{}) ([]byte, error)) {
 	fake.setPipelineMutex.Lock()
 	defer fake.setPipelineMutex.Unlock()
 	fake.SetPipelineStub = stub
 }
 
-func (fake *FakeCommand) SetPipelineArgsForCall(i int) (string, string, []string, map[string]string) {
+func (fake *FakeCommand) SetPipelineArgsForCall(i int) (string, string, []string, map[string]interface{}) {
 	fake.setPipelineMutex.RLock()
 	defer fake.setPipelineMutex.RUnlock()
 	argsForCall := fake.setPipelineArgsForCall[i]

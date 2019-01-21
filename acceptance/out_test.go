@@ -40,7 +40,7 @@ var _ = Describe("Out", func() {
 		varsFileFilename string
 		varsFileFilepath string
 
-		vars map[string]string
+		vars map[string]interface{}
 
 		pipelinesFileContentsBytes []byte
 		pipelinesFileFilename      string
@@ -86,8 +86,8 @@ jobs:
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Assigning some variables")
-		vars = map[string]string{
-			"launch-missiles": "true",
+		vars = map[string]interface{}{
+			"launch-missiles": true,
 		}
 
 		By("Creating command object")
