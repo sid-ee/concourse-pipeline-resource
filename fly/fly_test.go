@@ -222,7 +222,7 @@ echo '[{"name":"abc"},{"name":"def"}]'
 		})
 
 		It("returns output without error", func() {
-			output, err := flyCommand.SetPipeline(pipelineName, configFilepath, nil)
+			output, err := flyCommand.SetPipeline(pipelineName, configFilepath, nil, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedOutput := fmt.Sprintf(
@@ -235,6 +235,38 @@ echo '[{"name":"abc"},{"name":"def"}]'
 			)
 
 			Expect(string(output)).To(Equal(expectedOutput))
+		})
+
+		Context("when optional vars are provided", func() {
+
+			var (
+				vars map[string]string
+			)
+
+			BeforeEach(func() {
+				vars = map[string]string{
+					"launch-missiles": "true",
+					"dryrun":          "false",
+				}
+			})
+
+			It("returns output without error", func() {
+				output, err := flyCommand.SetPipeline(pipelineName, configFilepath, nil, vars)
+				Expect(err).NotTo(HaveOccurred())
+
+				expectedOutput := fmt.Sprintf(
+					"%s %s %s %s %s %s %s %s %s %s %s %s\n",
+					"-t", target,
+					"set-pipeline",
+					"-n",
+					"-p", pipelineName,
+					"-c", configFilepath,
+					"-v", "launch-missiles=true",
+					"-v", "dryrun=false",
+				)
+
+				Expect(string(output)).To(Equal(expectedOutput))
+			})
 		})
 
 		Context("when optional vars files are provided", func() {
@@ -251,7 +283,7 @@ echo '[{"name":"abc"},{"name":"def"}]'
 			})
 
 			It("returns output without error", func() {
-				output, err := flyCommand.SetPipeline(pipelineName, configFilepath, varsFiles)
+				output, err := flyCommand.SetPipeline(pipelineName, configFilepath, varsFiles, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				expectedOutput := fmt.Sprintf(

@@ -40,6 +40,8 @@ var _ = Describe("Out", func() {
 		varsFileFilename string
 		varsFileFilepath string
 
+		vars map[string]string
+
 		pipelinesFileContentsBytes []byte
 		pipelinesFileFilename      string
 		pipelinesFileFilepath      string
@@ -83,6 +85,11 @@ jobs:
 		err = ioutil.WriteFile(varsFileFilepath, []byte(varsFileContents), os.ModePerm)
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Assigning some variables")
+		vars = map[string]string{
+			"launch-missiles": "true",
+		}
+
 		By("Creating command object")
 		command = exec.Command(outPath, sourcesDir)
 
@@ -95,6 +102,7 @@ jobs:
 				VarsFiles: []string{
 					varsFileFilename,
 				},
+				Vars: vars,
 			},
 		}
 

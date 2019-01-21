@@ -18,7 +18,7 @@ type Command interface {
 	Login(url string, teamName string, username string, password string, insecure bool) ([]byte, error)
 	Pipelines() ([]string, error)
 	GetPipeline(pipelineName string) ([]byte, error)
-	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string) ([]byte, error)
+	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string, vars map[string]string) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
 	UnpausePipeline(pipelineName string) ([]byte, error)
 }
@@ -110,6 +110,7 @@ func (f command) SetPipeline(
 	pipelineName string,
 	configFilepath string,
 	varsFilepaths []string,
+	vars map[string]string,
 ) ([]byte, error) {
 	allArgs := []string{
 		"set-pipeline",
@@ -120,6 +121,10 @@ func (f command) SetPipeline(
 
 	for _, vf := range varsFilepaths {
 		allArgs = append(allArgs, "-l", vf)
+	}
+
+	for key, value := range vars {
+		allArgs = append(allArgs, "-v", fmt.Sprintf("%s=%s", key, value))
 	}
 
 	return f.run(allArgs...)

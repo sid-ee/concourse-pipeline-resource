@@ -51,11 +51,12 @@ type OutParams struct {
 }
 
 type Pipeline struct {
-	Name       string   `json:"name" yaml:"name"`
-	ConfigFile string   `json:"config_file" yaml:"config_file"`
-	VarsFiles  []string `json:"vars_files" yaml:"vars_files"`
-	TeamName   string   `json:"team" yaml:"team"`
-	Unpaused   bool     `json:"unpaused" yaml:"unpaused"`
+	Name       string            `json:"name" yaml:"name"`
+	ConfigFile string            `json:"config_file" yaml:"config_file"`
+	VarsFiles  []string          `json:"vars_files" yaml:"vars_files"`
+	Vars       map[string]string `json:"vars" yaml:"vars"`
+	TeamName   string            `json:"team" yaml:"team"`
+	Unpaused   bool              `json:"unpaused" yaml:"unpaused"`
 }
 
 type OutResponse struct {

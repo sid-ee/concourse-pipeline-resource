@@ -96,6 +96,9 @@ pipeline3: foo
 				Name:       apiPipelines[2],
 				ConfigFile: "pipeline_3.yml",
 				TeamName:   otherTeamName,
+				Vars: map[string]string{
+					"launch-missiles": "true",
+				},
 			},
 		}
 
@@ -178,7 +181,7 @@ pipeline3: foo
 		Expect(fakeFlyCommand.SetPipelineCallCount()).To(Equal(len(pipelines)))
 
 		for i, p := range pipelines {
-			name, configFilepath, varsFilepaths := fakeFlyCommand.SetPipelineArgsForCall(i)
+			name, configFilepath, varsFilepaths, vars := fakeFlyCommand.SetPipelineArgsForCall(i)
 			_, tname, _, _, _ := fakeFlyCommand.LoginArgsForCall(i)
 			Expect(name).To(Equal(p.Name))
 			Expect(tname).To(Equal(p.TeamName))
@@ -195,6 +198,12 @@ pipeline3: foo
 				name := fakeFlyCommand.UnpausePipelineArgsForCall(0)
 				Expect(name).To(Equal(p.Name))
 				Expect(fakeFlyCommand.UnpausePipelineCallCount()).To(Equal(1))
+			}
+
+			// the third pipeline has vars
+			if i == 2 {
+				Expect(vars).ToNot(BeNil())
+				Expect(vars["launch-missiles"]).To(Equal("true"))
 			}
 		}
 	})
