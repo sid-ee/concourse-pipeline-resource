@@ -137,7 +137,7 @@ Must be non-nil and non-empty. The structure of the `pipeline` object is as foll
  Equivalent of `-l some-vars-file.yml` in `fly set-pipeline` command.
 
  - `vars`: *Optional.* Map of keys and values corresponding to variables
- to be interpolated via `{{ }}` in `config_file`. Values can arbitrary
+ to be interpolated via `(( ))` in `config_file`. Values can arbitrary
  YAML types.
  Equivalent of `-y "foo=bar"` in `fly set-pipeline` command.
 
