@@ -84,7 +84,7 @@ func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error)
 			varsFilepaths = append(varsFilepaths, varFilepath)
 		}
 
-		_, err = c.flyCommand.SetPipeline(p.Name, configFilepath, varsFilepaths)
+		_, err = c.flyCommand.SetPipeline(p.Name, configFilepath, varsFilepaths, p.Vars)
 		if err != nil {
 			return concourse.OutResponse{}, err
 		}

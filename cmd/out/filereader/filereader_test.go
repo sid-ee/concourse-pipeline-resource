@@ -35,11 +35,13 @@ var _ = Describe("Filereader", func() {
 					"vars_1.yml",
 					"vars_2.yml",
 				},
+				Vars: map[string]interface{}{},
 			},
 			{
 				Name:       "name-2",
 				ConfigFile: "pipeline_2.yml",
 				VarsFiles:  []string{},
+				Vars:       map[string]interface{}{},
 			},
 		}
 

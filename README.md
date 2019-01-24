@@ -114,6 +114,9 @@ jobs:
         vars_files:
         - path/to/optional/vars/file/1
         - path/to/optional/vars/file/2
+        vars:
+          my_var: "foo"
+          my_complex_var: {abc: 123}
 ```
 
 * `pipelines`: *Required.* Array of pipelines to configure.
@@ -132,6 +135,11 @@ Must be non-nil and non-empty. The structure of the `pipeline` object is as foll
  - `vars_files`: *Optional.* Array of strings corresponding to files
  containing variables to be interpolated via `{{ }}` in `config_file`.
  Equivalent of `-l some-vars-file.yml` in `fly set-pipeline` command.
+
+ - `vars`: *Optional.* Map of keys and values corresponding to variables
+ to be interpolated via `(( ))` in `config_file`. Values can arbitrary
+ YAML types.
+ Equivalent of `-y "foo=bar"` in `fly set-pipeline` command.
 
  - `unpaused`: *Optional.* Boolean specifying if the pipeline should
  be unpaused after the creation. If it is set to `true`, the command
@@ -226,4 +234,3 @@ docker build -t concourse-pipeline-resource .
 ### Contributing
 
 Please [ensure the tests pass locally](https://github.com/concourse/concourse-pipeline-resource#running-the-tests).
-
