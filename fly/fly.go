@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 
-	"gopkg.in/yaml.v2"
-
 	"crypto/tls"
 	"net/http"
 
@@ -126,13 +124,13 @@ func (f command) SetPipeline(
 	}
 
 	for key, value := range vars {
-		yml, err := yaml.Marshal(value)
+		payload, err := json.Marshal(value)
 
 		if err != nil {
 			return nil, err
 		}
 
-		allArgs = append(allArgs, "-y", fmt.Sprintf("%s=%s", key, yml))
+		allArgs = append(allArgs, "-y", fmt.Sprintf("%s=%s", key, payload))
 	}
 
 	return f.run(allArgs...)

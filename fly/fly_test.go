@@ -265,7 +265,7 @@ echo '[{"name":"abc"},{"name":"def"}]'
 					"-p", pipelineName,
 					"-c", configFilepath,
 					"-y", "launch-missiles=true",
-					"-y", "credentials=password: admin username: admin",
+					"-y", "credentials={\"password\":\"admin\",\"username\":\"admin\"}",
 				)
 
 				Expect(string(output)).To(Equal(expectedOutput))
