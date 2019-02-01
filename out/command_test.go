@@ -91,6 +91,7 @@ pipeline3: foo
 				ConfigFile: "pipeline_2.yml",
 				TeamName:   teamName,
 				Unpaused:   true,
+				Exposed:    true,
 			},
 			{
 				Name:       apiPipelines[2],
@@ -193,11 +194,12 @@ pipeline3: foo
 				Expect(varsFilepaths[1]).To(Equal(filepath.Join(sourcesDir, p.VarsFiles[1])))
 			}
 
-			// the second pipeline has Unpaused set to true
+			// the second pipeline has Unpaused and Exposed set to true
 			if i == 1 {
 				name := fakeFlyCommand.UnpausePipelineArgsForCall(0)
 				Expect(name).To(Equal(p.Name))
 				Expect(fakeFlyCommand.UnpausePipelineCallCount()).To(Equal(1))
+				Expect(fakeFlyCommand.ExposePipelineCallCount()).To(Equal(1))
 			}
 
 			// the third pipeline has vars
