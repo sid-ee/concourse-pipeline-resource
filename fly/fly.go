@@ -21,6 +21,7 @@ type Command interface {
 	SetPipeline(pipelineName string, configFilepath string, varsFilepaths []string, vars map[string]interface{}) ([]byte, error)
 	DestroyPipeline(pipelineName string) ([]byte, error)
 	UnpausePipeline(pipelineName string) ([]byte, error)
+	ExposePipeline(pipelineName string) ([]byte, error)
 }
 
 type command struct {
@@ -147,6 +148,13 @@ func (f command) DestroyPipeline(pipelineName string) ([]byte, error) {
 	return f.run(
 		"destroy-pipeline",
 		"-n",
+		"-p", pipelineName,
+	)
+}
+
+func (f command) ExposePipeline(pipelineName string) ([]byte, error) {
+	return f.run(
+		"expose-pipeline",
 		"-p", pipelineName,
 	)
 }

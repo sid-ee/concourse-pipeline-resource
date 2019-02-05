@@ -57,6 +57,7 @@ type Pipeline struct {
 	Vars       map[string]interface{} `json:"vars" yaml:"vars"`
 	TeamName   string                 `json:"team" yaml:"team"`
 	Unpaused   bool                   `json:"unpaused" yaml:"unpaused"`
+	Exposed    bool                   `json:"exposed" yaml:"exposed"`
 }
 
 type OutResponse struct {

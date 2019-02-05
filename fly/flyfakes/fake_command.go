@@ -21,6 +21,19 @@ type FakeCommand struct {
 		result1 []byte
 		result2 error
 	}
+	ExposePipelineStub        func(string) ([]byte, error)
+	exposePipelineMutex       sync.RWMutex
+	exposePipelineArgsForCall []struct {
+		arg1 string
+	}
+	exposePipelineReturns struct {
+		result1 []byte
+		result2 error
+	}
+	exposePipelineReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
 	GetPipelineStub        func(string) ([]byte, error)
 	getPipelineMutex       sync.RWMutex
 	getPipelineArgsForCall []struct {
@@ -154,6 +167,69 @@ func (fake *FakeCommand) DestroyPipelineReturnsOnCall(i int, result1 []byte, res
 		})
 	}
 	fake.destroyPipelineReturnsOnCall[i] = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeCommand) ExposePipeline(arg1 string) ([]byte, error) {
+	fake.exposePipelineMutex.Lock()
+	ret, specificReturn := fake.exposePipelineReturnsOnCall[len(fake.exposePipelineArgsForCall)]
+	fake.exposePipelineArgsForCall = append(fake.exposePipelineArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	fake.recordInvocation("ExposePipeline", []interface{}{arg1})
+	fake.exposePipelineMutex.Unlock()
+	if fake.ExposePipelineStub != nil {
+		return fake.ExposePipelineStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.exposePipelineReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeCommand) ExposePipelineCallCount() int {
+	fake.exposePipelineMutex.RLock()
+	defer fake.exposePipelineMutex.RUnlock()
+	return len(fake.exposePipelineArgsForCall)
+}
+
+func (fake *FakeCommand) ExposePipelineCalls(stub func(string) ([]byte, error)) {
+	fake.exposePipelineMutex.Lock()
+	defer fake.exposePipelineMutex.Unlock()
+	fake.ExposePipelineStub = stub
+}
+
+func (fake *FakeCommand) ExposePipelineArgsForCall(i int) string {
+	fake.exposePipelineMutex.RLock()
+	defer fake.exposePipelineMutex.RUnlock()
+	argsForCall := fake.exposePipelineArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeCommand) ExposePipelineReturns(result1 []byte, result2 error) {
+	fake.exposePipelineMutex.Lock()
+	defer fake.exposePipelineMutex.Unlock()
+	fake.ExposePipelineStub = nil
+	fake.exposePipelineReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeCommand) ExposePipelineReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.exposePipelineMutex.Lock()
+	defer fake.exposePipelineMutex.Unlock()
+	fake.ExposePipelineStub = nil
+	if fake.exposePipelineReturnsOnCall == nil {
+		fake.exposePipelineReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.exposePipelineReturnsOnCall[i] = struct {
 		result1 []byte
 		result2 error
 	}{result1, result2}
@@ -483,6 +559,8 @@ func (fake *FakeCommand) Invocations() map[string][][]interface{} {
 	defer fake.invocationsMutex.RUnlock()
 	fake.destroyPipelineMutex.RLock()
 	defer fake.destroyPipelineMutex.RUnlock()
+	fake.exposePipelineMutex.RLock()
+	defer fake.exposePipelineMutex.RUnlock()
 	fake.getPipelineMutex.RLock()
 	defer fake.getPipelineMutex.RUnlock()
 	fake.loginMutex.RLock()

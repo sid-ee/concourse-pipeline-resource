@@ -145,6 +145,10 @@ Must be non-nil and non-empty. The structure of the `pipeline` object is as foll
  be unpaused after the creation. If it is set to `true`, the command
  `unpause-pipeline` will be executed for the specific pipeline.
 
+ - `exposed`: *Optional.* Boolean specifying if the pipeline should
+ be exposed after the creation. If it is set to `true`, the command
+ `expose-pipeline` will be executed for the specific pipeline.
+
 ### dynamic
 
 Resource configuration as above for Check, with the following job configuration:

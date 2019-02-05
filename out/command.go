@@ -89,6 +89,13 @@ func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error)
 			return concourse.OutResponse{}, err
 		}
 
+		if p.Exposed {
+			_, err = c.flyCommand.ExposePipeline(p.Name)
+			if err != nil {
+				return concourse.OutResponse{}, err
+			}
+		}
+
 		if p.Unpaused {
 			_, err = c.flyCommand.UnpausePipeline(p.Name)
 			if err != nil {
