@@ -229,12 +229,13 @@ environment is consistent across any `docker` enabled platform. When the docker
 image builds, the test are run inside the docker container, on failure they
 will stop the build.
 
-The tests needs to be run from one directory up from the directory of the repo. They will also need the linux fly binary placed at `$(cwd)/fly/fly_linux_amd64` e.g:
+The tests needs to be run from one directory up from the directory of the repo. They will also need the fly
+linux tarball (from https://github.com/concourse/concourse/releases) to be present in the `fly/` folder e.g:
 
 ```
 $cwd/
 ├── fly/
-│   └── fly_linux_amd64
+│   └── fly-5.0.0-linux-amd64.tgz
 └── concourse-pipeline-resource/
     ├── .git/
     │    └── ... 

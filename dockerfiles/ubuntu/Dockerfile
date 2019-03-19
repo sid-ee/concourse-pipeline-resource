@@ -1,6 +1,6 @@
 FROM concourse/golang-builder as builder
 RUN mkdir -p /assets
-COPY fly/fly_linux_amd64 /assets/fly
+ADD fly/fly-*-linux-amd64.tgz /assets/
 COPY concourse-pipeline-resource /go/src/github.com/concourse/concourse-pipeline-resource
 ENV CGO_ENABLED 0
 RUN go build -o /assets/in github.com/concourse/concourse-pipeline-resource/cmd/in
