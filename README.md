@@ -229,10 +229,28 @@ environment is consistent across any `docker` enabled platform. When the docker
 image builds, the test are run inside the docker container, on failure they
 will stop the build.
 
-Run the tests with the following command:
+The tests needs to be run from one directory up from the directory of the repo. They will also need the linux fly binary placed at `$(cwd)/fly/fly_linux_amd64` e.g:
+
+```
+$cwd/
+├── fly/
+│   └── fly_linux_amd64
+└── concourse-pipeline-resource/
+    ├── .git/
+    │    └── ... 
+    ├── dockerfiles/
+    │    ├── alpine/
+    │    │    └── Dockerfile
+    │    └── ubuntu/
+    │         └── Dockerfile
+    └── ...
+```
+
+Run the tests with the following commands for both `alpine` and `ubuntu` images:
 
 ```sh
-docker build -t concourse-pipeline-resource .
+docker build -t concourse-pipeline-resource -f concourse-pipeline-resource/dockerfiles/alpine/Dockerfile .
+docker build -t concourse-pipeline-resource -f concourse-pipeline-resource/dockerfiles/ubuntu/Dockerfile .
 ```
 
 ### Contributing
