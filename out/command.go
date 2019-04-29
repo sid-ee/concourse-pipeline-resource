@@ -122,15 +122,9 @@ func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error)
 
 		c.logger.Debugf("Login successful\n")
 
-		pipelines, err := c.flyCommand.Pipelines()
-		if err != nil {
-			return concourse.OutResponse{}, err
-		}
-		c.logger.Debugf("Found pipelines (%s): %+v\n", teamName, pipelines)
-
-		for _, pipelineName := range pipelines {
-			c.logger.Debugf("Getting pipeline: %s\n", pipelineName)
-			outBytes, err := c.flyCommand.GetPipeline(pipelineName)
+		for _, pipeline := range pipelines {
+			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
+			outBytes, err := c.flyCommand.GetPipeline(pipeline.Name)
 			if err != nil {
 				return concourse.OutResponse{}, err
 			}
@@ -139,7 +133,7 @@ func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error)
 				"%x",
 				md5.Sum(outBytes),
 			)
-			pipelineVersions[pipelineName] = version
+			pipelineVersions[pipeline.Name] = version
 		}
 	}
 
