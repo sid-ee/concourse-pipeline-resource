@@ -31,7 +31,6 @@ var _ = Describe("Out", func() {
 		pipelines     []concourse.Pipeline
 
 		apiPipelines    []string
-		getPipelinesErr error
 		setPipelinesErr error
 
 		pipelineContents []string
@@ -59,7 +58,6 @@ var _ = Describe("Out", func() {
 		otherTeamName = "some-other-team"
 
 		apiPipelines = []string{"pipeline-1", "pipeline-2", "pipeline-3"}
-		getPipelinesErr = nil
 		setPipelinesErr = nil
 
 		pipelineContents = make([]string, 3)
@@ -159,7 +157,6 @@ pipeline3: foo
 	})
 
 	JustBeforeEach(func() {
-		fakeFlyCommand.PipelinesReturns(apiPipelines, getPipelinesErr)
 		fakeFlyCommand.SetPipelineReturns(nil, setPipelinesErr)
 
 		sanitized := concourse.SanitizedSource(outRequest.Source)
@@ -288,19 +285,6 @@ pipeline3: foo
 			Expect(err).To(HaveOccurred())
 
 			Expect(err).To(Equal(setPipelinesErr))
-		})
-	})
-
-	Context("when getting pipelines returns an error", func() {
-		BeforeEach(func() {
-			getPipelinesErr = fmt.Errorf("some error")
-		})
-
-		It("returns an error", func() {
-			_, err := command.Run(outRequest)
-			Expect(err).To(HaveOccurred())
-
-			Expect(err).To(Equal(getPipelinesErr))
 		})
 	})
 
