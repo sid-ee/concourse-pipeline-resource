@@ -127,6 +127,9 @@ func (c *Command) Run(input concourse.OutRequest) (concourse.OutResponse, error)
 		c.logger.Debugf("Login successful\n")
 
 		for _, pipeline := range pipelines {
+			if pipeline.TeamName != teamName {
+				continue
+			}
 			c.logger.Debugf("Getting pipeline: %s\n", pipeline.Name)
 			outBytes, err := c.flyCommand.GetPipeline(pipeline.Name)
 			if err != nil {
