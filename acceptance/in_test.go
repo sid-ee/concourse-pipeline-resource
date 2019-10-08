@@ -30,6 +30,9 @@ var _ = Describe("In", func() {
 	BeforeEach(func() {
 		var err error
 
+		By("Restoring environment variables")
+		RestoreEnvVars()
+
 		By("Creating temp directory")
 		destDirectory, err = ioutil.TempDir("", "concourse-pipeline-resource")
 		Expect(err).NotTo(HaveOccurred())
@@ -62,20 +65,56 @@ var _ = Describe("In", func() {
 	})
 
 	Describe("successful behavior", func() {
-		It("downloads all pipeline configs to the target directory", func() {
-			By("Running the command")
-			session := run(command, stdinContents)
+		Context("with a test pipeline", func() {
+			var (
+				testPipelineDir      string
+				testPipelineFilePath string
+				testPipelineName     string
+				testPipelineCreated  bool
+			)
 
-			Eventually(session, inTimeout).Should(gexec.Exit(0))
+			BeforeEach(func() {
+				var err error
 
-			files, err := ioutil.ReadDir(destDirectory)
-			Expect(err).NotTo(HaveOccurred())
+				By("Creating temp directory")
+				testPipelineDir, err = ioutil.TempDir("", "concourse-pipeline-resource")
+				Expect(err).NotTo(HaveOccurred())
 
-			Expect(len(files)).To(BeNumerically(">", 0))
-			for _, file := range files {
-				Expect(file.Name()).To(MatchRegexp(".*\\.yml"))
-				Expect(file.Size()).To(BeNumerically(">", 0))
-			}
+				By("Creating random pipeline name")
+				testPipelineName = fmt.Sprintf("cp-resource-test-%d", time.Now().UnixNano())
+
+				By("Creating test pipeline config file")
+				testPipelineFilePath, err = CreateTestPipelineConfigFile(testPipelineDir, testPipelineName)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Creating a test pipeline")
+				err = SetTestPipeline(testPipelineName, testPipelineFilePath)
+				Expect(err).NotTo(HaveOccurred())
+				testPipelineCreated = true
+			})
+
+			AfterEach(func() {
+				if testPipelineCreated {
+					_, err := flyCommand.DestroyPipeline(testPipelineName)
+					Expect(err).NotTo(HaveOccurred())
+				}
+			})
+
+			It("downloads all pipeline configs to the target directory", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+
+				Eventually(session, inTimeout).Should(gexec.Exit(0))
+
+				files, err := ioutil.ReadDir(destDirectory)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(len(files)).To(BeNumerically(">", 0))
+				for _, file := range files {
+					Expect(file.Name()).To(MatchRegexp(".*\\.yml"))
+					Expect(file.Size()).To(BeNumerically(">", 0))
+				}
+			})
 		})
 
 		It("returns valid json", func() {
@@ -96,7 +135,7 @@ var _ = Describe("In", func() {
 			}
 		})
 
-		Context("target not provided", func() {
+		Context("target not provided by source", func() {
 			BeforeEach(func() {
 				var err error
 				err = os.Setenv("ATC_EXTERNAL_URL", inRequest.Source.Target)
@@ -108,15 +147,32 @@ var _ = Describe("In", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 			})
 
+			It("uses ATC_EXTERNAL_URL instead", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+
+				By("Validating command ran successfully")
+				Eventually(session, inTimeout).Should(gexec.Exit(0))
+			})
+		})
+
+		Context("target not provided at all", func() {
+			BeforeEach(func() {
+				inRequest.Source.Target = ""
+
+				var err error
+				stdinContents, err = json.Marshal(inRequest)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+
 			It("exits with error", func() {
 				By("Running the command")
 				session := run(command, stdinContents)
 
 				By("Validating command exited with error")
 				Eventually(session, inTimeout).Should(gexec.Exit(1))
-				Expect(session.Err).Should(gbytes.Say(".*target.*specified"))
+				Expect(session.Err).Should(gbytes.Say("target must be provided in source"))
 			})
-
 		})
 	})
 

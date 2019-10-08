@@ -51,6 +51,10 @@ var _ = Describe("Out", func() {
 
 	BeforeEach(func() {
 		var err error
+
+		By("Restoring environment variables")
+		RestoreEnvVars()
+
 		By("Creating temp directory")
 		sourcesDir, err = ioutil.TempDir("", "concourse-pipeline-resource")
 		Expect(err).NotTo(HaveOccurred())
