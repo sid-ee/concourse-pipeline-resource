@@ -1,4 +1,8 @@
-# Concourse Pipeline Resource
+# Concourse Pipeline Resource (DEPRECATING)
+
+***This resource is deprecating in favor of the [set_pipeline step](https://concourse-ci.org/jobs.html#schema.step.set-pipeline-step.set_pipeline).***
+
+***If there are limitations to the set_pipeline step that don't let you switch to it right now, please let us know in [concourse/rfcs#31](https://github.com/concourse/rfcs/pull/31)***
 
 Get and set concourse pipelines from concourse.
 
