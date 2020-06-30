@@ -3,6 +3,7 @@ package acceptance
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"time"
@@ -26,6 +27,11 @@ var _ = Describe("Check", func() {
 	)
 
 	BeforeEach(func() {
+		var err error
+
+		By("Restoring environment variables")
+		RestoreEnvVars()
+
 		By("Creating command object")
 		command = exec.Command(checkPath)
 
@@ -45,27 +51,62 @@ var _ = Describe("Check", func() {
 			Version: concourse.Version{},
 		}
 
-		var err error
 		stdinContents, err = json.Marshal(checkRequest)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	Describe("successful behavior", func() {
-		It("returns pipeline versions without error", func() {
-			By("Running the command")
-			session := run(command, stdinContents)
+		Context("with a test pipeline", func() {
+			var (
+				testPipelineDir      string
+				testPipelineFilePath string
+				testPipelineName     string
+				testPipelineCreated  bool
+			)
 
-			By("Validating command exited without error")
-			Eventually(session, checkTimeout).Should(gexec.Exit(0))
+			BeforeEach(func() {
+				var err error
 
-			var resp concourse.CheckResponse
-			err := json.Unmarshal(session.Out.Contents(), &resp)
-			Expect(err).NotTo(HaveOccurred())
+				By("Creating temp directory")
+				testPipelineDir, err = ioutil.TempDir("", "concourse-pipeline-resource")
+				Expect(err).NotTo(HaveOccurred())
 
-			Expect(len(resp)).To(BeNumerically(">", 0))
-			for _, v := range resp {
-				Expect(v).NotTo(BeEmpty())
-			}
+				By("Creating random pipeline name")
+				testPipelineName = fmt.Sprintf("cp-resource-test-%d", time.Now().UnixNano())
+
+				By("Creating test pipeline config file")
+				testPipelineFilePath, err = CreateTestPipelineConfigFile(testPipelineDir, testPipelineName)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Creating a test pipeline")
+				err = SetTestPipeline(testPipelineName, testPipelineFilePath)
+				Expect(err).NotTo(HaveOccurred())
+				testPipelineCreated = true
+			})
+
+			AfterEach(func() {
+				if testPipelineCreated {
+					_, err := flyCommand.DestroyPipeline(testPipelineName)
+					Expect(err).NotTo(HaveOccurred())
+				}
+			})
+
+			It("returns pipeline versions without error", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+
+				By("Validating command exited without error")
+				Eventually(session, checkTimeout).Should(gexec.Exit(0))
+
+				var resp concourse.CheckResponse
+				err := json.Unmarshal(session.Out.Contents(), &resp)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(len(resp)).To(BeNumerically(">", 0))
+				for _, v := range resp {
+					Expect(v).NotTo(BeEmpty())
+				}
+			})
 		})
 
 		Context("target not provided", func() {

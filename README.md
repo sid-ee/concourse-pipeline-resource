@@ -175,46 +175,28 @@ jobs:
 
 ### Prerequisites
 
-* golang is *required* - version 1.9.x is tested; earlier versions may also
+* golang is *required* - version 1.13.x is tested; earlier versions may also
   work.
 * docker is *required* - version 17.06.x is tested; earlier versions may also
   work.
 
 ### Dependencies
 
-Dependencies are vendored in the `vendor` directory, according to the
-[golang 1.5 vendor experiment](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&cad=rja&uact=8&ved=0ahUKEwi7puWg7ZrLAhUN1WMKHeT4A7oQFggdMAA&url=https%3A%2F%2Fgolang.org%2Fs%2Fgo15vendor&usg=AFQjCNEPCAjj1lnni5apHdA7rW0crWs7Zw).
+Dependencies are handled using [go modules](https://github.com/golang/go/wiki/Modules).
 
 #### Updating dependencies
 
-Install [gvt](https://github.com/FiloSottile/gvt) and make sure it is available
-in your $PATH, e.g.:
-
 ```
-go get -u github.com/FiloSottile/gvt
+go mod download
 ```
 
-To add a new dependency:
-```
-gvt fetch
-```
-
-To update an existing dependency to a specific version:
-
-```
-gvt delete <import_path>
-gvt fetch -revision <revision_number> <import_path>
-```
+To add or update a specific dependency version, follow the go modules instructions for [Daily Workflow](https://github.com/golang/go/wiki/Modules#daily-workflow)
 
 ### Running the tests
 
-Install the ginkgo executable with:
+#### Using a local environment
 
-```
-go get -u github.com/onsi/ginkgo/ginkgo
-```
-
-The tests require a running Concourse configured with basic auth to test against.
+The acceptance tests require a running Concourse configured with basic auth to test against.
 
 Run the tests with the following command (optionally also setting `INSECURE=true`):
 
@@ -226,14 +208,13 @@ PASSWORD=my-basic-auth-password \
 ./bin/test
 ```
 
-or with the `Dockerfile`...
+#### Using a Dockerfile
 
-The tests have been embedded with the `Dockerfile`; ensuring that the testing
-environment is consistent across any `docker` enabled platform. When the docker
-image builds, the test are run inside the docker container, on failure they
+**Note**: the `Dockerfile` tests do not run the acceptance tests, but ensure a consistent environment across any `docker` enabled platform. When the docker
+image builds, the tests run inside the docker container, and on failure they
 will stop the build.
 
-The tests needs to be run from one directory up from the directory of the repo. They will also need the fly
+The tests need to be ran from one directory up from the directory of the repo. They will also need the fly
 linux tarball (from https://github.com/concourse/concourse/releases) to be present in the `fly/` folder e.g:
 
 ```
@@ -260,4 +241,4 @@ docker build -t concourse-pipeline-resource -f concourse-pipeline-resource/docke
 
 ### Contributing
 
-Please [ensure the tests pass locally](https://github.com/concourse/concourse-pipeline-resource#running-the-tests).
+Please [ensure the tests pass locally](#running-the-tests).

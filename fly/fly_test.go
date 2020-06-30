@@ -257,18 +257,12 @@ echo '[{"name":"abc"},{"name":"def"}]'
 				output, err := flyCommand.SetPipeline(pipelineName, configFilepath, nil, vars)
 				Expect(err).NotTo(HaveOccurred())
 
-				expectedOutput := fmt.Sprintf(
-					"%s %s %s %s %s %s %s %s %s %s %s %s\n",
-					"-t", target,
-					"set-pipeline",
-					"-n",
-					"-p", pipelineName,
-					"-c", configFilepath,
-					"-y", "launch-missiles=true",
-					"-y", "credentials={\"password\":\"admin\",\"username\":\"admin\"}",
-				)
-
-				Expect(string(output)).To(Equal(expectedOutput))
+				Expect(string(output)).To(HavePrefix("-t %s set-pipeline", target))
+				Expect(string(output)).To(ContainSubstring("-n"))
+				Expect(string(output)).To(ContainSubstring("-p %s", pipelineName))
+				Expect(string(output)).To(ContainSubstring("-c %s", configFilepath))
+				Expect(string(output)).To(ContainSubstring("-y launch-missiles=true"))
+				Expect(string(output)).To(ContainSubstring("-y credentials={\"password\":\"admin\",\"username\":\"admin\"}"))
 			})
 		})
 

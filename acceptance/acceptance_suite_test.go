@@ -3,11 +3,13 @@ package acceptance
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/concourse/concourse-pipeline-resource/fly"
 	"github.com/concourse/concourse-pipeline-resource/logger"
@@ -37,8 +39,66 @@ var (
 	password string
 	insecure bool
 
+	env map[string]string
+
 	flyCommand fly.Command
 )
+
+func CaptureEnvVars() map[string]string {
+	capturedEnv := make(map[string]string)
+	// get list of current Key=Value
+	currentEnv := os.Environ()
+	// iterate and split into "Key": "Value"
+	for _, envVarItem := range currentEnv {
+		// split into before and after the first =
+		envVarItemKeyValue := strings.SplitN(envVarItem, "=", 2)
+		envVarItemKey := envVarItemKeyValue[0]
+		envVarItemValue := envVarItemKeyValue[1]
+		capturedEnv[envVarItemKey] = envVarItemValue
+	}
+	return capturedEnv
+}
+
+func RestoreEnvVars() {
+	os.Clearenv()
+	var err error
+	for envVarKey, envVarValue := range env {
+		err = os.Setenv(envVarKey, envVarValue)
+		if err != nil {
+			fmt.Fprintln(GinkgoWriter, err.Error())
+		}
+	}
+}
+
+func CreateTestPipelineConfigFile(dirPath, pipelineName string) (string, error) {
+	var err error
+
+	pipelineConfig := `---
+resources:
+- name: concourse-pipeline-resource-repo
+  type: git
+  source:
+    uri: https://github.com/concourse/concourse-pipeline-resource.git
+    branch: master
+jobs:
+- name: get-concourse-pipeline-resource-repo
+  plan:
+  - get: concourse-pipeline-resource-repo
+`
+
+	pipelineConfigFileName := fmt.Sprintf("%s.yml", pipelineName)
+	pipelineConfigFilePath := filepath.Join(dirPath, pipelineConfigFileName)
+	err = ioutil.WriteFile(pipelineConfigFilePath, []byte(pipelineConfig), os.ModePerm)
+	return pipelineConfigFilePath, err
+}
+
+func SetTestPipeline(pipelineName string, configFilePath string) error {
+	var err error
+	var setOutput []byte
+	setOutput, err = flyCommand.SetPipeline(pipelineName, configFilePath, nil, nil)
+	fmt.Fprintf(GinkgoWriter, "pipeline '%s' set; output:\n\n%s\n", pipelineName, string(setOutput))
+	return err
+}
 
 func TestAcceptance(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -47,6 +107,9 @@ func TestAcceptance(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	var err error
+
+	By("Capturing current environment variables")
+	env = CaptureEnvVars()
 
 	By("Getting target from environment variables")
 	target = os.Getenv("TARGET")
