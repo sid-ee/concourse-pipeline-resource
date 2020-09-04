@@ -5,15 +5,19 @@ ENV CGO_ENABLED 0
 
 RUN mkdir -p /assets/ /app/
 
-ADD fly/fly-*-linux-amd64.tgz /assets/
+ARG CONCOURSE_VERSION=6.5.1
 
-COPY concourse-pipeline-resource/go.mod concourse-pipeline-resource/go.sum /app/
+# install fly-cli
+ARG FLY_DOWNLOAD_URL="https://github.com/concourse/concourse/releases/download/v${CONCOURSE_VERSION}/fly-${CONCOURSE_VERSION}-linux-amd64.tgz"
+ADD ${FLY_DOWNLOAD_URL} /assets/
+
+COPY ./go.mod ./go.sum /app/
 
 WORKDIR /app/
 
 RUN go mod download
 
-COPY concourse-pipeline-resource/ /app/
+COPY ./ /app/
 
 RUN go build -o /assets/in ./cmd/in \
 	&& go build -o /assets/out ./cmd/out \
