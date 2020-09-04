@@ -2,9 +2,14 @@ package concourse
 
 type Source struct {
 	Target   string `json:"target"`
+	Teams    []Team `json:"teams"`
+	Insecure string `json:"insecure"`
+}
+
+type Team struct {
+	Name     string `json:"name"`
 	Username string `json:"username"`
 	Password string `json:"password"`
-	Insecure string `json:"insecure"`
 }
 
 type CheckRequest struct {
@@ -46,9 +51,13 @@ type OutParams struct {
 }
 
 type Pipeline struct {
-	Name       string   `json:"name" yaml:"name"`
-	ConfigFile string   `json:"config_file" yaml:"config_file"`
-	VarsFiles  []string `json:"vars_files" yaml:"vars_files"`
+	Name       string                 `json:"name" yaml:"name"`
+	ConfigFile string                 `json:"config_file" yaml:"config_file"`
+	VarsFiles  []string               `json:"vars_files" yaml:"vars_files"`
+	Vars       map[string]interface{} `json:"vars" yaml:"vars"`
+	TeamName   string                 `json:"team" yaml:"team"`
+	Unpaused   bool                   `json:"unpaused" yaml:"unpaused"`
+	Exposed    bool                   `json:"exposed" yaml:"exposed"`
 }
 
 type OutResponse struct {

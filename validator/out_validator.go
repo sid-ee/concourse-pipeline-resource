@@ -3,16 +3,22 @@ package validator
 import (
 	"fmt"
 
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 )
 
 func ValidateOut(input concourse.OutRequest) error {
-	if input.Source.Username == "" {
-		return fmt.Errorf("%s must be provided", "username")
+	err := ValidateTeams(input.Source.Teams)
+	if err != nil {
+		return err
 	}
 
-	if input.Source.Password == "" {
-		return fmt.Errorf("%s must be provided", "password")
+	sourceTeamNames := []string{}
+	for _, team := range input.Source.Teams {
+		sourceTeamNames = append(sourceTeamNames, team.Name)
+	}
+
+	if input.Source.Target == "" {
+		return fmt.Errorf("%s must be provided in source", "target")
 	}
 
 	var pipelinesFilePresent bool
@@ -51,6 +57,14 @@ func ValidateOut(input concourse.OutRequest) error {
 			return fmt.Errorf("%s must be provided for pipeline[%d]", "config_file", i)
 		}
 
+		if p.TeamName == "" {
+			return fmt.Errorf("%s must be provided for pipeline[%d]", "team", i)
+		}
+
+		if !stringContains(sourceTeamNames, p.TeamName) {
+			return fmt.Errorf("team name '%s' not found in source team names: %v", p.TeamName, sourceTeamNames)
+		}
+
 		// vars files can be nil as it is optional.
 		if p.VarsFiles != nil {
 			// However, if it is provided it must be non-empty
@@ -72,4 +86,14 @@ func ValidateOut(input concourse.OutRequest) error {
 	}
 
 	return nil
+}
+
+func stringContains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+
+	return false
 }

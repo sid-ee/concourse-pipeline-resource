@@ -3,15 +3,16 @@ package acceptance
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"time"
 
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 )
 
 const (
@@ -26,6 +27,11 @@ var _ = Describe("Check", func() {
 	)
 
 	BeforeEach(func() {
+		var err error
+
+		By("Restoring environment variables")
+		RestoreEnvVars()
+
 		By("Creating command object")
 		command = exec.Command(checkPath)
 
@@ -33,34 +39,74 @@ var _ = Describe("Check", func() {
 		checkRequest = concourse.CheckRequest{
 			Source: concourse.Source{
 				Target:   target,
-				Username: username,
-				Password: password,
 				Insecure: fmt.Sprintf("%t", insecure),
+				Teams: []concourse.Team{
+					{
+						Name:     teamName,
+						Username: username,
+						Password: password,
+					},
+				},
 			},
 			Version: concourse.Version{},
 		}
 
-		var err error
 		stdinContents, err = json.Marshal(checkRequest)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	Describe("successful behavior", func() {
-		It("returns pipeline versions without error", func() {
-			By("Running the command")
-			session := run(command, stdinContents)
+		Context("with a test pipeline", func() {
+			var (
+				testPipelineDir      string
+				testPipelineFilePath string
+				testPipelineName     string
+				testPipelineCreated  bool
+			)
 
-			By("Validating command exited without error")
-			Eventually(session, checkTimeout).Should(gexec.Exit(0))
+			BeforeEach(func() {
+				var err error
 
-			var resp concourse.CheckResponse
-			err := json.Unmarshal(session.Out.Contents(), &resp)
-			Expect(err).NotTo(HaveOccurred())
+				By("Creating temp directory")
+				testPipelineDir, err = ioutil.TempDir("", "concourse-pipeline-resource")
+				Expect(err).NotTo(HaveOccurred())
 
-			Expect(len(resp)).To(BeNumerically(">", 0))
-			for _, v := range resp {
-				Expect(v).NotTo(BeEmpty())
-			}
+				By("Creating random pipeline name")
+				testPipelineName = fmt.Sprintf("cp-resource-test-%d", time.Now().UnixNano())
+
+				By("Creating test pipeline config file")
+				testPipelineFilePath, err = CreateTestPipelineConfigFile(testPipelineDir, testPipelineName)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Creating a test pipeline")
+				err = SetTestPipeline(testPipelineName, testPipelineFilePath)
+				Expect(err).NotTo(HaveOccurred())
+				testPipelineCreated = true
+			})
+
+			AfterEach(func() {
+				if testPipelineCreated {
+					_, err := flyCommand.DestroyPipeline(testPipelineName)
+					Expect(err).NotTo(HaveOccurred())
+				}
+			})
+
+			It("returns pipeline versions without error", func() {
+				By("Running the command")
+				session := run(command, stdinContents)
+
+				By("Validating command exited without error")
+				Eventually(session, checkTimeout).Should(gexec.Exit(0))
+
+				var resp concourse.CheckResponse
+				err := json.Unmarshal(session.Out.Contents(), &resp)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(len(resp)).To(BeNumerically(">", 0))
+				for _, v := range resp {
+					Expect(v).NotTo(BeEmpty())
+				}
+			})
 		})
 
 		Context("target not provided", func() {
@@ -93,7 +139,7 @@ var _ = Describe("Check", func() {
 
 	Context("when validation fails", func() {
 		BeforeEach(func() {
-			checkRequest.Source.Username = ""
+			checkRequest.Source.Teams = nil
 
 			var err error
 			stdinContents, err = json.Marshal(checkRequest)
@@ -106,7 +152,7 @@ var _ = Describe("Check", func() {
 
 			By("Validating command exited with error")
 			Eventually(session, checkTimeout).Should(gexec.Exit(1))
-			Expect(session.Err).Should(gbytes.Say(".*username.*provided"))
+			Expect(session.Err).Should(gbytes.Say(".*teams.*provided"))
 		})
 	})
 })

@@ -3,18 +3,31 @@ package acceptance
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 
+	"github.com/concourse/concourse-pipeline-resource/fly"
+	"github.com/concourse/concourse-pipeline-resource/logger"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse/api"
-	"github.com/robdimsdale/concourse-pipeline-resource/sanitizer"
+	"github.com/robdimsdale/sanitizer"
 
 	"testing"
 )
+
+const (
+	teamName = "main"
+)
+
+type Client interface {
+	DeletePipeline(teamName string, pipelineName string) error
+}
 
 var (
 	inPath    string
@@ -26,8 +39,66 @@ var (
 	password string
 	insecure bool
 
-	apiClient api.Client
+	env map[string]string
+
+	flyCommand fly.Command
 )
+
+func CaptureEnvVars() map[string]string {
+	capturedEnv := make(map[string]string)
+	// get list of current Key=Value
+	currentEnv := os.Environ()
+	// iterate and split into "Key": "Value"
+	for _, envVarItem := range currentEnv {
+		// split into before and after the first =
+		envVarItemKeyValue := strings.SplitN(envVarItem, "=", 2)
+		envVarItemKey := envVarItemKeyValue[0]
+		envVarItemValue := envVarItemKeyValue[1]
+		capturedEnv[envVarItemKey] = envVarItemValue
+	}
+	return capturedEnv
+}
+
+func RestoreEnvVars() {
+	os.Clearenv()
+	var err error
+	for envVarKey, envVarValue := range env {
+		err = os.Setenv(envVarKey, envVarValue)
+		if err != nil {
+			fmt.Fprintln(GinkgoWriter, err.Error())
+		}
+	}
+}
+
+func CreateTestPipelineConfigFile(dirPath, pipelineName string) (string, error) {
+	var err error
+
+	pipelineConfig := `---
+resources:
+- name: concourse-pipeline-resource-repo
+  type: git
+  source:
+    uri: https://github.com/concourse/concourse-pipeline-resource.git
+    branch: master
+jobs:
+- name: get-concourse-pipeline-resource-repo
+  plan:
+  - get: concourse-pipeline-resource-repo
+`
+
+	pipelineConfigFileName := fmt.Sprintf("%s.yml", pipelineName)
+	pipelineConfigFilePath := filepath.Join(dirPath, pipelineConfigFileName)
+	err = ioutil.WriteFile(pipelineConfigFilePath, []byte(pipelineConfig), os.ModePerm)
+	return pipelineConfigFilePath, err
+}
+
+func SetTestPipeline(pipelineName string, configFilePath string) error {
+	var err error
+	var setOutput []byte
+	setOutput, err = flyCommand.SetPipeline(pipelineName, configFilePath, nil, nil)
+	fmt.Fprintf(GinkgoWriter, "pipeline '%s' set; output:\n\n%s\n", pipelineName, string(setOutput))
+	return err
+}
 
 func TestAcceptance(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -37,17 +108,18 @@ func TestAcceptance(t *testing.T) {
 var _ = BeforeSuite(func() {
 	var err error
 
+	By("Capturing current environment variables")
+	env = CaptureEnvVars()
+
 	By("Getting target from environment variables")
 	target = os.Getenv("TARGET")
 	Expect(target).NotTo(BeEmpty(), "$TARGET must be provided")
 
 	By("Getting username from environment variables")
 	username = os.Getenv("USERNAME")
-	Expect(username).NotTo(BeEmpty(), "$USERNAME must be provided")
 
 	By("Getting password from environment variables")
 	password = os.Getenv("PASSWORD")
-	Expect(password).NotTo(BeEmpty(), "$PASSWORD must be provided")
 
 	insecureFlag := os.Getenv("INSECURE")
 	if insecureFlag != "" {
@@ -57,15 +129,43 @@ var _ = BeforeSuite(func() {
 	}
 
 	By("Compiling check binary")
-	checkPath, err = gexec.Build("github.com/robdimsdale/concourse-pipeline-resource/cmd/check", "-race")
+	checkPath, err = gexec.Build("github.com/concourse/concourse-pipeline-resource/cmd/check", "-race")
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Compiling out binary")
-	outPath, err = gexec.Build("github.com/robdimsdale/concourse-pipeline-resource/cmd/out", "-race")
+	outPath, err = gexec.Build("github.com/concourse/concourse-pipeline-resource/cmd/out", "-race")
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Compiling in binary")
-	inPath, err = gexec.Build("github.com/robdimsdale/concourse-pipeline-resource/cmd/in", "-race")
+	inPath, err = gexec.Build("github.com/concourse/concourse-pipeline-resource/cmd/in", "-race")
+	Expect(err).NotTo(HaveOccurred())
+
+	By("Copying fly to compilation location")
+	originalFlyPathPath := os.Getenv("FLY_LOCATION")
+	Expect(originalFlyPathPath).NotTo(BeEmpty(), "$FLY_LOCATION must be provided")
+	_, err = os.Stat(originalFlyPathPath)
+	Expect(err).NotTo(HaveOccurred())
+
+	checkFlyPath := filepath.Join(path.Dir(checkPath), "fly")
+	copyFileContents(originalFlyPathPath, checkFlyPath)
+	Expect(err).NotTo(HaveOccurred())
+
+	inFlyPath := filepath.Join(path.Dir(inPath), "fly")
+	copyFileContents(originalFlyPathPath, inFlyPath)
+	Expect(err).NotTo(HaveOccurred())
+
+	outFlyPath := filepath.Join(path.Dir(outPath), "fly")
+	copyFileContents(originalFlyPathPath, outFlyPath)
+	Expect(err).NotTo(HaveOccurred())
+
+	By("Ensuring copies of fly is executable")
+	err = os.Chmod(checkFlyPath, os.ModePerm)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = os.Chmod(inFlyPath, os.ModePerm)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = os.Chmod(outFlyPath, os.ModePerm)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Sanitizing acceptance test output")
@@ -75,14 +175,13 @@ var _ = BeforeSuite(func() {
 	sanitizer := sanitizer.NewSanitizer(sanitized, GinkgoWriter)
 	GinkgoWriter = sanitizer
 
-	By("Creating API Client")
-	httpClient := api.HTTPClient(
-		username,
-		password,
-		insecure,
-	)
+	By("Creating fly connection")
+	l := logger.NewLogger(sanitizer)
+	flyCommand = fly.NewCommand("concourse-pipeline-resource-target", l, inFlyPath)
 
-	apiClient = api.NewClient(target, httpClient)
+	By("Logging in with fly")
+	_, err = flyCommand.Login(target, teamName, username, password, insecure)
+	Expect(err).NotTo(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {

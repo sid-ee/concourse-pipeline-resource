@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/concourse/concourse-pipeline-resource/cmd/out/filereader"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/robdimsdale/concourse-pipeline-resource/cmd/out/filereader"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 	"gopkg.in/yaml.v2"
 )
 
@@ -35,11 +35,13 @@ var _ = Describe("Filereader", func() {
 					"vars_1.yml",
 					"vars_2.yml",
 				},
+				Vars: map[string]interface{}{},
 			},
 			{
 				Name:       "name-2",
 				ConfigFile: "pipeline_2.yml",
 				VarsFiles:  []string{},
+				Vars:       map[string]interface{}{},
 			},
 		}
 

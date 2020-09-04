@@ -11,11 +11,11 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
 )
 
 const (
@@ -40,6 +40,8 @@ var _ = Describe("Out", func() {
 		varsFileFilename string
 		varsFileFilepath string
 
+		vars map[string]interface{}
+
 		pipelinesFileContentsBytes []byte
 		pipelinesFileFilename      string
 		pipelinesFileFilepath      string
@@ -49,6 +51,10 @@ var _ = Describe("Out", func() {
 
 	BeforeEach(func() {
 		var err error
+
+		By("Restoring environment variables")
+		RestoreEnvVars()
+
 		By("Creating temp directory")
 		sourcesDir, err = ioutil.TempDir("", "concourse-pipeline-resource")
 		Expect(err).NotTo(HaveOccurred())
@@ -61,8 +67,9 @@ var _ = Describe("Out", func() {
 resources:
 - name: concourse-pipeline-resource-repo
   type: git
-  uri: https://github.com/robdimsdale/concourse-pipeline-resource.git
-  branch: {{foo}}
+  source:
+    uri: https://github.com/concourse/concourse-pipeline-resource.git
+    branch: {{foo}}
 jobs:
 - name: get-concourse-pipeline-resource-repo
   plan:
@@ -82,6 +89,11 @@ jobs:
 		err = ioutil.WriteFile(varsFileFilepath, []byte(varsFileContents), os.ModePerm)
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Assigning some variables")
+		vars = map[string]interface{}{
+			"launch-missiles": true,
+		}
+
 		By("Creating command object")
 		command = exec.Command(outPath, sourcesDir)
 
@@ -89,10 +101,12 @@ jobs:
 		pipelines = []concourse.Pipeline{
 			{
 				Name:       pipelineName,
+				TeamName:   teamName,
 				ConfigFile: pipelineConfigFilename,
 				VarsFiles: []string{
 					varsFileFilename,
 				},
+				Vars: vars,
 			},
 		}
 
@@ -119,9 +133,14 @@ jobs:
 		outRequest = concourse.OutRequest{
 			Source: concourse.Source{
 				Target:   target,
-				Username: username,
-				Password: password,
 				Insecure: fmt.Sprintf("%t", insecure),
+				Teams: []concourse.Team{
+					{
+						Name:     teamName,
+						Username: username,
+						Password: password,
+					},
+				},
 			},
 			Params: concourse.OutParams{
 				Pipelines:     pipelines,
@@ -136,7 +155,7 @@ jobs:
 
 	Describe("Creating pipelines successfully", func() {
 		AfterEach(func() {
-			err := apiClient.DeletePipeline(pipelineName)
+			_, err := flyCommand.DestroyPipeline(pipelineName)
 			Expect(err).NotTo(HaveOccurred())
 		})
 

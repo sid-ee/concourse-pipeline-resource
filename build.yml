@@ -1,0 +1,19 @@
+---
+platform: linux
+image_resource:
+  type: docker-image
+  source:
+    repository: concourse/static-golang
+
+inputs:
+- name: concourse-pipeline-resource
+  path: gopath/src/github.com/concourse/concourse-pipeline-resource
+- name: fly
+
+outputs:
+- name: built-resource
+
+run:
+  path: gopath/src/github.com/concourse/concourse-pipeline-resource/scripts/ci
+  args:
+  - -skipPackage=acceptance

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/concourse/concourse-pipeline-resource/logger"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/robdimsdale/concourse-pipeline-resource/logger"
 )
 
 var _ = Describe("Logger", func() {

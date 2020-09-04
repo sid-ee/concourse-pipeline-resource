@@ -3,17 +3,13 @@ package validator
 import (
 	"fmt"
 
-	"github.com/robdimsdale/concourse-pipeline-resource/concourse"
+	"github.com/concourse/concourse-pipeline-resource/concourse"
 )
 
 func ValidateIn(input concourse.InRequest) error {
-	if input.Source.Username == "" {
-		return fmt.Errorf("%s must be provided", "username")
+	if input.Source.Target == "" {
+		return fmt.Errorf("%s must be provided in source", "target")
 	}
 
-	if input.Source.Password == "" {
-		return fmt.Errorf("%s must be provided", "password")
-	}
-
-	return nil
+	return ValidateTeams(input.Source.Teams)
 }
