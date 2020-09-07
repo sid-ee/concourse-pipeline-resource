@@ -32,10 +32,10 @@ RUN go build -o /assets/in ./cmd/in \
 FROM alpine:edge AS resource
 RUN apk add --no-cache bash tzdata ca-certificates
 COPY --from=builder assets/ /opt/resource/
-RUN tar xzvf /opt/resource/fly*.tgz \
+RUN cd /opt/resource/ \
+    && tar xzvf /opt/resource/fly*.tgz \
     && rm /opt/resource/fly*.tgz
 RUN chmod +x /opt/resource/*
-
 # test image
 # ============================================================================
 FROM resource AS tests
@@ -43,6 +43,7 @@ COPY --from=builder /tests /go-tests
 RUN set -e; for test in /go-tests/*.test; do \
 		$test; \
 	done
+RUN /opt/resource/fly --version
 
 # export runtime image
 # ============================================================================
