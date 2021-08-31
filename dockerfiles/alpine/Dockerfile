@@ -5,7 +5,7 @@ ENV CGO_ENABLED 0
 
 RUN mkdir -p /assets/ /app/
 
-ARG CONCOURSE_VERSION=6.5.1
+ARG CONCOURSE_VERSION=7.4.0
 
 # install fly-cli
 ARG FLY_DOWNLOAD_URL="https://github.com/concourse/concourse/releases/download/v${CONCOURSE_VERSION}/fly-${CONCOURSE_VERSION}-linux-amd64.tgz"
